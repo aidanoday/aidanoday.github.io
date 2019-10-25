@@ -9,7 +9,7 @@
 .par1{
   font-family: "Roboto";
   font-style: normal;
-  font-weight: 300;
+  font-weight: 600;
   font-size: 18px;
   line-height: 21px;
   text-align: justify;
@@ -29,8 +29,11 @@ a {
 }
 
 .container {
+  position: relative;
+  margin-top: 100px;
+  margin-left: 100px;
   display:grid;
-  width:400px;
+  width:inherit;
   grid-template-rows: 100px 100px 100px;
   grid-template-columns: 400px;
   background-color: skyblue;
@@ -47,18 +50,16 @@ a {
   padding-top: 25px
 }
 
-.col{
-  font-family:sans-serif, "Roboto";
-  font-weight:700;
-  
-}
-.balls{
-  font-family: cursive;
-  font-size: 36px;
-  border: 20px #fff;
+#wrapper-mobileweb{
+  margin-top:20px;
+  margin-left: 100px;
+  margin-right: calc(100% - 1280px);
+  margin-bottom:30px;
+  width: 1180px;
+  height: 2089px;
 }
 
-</*Elements of the layout including titles, section wrappers, and grid containers holding section content.
+</*Elements of the layout including titles, section wrappers, and grid containers holding section content.*/>
 .heading-wrapper{
   margin-top:100px;
   margin-left: 100px;
@@ -100,7 +101,7 @@ a {
 }
 
 
-</*Subcontainers holding a media/text pairing.
+</*Subcontainers holding a media/text pairing.*/>
 .text-then-media1{
   grid-column-start: 1;
   grid-column-end: 2;
@@ -141,12 +142,10 @@ a {
 }
 
 
-</*Other Stuff
+</*Other Stuff*/>
 
 .pink-top-filler{
   height:150px;
   width:inherit;
   background-color:deeppink;
 }
-
-*/>
