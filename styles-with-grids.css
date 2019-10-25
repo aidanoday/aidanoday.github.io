@@ -1,0 +1,109 @@
+</*Text Stylesheet and general settings*/>
+
+.hed1{
+  font-family: "Roboto";
+  font-style: normal;
+  font-weight: 900;
+  font-size: 36px;
+  color: #000000;
+  height: 36px;
+  margin-top: 0px;
+  margin-bottom: 25px
+}
+
+.par1{
+  font-family: "Roboto";
+  font-style: normal;
+  font-weight: 300;
+  font-size: 18px;
+  line-height: 21px;
+  text-align: justify;
+  word-wrap: normal;
+  color: #000000;
+  margin:0px;
+}
+
+.img {
+  width: inherit;
+}
+
+
+
+</*These refer to elements of the layout including titles, section wrappers, and grid containers holding section content.*/>
+#wrapper-heading{
+  margin-top:100px;
+  margin-left: 100px;
+  margin-right: calc(100% - 1280px);
+  margin-bottom:30px;
+  width: 1180px;
+  height: 173px;
+}
+  .text-left{
+    position: relative;
+    float: left;
+    width: 245px;
+}
+  .media-right{
+    position:relative;
+    float: right;
+    width: 900px;
+}
+
+#wrapper-title{
+  margin-left: 100px;
+  margin-right: calc(100% - 1280px);
+  width: 1180px;
+  height: 50px;
+}
+
+  .section-line{
+    position: relative;
+    width: inherit;
+    height: 0px;
+    top: 45px;
+    border: 1px solid #000000;
+}
+
+#wrapper-mobileweb{
+  margin-top:20px;
+  margin-left: 100px;
+  margin-right: calc(100% - 1280px);
+  margin-bottom:30px;
+  width: 1180px;
+  height: 2089px;
+}
+.mobileweb-gridContainer{
+  grid-template-rows: 864px 50px 520px 50px 605px
+}
+
+
+</*These refer to subcontainers holding a media/text pairing.*/>
+.text-then-media{
+  grid-template-columns: 245px auto 900px;
+}
+
+.media-then-text{
+  grid-template-rows: 900px auto 245px;
+}
+
+</*These refer to specifications for text and media that occupy either the left or right column*/>
+.left-column{
+  grid-column-start: 1;
+  grid-column-end: 2;
+  text-align: left;
+}
+
+.right-column{
+  grid-column-start: 3;
+  grid-column-end: 4;
+  text-align: right;
+}
+
+
+</*Other Stuff*/>
+
+.pink-top-filler{
+  height:150px;
+  width:inherit;
+  background-color:deeppink;
+}
