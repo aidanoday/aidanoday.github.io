@@ -33,8 +33,14 @@ a {
   text-decoration: none;
 }
 
+.container {
+  display:grid;
+  grid-template-rows: 100 100 100;
+  grid-template-columns: 400;
+  background-color: skyblue;
+}
 
-</*Elements of the layout including titles, section wrappers, and grid containers holding section content.*/>
+</*Elements of the layout including titles, section wrappers, and grid containers holding section content.
 .heading-wrapper{
   margin-top:100px;
   margin-left: 100px;
@@ -76,7 +82,7 @@ a {
 }
 
 
-</*Subcontainers holding a media/text pairing.*/>
+</*Subcontainers holding a media/text pairing.
 .text-then-media1{
   grid-column-start: 1;
   grid-column-end: 2;
@@ -117,10 +123,12 @@ a {
 }
 
 
-</*Other Stuff*/>
+</*Other Stuff
 
 .pink-top-filler{
   height:150px;
   width:inherit;
   background-color:deeppink;
 }
+
+*/>
