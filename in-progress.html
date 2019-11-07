@@ -12,6 +12,11 @@
     
   </head>
   <body>
+       <div id="navbar">
+            <a class= "active" href="home.html">HOME</a>
+            <a href="about.html">ABOUT</a>
+            <a href="in-progress.html">IN PROGRESS</a>
+       </div>
        <div class="sec1-wrapper">
           <div class="text-then-media1">
                <div class="left-column">
@@ -126,5 +131,19 @@
                  </div>
             </div>
        </div>
+       
+<script>
+var prevScrollpos = window.pageYOffset;
+window.onscroll = function() {
+var currentScrollPos = window.pageYOffset;
+  if (prevScrollpos > currentScrollPos) {
+    document.getElementById("navbar").style.top = "0";
+  } else {
+    document.getElementById("navbar").style.top = "-50px";
+  }
+  prevScrollpos = currentScrollPos;
+}
+</script>
+       
      </body>
 </html>
