@@ -232,14 +232,14 @@ a:hover{
      height: 540px;
      width: 925px;
      margin-left: -500px;
-     background: gray;
+     background: none;
      display: flex;
 }
 .gray-filler-right{
      margin top 100px;
      height: 540px;
      width: 925px;
-     background: gray;
+     background: none;
      display:flex;
      align-content: flex-start;
      
