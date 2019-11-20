@@ -100,10 +100,10 @@ a:hover{
   margin-right: calc((100% - 1000px)/2);
   margin-bottom:30px;
   width: 1000px;
-  height: 2019px;
+  height: 1819px;
   display: grid;
   grid-template-columns: 1000px;
-  grid-template-rows: 1358px 100px 544px;
+  grid-template-rows: 1158px 100px 544px;
 }
 
 #sec4-wrapper{
@@ -112,10 +112,10 @@ a:hover{
   margin-right: calc((100% - 1000px)/2);
   margin-bottom:30px;
   width: 1000px;
-  height: 1391px;
+  height: 1191px;
   display: grid;
   grid-template-columns: 1000px;
-  grid-template-rows: 1391px;
+  grid-template-rows: 1191px;
 }
 
 #sec5-wrapper{

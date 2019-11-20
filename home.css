@@ -34,6 +34,10 @@ a:hover{
      color:orangered;
 }
 
+img {
+     object-fit: contain;
+}
+
 .centered{
   resize:none;
   flex-shrink:0;
@@ -136,7 +140,7 @@ a:hover{
   width: 1000px;
   height: auto;
   display: grid;
-  grid-template-columns: 1100px;
+  grid-template-columns: 1000px;
   grid-template-rows: 540px 100px;
 }
 
@@ -228,20 +232,21 @@ a:hover{
 
 /* other stuff*/
 .gray-filler-left{
+     position: relative;
      margin top 100px;
      height: 540px;
-     width: 925px;
-     margin-left: -500px;
+     width: 725px;
      background: none;
      display: flex;
+     justify-content: space-around;
 }
 .gray-filler-right{
      margin top 100px;
      height: 540px;
-     width: 925px;
+     width: 725px;
      background: none;
      display:flex;
-     align-content: flex-start;
+     align-content: space-around;
      
 }
 .hero-image{
@@ -257,4 +262,9 @@ a:hover{
 }
 .spacer{
      margin-top: 100px;
+}
+
+#more-projects{
+     float:
+     
 }
