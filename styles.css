@@ -2,7 +2,10 @@
 
 
 :root {
-
+    --Fill: #ffffff;
+    --Text: #000000;
+    --FillAlt: #000000;
+    --TextAlt: #ffffff;
 }
 
 h1 {
@@ -23,10 +26,12 @@ h4 {
 
 p {
     font-family: Helvetica, sans-serif;
+    font-weight: 100;
 }
 
 a {
     font-family: Helvetica, sans-serif;
+    font-weight: 100;
 }
 
 nav{
