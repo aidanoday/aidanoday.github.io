@@ -6,16 +6,27 @@
     <link rel="shortcut icon" href="/favicon.ico" type="image/x-icon"/>
     <link rel="apple-touch-icon" href="/favicon.ico" type="image/x-icon"/>
     
-    <link rel="stylesheet" href="/home.css" >
+    <link rel="stylesheet" href="home.css" >
     
     <link href="https://fonts.googleapis.com/css?family=Roboto:300,900&display=swap" rel="stylesheet">
+       
+<!-- Global site tag (gtag.js) - Google Analytics -->
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-477GGT5EDH"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+
+  gtag('config', 'G-477GGT5EDH');
+</script>
     
   </head>
   <body>
        <div id="navbar">
-            <a class= "active" href="home.html">HOME</a>
-            <a href="about.html">ABOUT</a>
-            <a href="in-progress.html">IN PROGRESS</a>
+          <a href="../index.html">BACK to 2022</a>
+          <a class="you-are-here">HOME</a>
+          <a href="about.html">ABOUT</a>
+          <a href="in-progress.html">MORESTUFF</a>
        </div>
        <div class="sec1-wrapper">
           <div class="text-then-media1">
@@ -40,6 +51,7 @@
        <div class="section-line"></div>
 
        <div id="sec2-wrapper">
+            <a href= "breakdown-tote.html">
             <div class="media-then-text1">
                  <div class="left-column">
                            <div class="gray-filler-left">
@@ -53,7 +65,8 @@
                       </div>
                  </div>
             </div>
-            
+            </a>
+            <a href="tactile-cube.html" class= "spacer">
             <div class="text-then-media2">
                  <div class="left-column">
                       <div class="hed1">Tactile Sensory Cube</div>
@@ -66,6 +79,7 @@
                       </div>
                  </div>
             </div>
+            </a>
             
             
       </div>
@@ -78,10 +92,11 @@
       <div class="section-line"></div>
     
       <div id="sec3-wrapper">
+           <a href= "cheat-code.html">
            <div class="media-then-text1">
                 <div class="right-column">
                      <div class="hed1">Cheating at Dartmouth</div>
-                     <div class="par1">You got it all wrong, pal!  These test answers just fell off the back of a Truck!  Hows was I supposed to know them was the very same as the big test.  Coulda fooled me!  Look, I didn’ t mean no harm- and who got hurt, really?  Just me right?  Don’t I got the right to cheat myself of an expensive education?</div>
+                     <div class="par1">"You got it all wrong, pal!  These test answers just fell off the back of a Truck!  Hows was I supposed to know them was the very same as the big test.  Coulda fooled me!  Look, I didn’ t mean no harm- and who got hurt, really?  Just me right?  Don’t I got the right to cheat myself of an expensive education?"</div>
                 </div>
                 <div class="left-column">
                      <div class="gray-filler-left">
@@ -89,6 +104,7 @@
                      </div>
                 </div>
            </div>
+           </a>
        </div>
 
 <script>
@@ -103,6 +119,8 @@ var currentScrollPos = window.pageYOffset;
   prevScrollpos = currentScrollPos;
 }
 </script>
-<a href="in-progress.html" class="par1">MORE PROJECTS</a>
+       
+<a href="in-progress.html" class="hed1" id="more-projects"> more projects </a>
+       
      </body>
 </html>

@@ -28,8 +28,11 @@ a {
   text-decoration: none;
 }
 
-a:hover{
-     color: orangered
+a :hover{
+  color: orangered;
+}
+a.you-are-here{
+  color:orangered;
 }
 
 .centered{
@@ -325,10 +328,10 @@ border-radius: 0px 0px 20px 20px;
      padding: 15px;
      text-decoration: none;
 }
-#navbar a:hover{
+#navbar a :hover{
      color: orangered;
 }
-#navbar a:active{
+#navbar a.youAreHere{
      color: orangered;
 }
 

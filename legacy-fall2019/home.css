@@ -4,13 +4,12 @@
   font-family:"Roboto", sans-serif;
   font-style: normal;
   font-weight: 900;
-  Font-size: 36px;
-     margin-top: 0px;
-     margin-bottom: 20px;
+  font-size: 36px;
+  margin-top: 0px;
+  margin-bottom: 20px;
   width: inherit;
-  
-  
 }
+
 .par1{
   font-family: "Roboto", sans-serif;
   font-style: normal;
@@ -24,18 +23,22 @@
   margin-top: 0px;
 }
 
-a {
+a{
   color:black;
   font-weight: 600;
   text-decoration: none;
 }
 
-a:hover{
-     color:orangered;
+a :hover{
+  color:orangered;
 }
 
-img {
-     object-fit: contain;
+a .you-are-here{
+  color:orangered;
+}
+
+img{
+  object-fit: contain;
 }
 
 .centered{
@@ -47,36 +50,39 @@ img {
 
 /*navbar*/
 #navbar{
-     position: fixed;
-     height: 40;
-     top: 0;
-     width: 100%;
-     transition: top .3s;
-     
-     font-family: "Roboto", sans-serif;
-     font-style: normal;
-     font-weight: 300;
-     font-size: 18px;
-     line-height: 21px;
-     text-align: justify;
-     word-wrap: normal;
-     color: #000000;
-     z-index: 10;
+  position: fixed;
+  height: 40;
+  top: 0;
+  width: 100%;
+  transition: top .3s;
+  font-family: "Roboto", sans-serif;
+  font-style: normal;
+  font-weight: 300;
+  font-size: 18px;
+  line-height: 21px;
+  text-align: justify;
+  word-wrap: normal;
+  color: #000000;
+  z-index: 10;
 }
+
 #navbar a{
-     float: left;
-     display: block;
-     color:black;
-     text-align: center;
-     padding: 15px;
-     text-decoration: none;
+  float: left;
+  display: block;
+  color:black;
+  text-align: center;
+  padding: 15px;
+  text-decoration: none;
 }
+
+#navbar a.you-are-here{
+  color:orangered;
+}
+
 #navbar a:hover{
-     color: orangered;
+  color: orangered;
 }
-#navbar a:active{
-     color: orangered;
-}
+
 
 
 /*section wrappers*/
@@ -85,7 +91,7 @@ img {
   height: 633px;
   width: 1000px;
   margin-top:100px;
-     margin-left: calc((100% - 1000px)/2);
+  margin-left: calc((100% - 1000px)/2);
   margin-right: calc((100% - 1000px)/2);
   margin-bottom:30px;
   display: grid;
@@ -100,6 +106,7 @@ img {
   width: 1000px;
   height: 50px;
 }
+
 .text-left{
   position: relative;
   text-align: left;
@@ -112,12 +119,12 @@ img {
   width: 1000px;
 }
 
-  .section-line{
-    position: relative;
-       margin-bottom: 50px;
-    width: 100%;
-    height: 0px;
-    border: 1px solid #000000;
+.section-line{
+  position: relative;
+  margin-bottom: 50px;
+  width: 100%;
+  height: 0px;
+  border: 1px solid #000000;
 }
 
 #sec2-wrapper{
@@ -232,39 +239,43 @@ img {
 
 /* other stuff*/
 .gray-filler-left{
-     position: relative;
-     margin top 100px;
-     height: 540px;
-     width: 725px;
-     background: none;
-     display: flex;
-     justify-content: space-around;
+  position: relative;
+  margin-top:  100px;
+  height: 540px;
+  width: 725px;
+  background: none;
+  display: flex;
+  justify-content: space-around;
 }
+
 .gray-filler-right{
-     margin top 100px;
-     height: 540px;
-     width: 725px;
-     background: none;
-     display:flex;
-     align-content: space-around;
+  margin-top: 100px;
+  height: 540px;
+  width: 725px;
+  background: none;
+  display:flex;
+  align-content: space-around;
      
 }
+
 .hero-image{
-     float: left;
+  float: left;
 }
+
 .thumb-right{
-     object-fit: contain;
-     object-position: left;
+  object-fit: contain;
+  object-position: left;
 }
+
 .thumb-left{
-     position: relative;
-     object-fit: contain;
+  position: relative;
+  object-fit: contain;
 }
+
 .spacer{
-     margin-top: 100px;
+  margin-top: 100px;
 }
 
 #more-projects{
-     float:
-     
+  float:left;
 }
