@@ -22,6 +22,7 @@
 
 h1 {
     font-family: Helvetica, sans-serif;
+    text-align: center;
 }
 
 h2 {
@@ -96,7 +97,7 @@ nav{
     top: 0;
     width: 100%;
     transition: top .3s;
-    font-family: "Roboto", sans-serif;
+    font-family: "Helvetica", sans-serif;
     font-style: normal;
     font-weight: 300;
     font-size: 18px;
@@ -105,4 +106,47 @@ nav{
     word-wrap: normal;
     color: #000000;
     z-index: 10;
+  }
+  
+  wrapper{
+    padding:5%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+
+    position:absolute;
+    left:0px;
+    right:0px;
+    top:0px;
+
+  }
+
+  container.flex_wrapper {
+    display: flex;
+    flex-wrap: wrap;
+    flex-direction: row;
+    align-items: center;
+
+    padding: 0px;
+    gap: 12px;
+
+    max-width: 800px;
+  }
+
+  container.flex_stacker {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+
+    padding: 0px;
+    gap: 12px;
+
+    max-width: 800px;
+
+  }
+  p.flowerbed{
+    font-family: 'Times New Roman', Times, serif;
+  }
+  p.vegetable_row{
+    font-family: 'Times New Roman', Times, serif;
   }
