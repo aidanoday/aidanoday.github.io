@@ -6,6 +6,18 @@
     --Text: #000000;
     --FillAlt: #000000;
     --TextAlt: #ffffff;
+    --Accent: orangered;
+    --UnderlineGradient: 
+        linear-gradient(
+            to right,
+            rgba(255, 60, 0, 1),
+            rgba(255, 60, 0, 0)
+        ),
+        linear-gradient(
+            to right,
+            rgb(255, 153, 0),
+            rgba(255, 60, 0, 1)
+        );
 }
 
 h1 {
@@ -32,7 +44,38 @@ p {
 a {
     font-family: Helvetica, sans-serif;
     font-weight: 100;
+    text-decoration: underline;
 }
+
+a {
+    font-family: 'Helvetica';
+    font-style: normal;
+    font-weight: 700;
+    font-size: 18px;
+    line-height: 30px;
+  
+    color: var(--Text);
+  
+  /* Inspired by this article by Harshil Patel:
+  https://css-tricks.com/css-link-hover-effects */
+      text-decoration: none;
+  
+      background:
+        var(--UnderlineGradient);
+  
+      background-size: 100% 1px, 0 1px;
+      background-position: 100% 100%, 0 100%;
+      background-repeat: no-repeat;
+      transition: background-size 400ms, color 400ms,font-weight 400ms, font-size 400ms, line-height 400ms;
+  }
+  
+  a:hover {
+    background-size: 0 3px, 100% 3px;
+    color: var(--Text);
+    font-weight: 800;
+    font-size: 24px;
+    line-height: 30px;
+  }
 
 nav{
     position: fixed;
@@ -49,13 +92,4 @@ nav{
     word-wrap: normal;
     color: #000000;
     z-index: 10;
-  }
-  
-  nav a{
-    float: left;
-    display: block;
-    color:black;
-    text-align: center;
-    padding: 15px;
-    text-decoration: none;
   }
