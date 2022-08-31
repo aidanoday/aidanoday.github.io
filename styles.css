@@ -105,6 +105,11 @@ nav{
     color: #000000;
     z-index: 10;
 }
+
+img {
+  width: 100%;
+  height: auto;
+}
   
 wrapper{
     padding:5%;
@@ -154,7 +159,7 @@ wrapper.garden{
     right:0px;
     top:0px;
     bottom:0px;
-    
+
     background-color: rgb(62, 73, 11);
     color:rgb(216, 226, 175);
   }
