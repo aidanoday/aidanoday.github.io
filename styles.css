@@ -1,6 +1,3 @@
-
-
-
 :root {
     --Fill: #ffffff;
     --Text: #000000;
@@ -22,6 +19,7 @@
 
 h1 {
     font-family: Helvetica, sans-serif;
+    text-align: center;
 }
 
 h2 {
@@ -39,18 +37,6 @@ h4 {
 p {
     font-family: Helvetica, sans-serif;
     font-weight: 100;
-}
-
-a.subtle {
-    font-family: 'Helvetica';
-    text-decoration: none;
-    font-weight: 500;
-    font-size: 16px;
-    line-height:20px;
-    background-size: 100% 1px, 0 1px;
-    background-position: 100% 100%, 0 100%;
-    background-repeat: no-repeat;
-    transition: background-size 400ms, font-size 400ms
 }
 
 a {
@@ -74,7 +60,6 @@ a {
       background-repeat: no-repeat;
       transition: background-size 400ms, color 400ms,font-weight 400ms, font-size 400ms, line-height 400ms;
   }
-  
   a:hover {
     background-size: 0 3px, 100% 3px;
     color: var(--Text);
@@ -82,13 +67,27 @@ a {
     font-size: 24px;
     line-height: 30px;
   }
-  a.subtle:hover {
+
+a.subtle {
+  font-family: 'Helvetica';
+  text-decoration: none;
+  font-weight: 500;
+  font-size: 16px;
+  line-height:20px;
+  background-size: 100% 1px, 0 1px;
+  background-position: 100% 100%, 0 100%;
+  background-repeat: no-repeat;
+  transition: background-size 400ms, font-size 400ms
+  }
+
+
+a.subtle:hover {
     background-size: 0 2px, 100% 3px;
     color: var(--Text);
     font-weight: 550;
     font-size: 18px;
     line-height:20px;
-  }
+}
 
 nav{
     position: fixed;
@@ -96,7 +95,7 @@ nav{
     top: 0;
     width: 100%;
     transition: top .3s;
-    font-family: "Roboto", sans-serif;
+    font-family: "Helvetica", sans-serif;
     font-style: normal;
     font-weight: 300;
     font-size: 18px;
@@ -105,4 +104,54 @@ nav{
     word-wrap: normal;
     color: #000000;
     z-index: 10;
+}
+  
+wrapper{
+    padding:5%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+
+    position:absolute;
+    left:0px;
+    right:0px;
+    top:0px;
+
+}
+
+container.flex_wrapper {
+    display: flex;
+    flex-wrap: wrap;
+    flex-direction: row;
+    align-items: center;
+
+    padding: 0px;
+    gap: 12px;
+
+    max-width: 800px;
+}
+
+container.flex_stacker {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+
+    padding: 0px;
+    gap: 12px;
+
+    max-width: 800px;
+
+}
+
+wrapper.garden{
+    background-color: rgb(62, 73, 11);
+    color:rgb(216, 226, 175);
   }
+
+  p.flowerbed{
+    font-family: 'Times New Roman', Times, serif;
+  }
+
+  p.vegetable_row{
+    font-family: 'Times New Roman', Times, serif;
+}
