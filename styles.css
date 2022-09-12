@@ -15,11 +15,33 @@
             rgb(255, 153, 0),
             rgba(255, 60, 0, 1)
         );
+
+    --minView:300px;
+    --minViewUnitless:300;
+
+    --maxView:1600px;
+    --maxViewUnitless:1600;
+
+    --minParagraph: 16px;
+    --minParagraphUnitless:16;
+
+    --maxParagraph: 32px;
+    --maxParagraphUnitless:32;
+
+    --minH1: 32px;
+    --minH1Unitless:32;
+
+    --maxH1: 64px;
+    --maxH1Unitless:64;
+
+    --fluidParagraph: calc(var(--minParagraph) + (var(--maxParagraphUnitless) - var(--minParapgraphUnitless)) * ((100vw - var(--minView)) / (var(--maxViewUnitless) - var(--minViewUnitless))));
+    --fluidH1: calc(var(--minH1) + (var(--maxH1Unitless) - var(--minH1Unitless))*((100vw - var(--minView))/(var(--maxViewUnitless)- var(--minViewUnitless))));
 }
 
 h1 {
     font-family: Helvetica, sans-serif;
     text-align: center;
+    font-size: var(--fluidH1);
 }
 
 h2 {
@@ -37,13 +59,15 @@ h4 {
 p {
     font-family: Helvetica, sans-serif;
     font-weight: 100;
+    font-size: var(--fluidParagraph);
+    margin: 0px;
 }
 
 a {
     font-family: 'Helvetica';
     font-style: normal;
     font-weight: 700;
-    font-size: 18px;
+    font-size: var(--fluidParagraph);
     line-height: 30px;
   
     color: var(--Text);
@@ -58,22 +82,21 @@ a {
       background-size: 100% 1px, 0 1px;
       background-position: 100% 100%, 0 100%;
       background-repeat: no-repeat;
-      transition: background-size 400ms, color 400ms,font-weight 400ms, font-size 400ms, line-height 400ms;
+      transition: background-size 400ms, color 400ms, font-weight 400ms, font-size 400ms, line-height 400ms;
   }
-  a:hover {
+
+a:hover {
     background-size: 0 3px, 100% 3px;
     color: var(--Text);
     font-weight: 800;
-    font-size: 24px;
-    line-height: 30px;
+    font-size: var(--fluidParagraph);
   }
 
 a.subtle {
   font-family: 'Helvetica';
   text-decoration: none;
   font-weight: 500;
-  font-size: 16px;
-  line-height:20px;
+  font-size: var(--fluidParagraph);
   background-size: 100% 1px, 0 1px;
   background-position: 100% 100%, 0 100%;
   background-repeat: no-repeat;
@@ -85,8 +108,7 @@ a.subtle:hover {
     background-size: 0 2px, 100% 3px;
     color: var(--Text);
     font-weight: 550;
-    font-size: 18px;
-    line-height:20px;
+    font-size:var(--fluidParagraph);
 }
 
 nav{
@@ -112,7 +134,7 @@ img {
 }
   
 wrapper{
-    padding:5%;
+    padding:5vw;
     display: flex;
     flex-direction: column;
     align-items: center;
@@ -133,7 +155,7 @@ container.flex_wrapper {
     padding: 0px;
     gap: 12px;
 
-    max-width: 800px;
+    max-width: 1048px;
 }
 
 container.flex_stacker {
@@ -144,7 +166,7 @@ container.flex_stacker {
     padding: 0px;
     gap: 12px;
 
-    max-width: 800px;
+    max-width: 1048px;
 
 }
 
