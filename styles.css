@@ -22,8 +22,8 @@
     --maxView:1600px;
     --maxViewUnitless:1600;
 
-    --minParagraph: 16px;
-    --minParagraphUnitless:16;
+    --minParagraph: 18px;
+    --minParagraphUnitless:18;
 
     --maxParagraph: 32px;
     --maxParagraphUnitless:32;
@@ -34,8 +34,9 @@
     --maxH1: 64px;
     --maxH1Unitless:64;
 
-    --fluidParagraph: calc(var(--minParagraph) + (var(--maxParagraphUnitless) - var(--minParapgraphUnitless)) * ((100vw - var(--minView)) / (var(--maxViewUnitless) - var(--minViewUnitless))));
-    --fluidH1: calc(var(--minH1) + (var(--maxH1Unitless) - var(--minH1Unitless))*((100vw - var(--minView))/(var(--maxViewUnitless)- var(--minViewUnitless))));
+    --fluidParagraph: calc(var(--minParagraph) + (var(--maxParagraphUnitless) - var(--minParagraphUnitless)) * ((100vw - var(--minView))/(var(--maxViewUnitless) - var(--minViewUnitless))));
+    --fluidH1: calc(var(--minH1) + (var(--maxH1Unitless) - var(--minH1Unitless)) * ((100vw - var(--minView))/(var(--maxViewUnitless) - var(--minViewUnitless))));
+    --fluidH2: calc(var(--minH1) - 12px + (var(--maxH1Unitless) - var(--minH1Unitless)) * ((100vw - var(--minView))/(var(--maxViewUnitless) - var(--minViewUnitless))));
 }
 
 h1 {
@@ -46,6 +47,7 @@ h1 {
 
 h2 {
     font-family: Helvetica, sans-serif;
+    font-size: var(--fluidH2);
 }
 
 h3 {
@@ -88,27 +90,27 @@ a {
 a:hover {
     background-size: 0 3px, 100% 3px;
     color: var(--Text);
-    font-weight: 800;
-    font-size: var(--fluidParagraph);
+    font-weight: 900;
+    font-size: calc(var(--fluidParagraph) + 2px);
   }
 
 a.subtle {
   font-family: 'Helvetica';
   text-decoration: none;
-  font-weight: 500;
+  font-weight: 400;
   font-size: var(--fluidParagraph);
   background-size: 100% 1px, 0 1px;
   background-position: 100% 100%, 0 100%;
   background-repeat: no-repeat;
-  transition: background-size 400ms, font-size 400ms
+  transition: background-size 400ms, font-size 400ms;
   }
 
 
 a.subtle:hover {
     background-size: 0 2px, 100% 3px;
     color: var(--Text);
-    font-weight: 550;
-    font-size:var(--fluidParagraph);
+    font-weight: 400;
+    font-size: calc(var(--fluidParagraph) + 2px);
 }
 
 nav{
