@@ -37,6 +37,7 @@
     --fluidParagraph: calc(var(--minParagraph) + (var(--maxParagraphUnitless) - var(--minParagraphUnitless)) * ((100vw - var(--minView))/(var(--maxViewUnitless) - var(--minViewUnitless))));
     --fluidH1: calc(var(--minH1) + (var(--maxH1Unitless) - var(--minH1Unitless)) * ((100vw - var(--minView))/(var(--maxViewUnitless) - var(--minViewUnitless))));
     --fluidH2: calc(var(--minH1) - 12px + (var(--maxH1Unitless) - var(--minH1Unitless)) * ((100vw - var(--minView))/(var(--maxViewUnitless) - var(--minViewUnitless))));
+    --fluidH3: calc(var(--minH1) - 24px + (var(--maxH1Unitless) - var(--minH1Unitless)) * ((100vw - var(--minView))/(var(--maxViewUnitless) - var(--minViewUnitless))));
 }
 
 h1 {
@@ -52,6 +53,7 @@ h2 {
 
 h3 {
     font-family: Helvetica, sans-serif;
+    font-size: var(--fluidH3);
 }
 
 h4 {
@@ -105,7 +107,6 @@ a.subtle {
   transition: background-size 400ms, font-size 400ms;
   }
 
-
 a.subtle:hover {
     background-size: 0 2px, 100% 3px;
     color: var(--Text);
@@ -113,12 +114,20 @@ a.subtle:hover {
     font-size: calc(var(--fluidParagraph) + 2px);
 }
 
+a.alt{
+    color:var(--TextAlt)
+}
+
 nav{
     position: fixed;
-    height: 40;
     top: 0;
+    left: 0;
+    padding-left: 12px;
+    padding-top:8px;
+    padding-bottom: 12px;
     width: 100%;
-    transition: top .3s;
+
+    transition: top 500ms;
     font-family: "Helvetica", sans-serif;
     font-style: normal;
     font-weight: 300;
@@ -126,7 +135,8 @@ nav{
     line-height: 21px;
     text-align: justify;
     word-wrap: normal;
-    color: #000000;
+    color:  var(--TextAlt);
+    background-color: var(--FillAlt);
     z-index: 10;
 }
 
