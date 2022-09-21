@@ -135,6 +135,10 @@ nav{
     line-height: 21px;
     text-align: justify;
     word-wrap: normal;
+
+    display: flex column;
+    justify-content: flex-start;
+
     color:  var(--TextAlt);
     background-color: var(--FillAlt);
     z-index: 10;
@@ -147,6 +151,7 @@ img {
   
 wrapper{
     padding:5vw;
+    padding-top:100px;
     display: flex;
     flex-direction: column;
     align-items: center;
