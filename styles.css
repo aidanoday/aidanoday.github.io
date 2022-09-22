@@ -45,6 +45,13 @@ h1 {
     font-family: Helvetica, sans-serif;
     text-align: center;
     font-size: var(--fluidH1);
+
+    display: block;
+    margin-block-start: 0px;
+    margin-block-end: 0px;
+    margin-inline-start: 0px;
+    margin-inline-end: 0px;
+    font-weight: bold;
 }
 
 h2 {
@@ -144,6 +151,7 @@ nav{
 
     display: flex column;
     justify-content: flex-start;
+    align-items: center;
 
     color:  var(--Text);
     background-color: var(--Fill);
@@ -157,10 +165,11 @@ img {
   
 wrapper{
     padding:5vw;
-    padding-top:100px;
+    padding-top:20vh;
     display: flex;
     flex-direction: column;
     align-items: center;
+    gap:20vh;
 
     position:absolute;
     left:0px;
@@ -187,7 +196,7 @@ container.flex_stacker {
     align-items: flex-start;
 
     padding: 0px;
-    gap: 12px;
+    gap: 48px;
 
     max-width: 1048px;
 
