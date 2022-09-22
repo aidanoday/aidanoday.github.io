@@ -28,13 +28,14 @@
     --maxParagraph: 32px;
     --maxParagraphUnitless:32;
 
-    --minH1: 32px;
-    --minH1Unitless:32;
+    --minH1: 64px;
+    --minH1Unitless:64;
 
-    --maxH1: 64px;
-    --maxH1Unitless:64;
+    --maxH1: 128px;
+    --maxH1Unitless:128;
 
     --fluidParagraph: calc(var(--minParagraph) + (var(--maxParagraphUnitless) - var(--minParagraphUnitless)) * ((100vw - var(--minView))/(var(--maxViewUnitless) - var(--minViewUnitless))));
+    --fluidParagraphSmall: calc(var(--minParagraph) -12px + (var(--maxParagraphUnitless) - var(--minParagraphUnitless)) * ((100vw - var(--minView))/(var(--maxViewUnitless) - var(--minViewUnitless))));
     --fluidH1: calc(var(--minH1) + (var(--maxH1Unitless) - var(--minH1Unitless)) * ((100vw - var(--minView))/(var(--maxViewUnitless) - var(--minViewUnitless))));
     --fluidH2: calc(var(--minH1) - 12px + (var(--maxH1Unitless) - var(--minH1Unitless)) * ((100vw - var(--minView))/(var(--maxViewUnitless) - var(--minViewUnitless))));
     --fluidH3: calc(var(--minH1) - 24px + (var(--maxH1Unitless) - var(--minH1Unitless)) * ((100vw - var(--minView))/(var(--maxViewUnitless) - var(--minViewUnitless))));
@@ -70,8 +71,8 @@ p {
 a {
     font-family: 'Helvetica';
     font-style: normal;
-    font-weight: 700;
-    font-size: var(--fluidParagraph);
+    font-weight: lighter;
+    font-size: var(--fluidParagraphSmall);
     line-height: 30px;
   
     color: var(--Text);
@@ -92,7 +93,7 @@ a {
 a:hover {
     background-size: 0 3px, 100% 3px;
     color: var(--Text);
-    font-weight: 900;
+    font-weight: bolder;
     font-size: calc(var(--fluidParagraph) + 2px);
   }
 
@@ -122,10 +123,15 @@ nav{
     position: fixed;
     top: 0;
     left: 0;
-    padding-left: 12px;
+    padding-left: 24px;
+    padding-right: 24px;
     padding-top:8px;
     padding-bottom: 12px;
     width: 100%;
+
+    display:flex;
+    flex-flow: row wrap;
+    gap: 10px 24px;
 
     transition: top 500ms;
     font-family: "Helvetica", sans-serif;
@@ -139,8 +145,8 @@ nav{
     display: flex column;
     justify-content: flex-start;
 
-    color:  var(--TextAlt);
-    background-color: var(--FillAlt);
+    color:  var(--Text);
+    background-color: var(--Fill);
     z-index: 10;
 }
 
