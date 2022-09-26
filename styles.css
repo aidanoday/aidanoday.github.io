@@ -28,11 +28,11 @@
     --maxParagraph: 32px;
     --maxParagraphUnitless:32;
 
-    --minH1: 64px;
-    --minH1Unitless:64;
+    --minH1: 96px;
+    --minH1Unitless:96;
 
-    --maxH1: 128px;
-    --maxH1Unitless:128;
+    --maxH1: 144px;
+    --maxH1Unitless:144;
 
     --fluidParagraph: calc(var(--minParagraph) + (var(--maxParagraphUnitless) - var(--minParagraphUnitless)) * ((100vw - var(--minView))/(var(--maxViewUnitless) - var(--minViewUnitless))));
     --fluidParagraphSmall: calc(var(--minParagraph) -12px + (var(--maxParagraphUnitless) - var(--minParagraphUnitless)) * ((100vw - var(--minView))/(var(--maxViewUnitless) - var(--minViewUnitless))));
@@ -45,6 +45,14 @@ h1 {
     font-family: Helvetica, sans-serif;
     text-align: center;
     font-size: var(--fluidH1);
+    text-align: justify;
+
+    display: block;
+    margin-block-start: 0px;
+    margin-block-end: 0px;
+    margin-inline-start: 0px;
+    margin-inline-end: 0px;
+    font-weight: bold;
 }
 
 h2 {
@@ -72,7 +80,7 @@ a {
     font-family: 'Helvetica';
     font-style: normal;
     font-weight: lighter;
-    font-size: var(--fluidParagraphSmall);
+    font-size: var(--fluidParagraph);
     line-height: 30px;
   
     color: var(--Text);
@@ -144,6 +152,7 @@ nav{
 
     display: flex column;
     justify-content: flex-start;
+    align-items: center;
 
     color:  var(--Text);
     background-color: var(--Fill);
@@ -157,10 +166,11 @@ img {
   
 wrapper{
     padding:5vw;
-    padding-top:100px;
+    padding-top:20vw;
     display: flex;
     flex-direction: column;
     align-items: center;
+    gap:20vw;
 
     position:absolute;
     left:0px;
@@ -187,10 +197,21 @@ container.flex_stacker {
     align-items: flex-start;
 
     padding: 0px;
-    gap: 12px;
+    gap: 5vh;
 
     max-width: 1048px;
 
+}
+
+.above_the_fold{
+    height: calc(100vh - 40vw);
+}
+
+.less_space{
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 5vh;
 }
 
 wrapper.garden{
