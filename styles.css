@@ -165,8 +165,8 @@ img {
 }
   
 wrapper{
-    padding:5vw;
-    padding-top:20vw;
+    padding-left:5%;
+    padding-right:5%;
     display: flex;
     flex-direction: column;
     align-items: center;
@@ -204,7 +204,11 @@ container.flex_stacker {
 }
 
 .above_the_fold{
-    height: calc(100vh - 40vw);
+    height: calc(100vh);
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
 }
 
 .less_space{
