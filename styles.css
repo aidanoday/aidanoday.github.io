@@ -30,8 +30,8 @@
     --maxParagraph: 32px;
     --maxParagraphUnitless:32;
 
-    --minH1: 96px;
-    --minH1Unitless:96;
+    --minH1: 72px;
+    --minH1Unitless:72;
 
     --maxH1: 144px;
     --maxH1Unitless:144;
@@ -52,7 +52,7 @@ a{
 h1 {
     font-family: Helvetica, sans-serif;
     font-size: var(--fluidH1);
-    overflow-wrap: normal;
+    word-wrap: break-word;
     margin: 0px;
 }
 
