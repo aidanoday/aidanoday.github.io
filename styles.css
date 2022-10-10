@@ -114,6 +114,30 @@ img.card_cover {
     height: 187px;
   }
 
+@media only screen and (max-width: 1080px){
+
+    .card {
+        width: calc(50vw - 100px);
+        height: auto;
+        padding-bottom:12px;
+        display:flex;
+        flex-direction:column;
+        align-items: flex-start;
+        overflow:hidden;
+
+        border-radius: 16px;
+
+        padding:0px;
+        background-color: var(--Fill);
+        box-shadow: 4px 4px 4px 0px var(--Shadow);
+        transition: transform 400ms, width 400ms, padding-bottom 400ms, box-shadow 400ms;
+      
+    }
+    img.card_cover {
+        height: calc((50vw - 100px)*.62);
+    }
+}
+
 @media only screen and (max-width: 750px) {
     .card {
         width: calc(100vw - 100px);
