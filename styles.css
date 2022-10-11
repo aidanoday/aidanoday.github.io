@@ -30,8 +30,8 @@
     --maxParagraph: 32px;
     --maxParagraphUnitless:32;
 
-    --minH1: 96px;
-    --minH1Unitless:96;
+    --minH1: 72px;
+    --minH1Unitless:72;
 
     --maxH1: 144px;
     --maxH1Unitless:144;
@@ -52,7 +52,7 @@ a{
 h1 {
     font-family: Helvetica, sans-serif;
     font-size: var(--fluidH1);
-    overflow-wrap: normal;
+    word-wrap: break-word;
     margin: 0px;
 }
 
@@ -114,6 +114,30 @@ img.card_cover {
     height: 187px;
   }
 
+@media only screen and (max-width: 1080px){
+
+    .card {
+        width: calc(50vw - 100px);
+        height: auto;
+        padding-bottom:12px;
+        display:flex;
+        flex-direction:column;
+        align-items: flex-start;
+        overflow:hidden;
+
+        border-radius: 16px;
+
+        padding:0px;
+        background-color: var(--Fill);
+        box-shadow: 4px 4px 4px 0px var(--Shadow);
+        transition: transform 400ms, width 400ms, padding-bottom 400ms, box-shadow 400ms;
+      
+    }
+    img.card_cover {
+        height: calc((50vw - 100px)*.62);
+    }
+}
+
 @media only screen and (max-width: 750px) {
     .card {
         width: calc(100vw - 100px);
@@ -143,6 +167,7 @@ img.card_cover {
     transform: scale(1.05);
     box-shadow: 0px 0px 6px 6px var(--AccentShadow);
 }
+
 
 a{
     color: var(--Text);
@@ -237,6 +262,7 @@ nav{
   
 wrapper {
 
+    padding-top:10vh;
     padding-left:5%;
     padding-right:5%;
     display: flex;
@@ -277,6 +303,25 @@ container.flex_stacker {
 
 }
 
+.hero_container{
+    height: 80vh;
+    width: 100%;
+
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+
+    overflow: clip;
+    border-radius: 16px;
+    background: url(assets/hero.jpg) ;
+    background-size: cover;
+    background-position: center;
+
+    color: var(--TextAlt)
+}
+
+
 .above_the_fold{
     height: 100vh;
     width: 100%;
@@ -290,7 +335,6 @@ container.flex_stacker {
     display: flex;
     flex-direction: column;
     align-items: flex-start;
-    gap: 5vh;
 }
 
 wrapper.garden{
