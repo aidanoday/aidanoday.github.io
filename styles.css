@@ -24,11 +24,11 @@
     --maxView:1600px;
     --maxViewUnitless:1600;
 
-    --minParagraph: 18px;
-    --minParagraphUnitless:18;
+    --minParagraph: 12px;
+    --minParagraphUnitless:12;
 
-    --maxParagraph: 32px;
-    --maxParagraphUnitless:32;
+    --maxParagraph: 24px;
+    --maxParagraphUnitless:24;
 
     --minH1: 72px;
     --minH1Unitless:72;
@@ -43,6 +43,10 @@
     --fluidH3: calc(var(--minH1) - 24px + (var(--maxH1Unitless) - var(--minH1Unitless)) * ((100vw - var(--minView))/(var(--maxViewUnitless) - var(--minViewUnitless))));
     --fluidH3: calc(var(--minH1) - 40px + (var(--maxH1Unitless) - var(--minH1Unitless)) * ((100vw - var(--minView))/(var(--maxViewUnitless) - var(--minViewUnitless))));
     --fluidH4: calc(var(--minH1) - 96px + (var(--maxH1Unitless) - var(--minH1Unitless)) * ((100vw - var(--minView))/(var(--maxViewUnitless) - var(--minViewUnitless))));
+}
+
+html {
+    scroll-behavior:smooth ;
 }
 
 a{
@@ -297,7 +301,7 @@ container.flex_stacker {
     align-items: flex-start;
 
     padding: 0px;
-    gap: 5vh;
+    gap: 1vh;
 
     max-width: 1048px;
 
