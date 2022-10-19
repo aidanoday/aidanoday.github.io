@@ -1,11 +1,13 @@
 :root {
-    --Fill: #ffffff;
-    --Text: #000000;
-    --FillAlt: #000000;
-    --TextAlt: #ffffff;
+    --Fill: rgb(255, 255, 255);
+    --Text: rgb(0, 0, 0);
+    --Surface: gray;
+    --onSurface:yellow;
+    --FillAlt: white;
+    --TextAlt: black;
     --Shadow: #00000020;
     --AccentShadow:#09adff76;
-    --AccentShadowPressed: #09ff98cd;
+    --AccentShadowPressed: #094fffcd;
     --Accent: orangered;
     --UnderlineGradient: 
         linear-gradient(
@@ -333,8 +335,10 @@ wrapper {
     flex-direction: column;
     align-items: center;
     gap:10vw;
+    background: var(--Fill);
+    color: var(--Text);
 
-    position:absolute;
+    position: absolute;
     left:0px;
     right:0px;
     top:0px;
@@ -378,13 +382,27 @@ container.flex_stacker {
 
     overflow: clip;
     border-radius: 16px;
+    
     background: url(assets/hero.jpg) ;
     background-size: cover;
     background-position: center;
 
-    color: var(--TextAlt)
+    color: var(--Text)
 }
 
+.opacity_layer{
+    height:100%;
+    width:100%;
+    
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    
+    background: #ffffff50;
+
+    color: rgb(0, 0, 0);
+}
 
 .above_the_fold{
     height: 100vh;
