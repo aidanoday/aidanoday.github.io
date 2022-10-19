@@ -18,6 +18,17 @@
             rgb(255, 153, 0),
             rgba(255, 60, 0, 1)
         );
+        --UnderlineSolid: 
+        linear-gradient(
+            to right,
+            rgb(0, 0, 0),
+            rgba(255, 60, 0, 0)
+        ),
+        linear-gradient(
+            to right,
+            rgb(0, 0, 0),
+            rgb(0, 0, 0)
+        );
 
     --minView:300px;
     --minViewUnitless:300;
@@ -260,17 +271,18 @@ a.subtle {
   text-decoration: none;
   font-weight: 400;
   font-size: var(--fluidParagraph);
-  background-size: 100% 1px, 0 1px;
-  background-position: 100% 100%, 0 100%;
-  background-repeat: no-repeat;
-  transition: background-size 400ms, font-size 400ms;
+  background: var(--UnderlineSolid);
+    background-size: 100% 2px, 0 2px;
+    background-position: 100% 100%, 0 100%;
+    background-repeat: no-repeat;
+  transition: all 400ms;
   }
 
 a.subtle:hover {
     background-size: 0 2px, 100% 3px;
     color: var(--Text);
     font-weight: 400;
-    font-size: calc(var(--fluidParagraph) + 2px);
+    transform: scale(1.2);
 }
 
 a.alt{
