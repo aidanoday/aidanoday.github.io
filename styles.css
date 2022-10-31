@@ -121,7 +121,6 @@ p.small {
 .full-width{
     width: 100%;
     border-radius: 8px;
-    
 }
 .card {
     width: 100%;
@@ -339,7 +338,7 @@ wrapper {
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap:10vw;
+    gap:5vw;
     background: var(--Fill);
     color: var(--Text);
 
