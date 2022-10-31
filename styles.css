@@ -120,6 +120,8 @@ p.small {
 }
 .full-width{
     width: 100%;
+    border-radius: 8px;
+    
 }
 .card {
     width: 100%;
