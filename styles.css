@@ -382,6 +382,8 @@ container.flex_stacker {
 
     padding: 0px;
     gap: 1vh;
+    width:100%;
+    
 
     /*max-width: 1048px;*/
 
