@@ -51,13 +51,15 @@
     --maxH1Unitless:144;
 
     --fluidParagraph: calc(var(--minParagraph) + (var(--maxParagraphUnitless) - var(--minParagraphUnitless)) * ((100vw - var(--minView))/(var(--maxViewUnitless) - var(--minViewUnitless))));
-    --fluidParagraphSmall: calc(var(--minParagraph) -12px + (var(--maxParagraphUnitless) - var(--minParagraphUnitless)) * ((100vw - var(--minView))/(var(--maxViewUnitless) - var(--minViewUnitless))));
+    --fluidParagraphSmall: calc(var(--minParagraph) + (var(--maxParagraphUnitless) - var(--minParagraphUnitless)) * ((100vw - var(--minView))/(var(--maxViewUnitless) - var(--minViewUnitless))));
     --fluidH1: calc(var(--minH1) + (var(--maxH1Unitless) - var(--minH1Unitless)) * ((100vw - var(--minView))/(var(--maxViewUnitless) - var(--minViewUnitless))));
     --fluidH2: calc(var(--minH1) - 24px + (var(--maxH1Unitless) - var(--minH1Unitless)) * ((100vw - var(--minView))/(var(--maxViewUnitless) - var(--minViewUnitless))));
     --fluidH3: calc(var(--minH1) - 24px + (var(--maxH1Unitless) - var(--minH1Unitless)) * ((100vw - var(--minView))/(var(--maxViewUnitless) - var(--minViewUnitless))));
     --fluidH3: calc(var(--minH1) - 40px + (var(--maxH1Unitless) - var(--minH1Unitless)) * ((100vw - var(--minView))/(var(--maxViewUnitless) - var(--minViewUnitless))));
     --fluidH4: calc(var(--minH1) - 96px + (var(--maxH1Unitless) - var(--minH1Unitless)) * ((100vw - var(--minView))/(var(--maxViewUnitless) - var(--minViewUnitless))));
 }
+
+@import url('https://fonts.googleapis.com/css2?family=Inter&display=swap');
 
 html {
     scroll-behavior:smooth ;
@@ -78,6 +80,7 @@ h1 {
 h2 {
     font-family: Helvetica, sans-serif;
     font-size: var(--fluidH2);
+    width:100%;
 }
 
 h3 {
@@ -96,17 +99,26 @@ h4 {
 }
 
 p {
-    font-family: Helvetica, sans-serif;
+    font-family: 'Inter', sans-serif;
     font-weight: 100;
     font-size: var(--fluidParagraph);
+    margin-top: 0px;
     margin-left: 12px;
     margin-right: 12px;
 }
 
-p.small {
-    font-family: Helvetica, sans-serif;
+li{
+    font-family: 'Inter', sans-serif;
     font-weight: 100;
-    font-size: var(--fluidParagraphSmall);
+    font-size: var(--fluidParagraph);
+    margin-bottom:12px;
+
+}
+
+p.small {
+    font-family: 'Inter', sans-serif;
+    font-weight: 100;
+    font-size: var(--fluidParagraph);
     margin-left: 12px;
     margin-right: 12px;
 
@@ -273,7 +285,7 @@ a.animated:active {
 
 
 a.subtle {
-  font-family: 'Helvetica';
+  font-family: 'Inter', sans-serif;
   text-decoration: none;
   font-weight: 400;
   font-size: var(--fluidParagraph);
@@ -370,14 +382,32 @@ container.flex_stacker {
 
     padding: 0px;
     gap: 1vh;
+    width:100%;
+    
 
-    max-width: 1048px;
+    /*max-width: 1048px;*/
 
 }
 
+.project_summary{
+    display:grid;
+    grid-template-columns: 4fr 1fr 3fr;
+    /*max-width: 1048px;*/
+    width:100%;
+}
+#introduction{
+    grid-column:1/2;
+}
+#roleAndImpact{
+    grid-column:3/4;
+    display:flex;
+    flex-direction: column;
+    gap:0px;
+}
 .hero_container{
     height: 80vh;
     width: 100%;
+    margin-bottom: 10vh;
 
     display: flex;
     flex-direction: column;
