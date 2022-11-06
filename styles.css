@@ -80,7 +80,7 @@ h1 {
 h2 {
     font-family: Helvetica, sans-serif;
     font-size: var(--fluidH2);
-    width:100%;
+    margin-left: 12px;
 }
 
 h3 {
@@ -315,11 +315,11 @@ nav{
     position: fixed;
     top: 0;
     left: 0;
-    padding-left: 24px;
+    padding-left: 12px;
     padding-right: 24px;
     padding-top:8px;
     padding-bottom: 8px;
-    width: -webkit-calc(100% - 64px);
+    width: -webkit-calc(100% - 52px);
     margin:8px;
 
     display:flex;
@@ -413,13 +413,13 @@ container.flex_stacker {
     gap:0px;
 }
 .hero_container{
-    height: 80vh;
+    height: 100vh;
     width: 100vw;
     margin-bottom: 10vh;
 
     display: flex;
     flex-direction: column;
-    justify-content: center;
+    justify-content: flex-end;
     align-items: center;
 
     overflow: clip;
@@ -438,8 +438,9 @@ container.flex_stacker {
     
     display: flex;
     flex-direction: column;
-    justify-content: center;
+    justify-content: flex-end;
     align-items: center;
+    padding-bottom: 20vh;
     
     background: #00000020;
 
@@ -459,6 +460,7 @@ container.flex_stacker {
 .less_space{
     display: flex;
     flex-direction: column;
+    justify-content: flex-start;
     align-items: flex-start;
     padding:12px;
     
@@ -471,7 +473,7 @@ container.flex_stacker {
     }
 
     .less_space{
-        padding-left:24px;
+        padding-left:20vw;
         opacity: 100%;
     }
 }
