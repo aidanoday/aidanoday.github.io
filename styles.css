@@ -326,7 +326,7 @@ nav{
     flex-flow: row wrap;
     gap: 10px 24px;
 
-    box-shadow: var(--Shadow);
+    /*box-shadow: var(--Shadow);*/
 
     transition: top 500ms;
     font-family: "Helvetica", sans-serif;
