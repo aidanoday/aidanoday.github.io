@@ -1,11 +1,11 @@
 :root {
-    --Fill: rgb(255, 255, 255);
+    --Fill: hsl(0, 0%, 99%);
     --Text: rgb(0, 0, 0);
-    --Surface: gray;
-    --onSurface:yellow;
-    --FillAlt: white;
-    --TextAlt: black;
-    --Shadow: #00000020;
+    --Surface: hsl(0, 0%, 100%);
+    --onSurface:rgb(0, 0, 0);
+    --FillAlt: hsl(0, 0%, 20%);
+    --TextAlt: rgb(255, 255, 255);
+    --Shadow: 4px 4px 4px 0px #00000020;
     --AccentShadow:#09adff76;
     --AccentShadowPressed: #094fffcd;
     --Accent: orangered;
@@ -51,10 +51,10 @@
     --maxH1Unitless:144;
 
     --fluidParagraph: calc(var(--minParagraph) + (var(--maxParagraphUnitless) - var(--minParagraphUnitless)) * ((100vw - var(--minView))/(var(--maxViewUnitless) - var(--minViewUnitless))));
-    --fluidParagraphSmall: calc(var(--minParagraph) + (var(--maxParagraphUnitless) - var(--minParagraphUnitless)) * ((100vw - var(--minView))/(var(--maxViewUnitless) - var(--minViewUnitless))));
+    --fluidParagraphSmall: calc(var(--minParagraphSmall) + (var(--maxParagraphSmallUnitless) - var(--minParagraphSmallUnitless)) * ((100vw - var(--minView))/(var(--maxViewUnitless) - var(--minViewUnitless))));
     --fluidH1: calc(var(--minH1) + (var(--maxH1Unitless) - var(--minH1Unitless)) * ((100vw - var(--minView))/(var(--maxViewUnitless) - var(--minViewUnitless))));
-    --fluidH2: calc(var(--minH1) - 24px + (var(--maxH1Unitless) - var(--minH1Unitless)) * ((100vw - var(--minView))/(var(--maxViewUnitless) - var(--minViewUnitless))));
-    --fluidH3: calc(var(--minH1) - 24px + (var(--maxH1Unitless) - var(--minH1Unitless)) * ((100vw - var(--minView))/(var(--maxViewUnitless) - var(--minViewUnitless))));
+    --fluidH2: calc(var(--minH1) - 44px + (var(--maxH1Unitless) - var(--minH1Unitless) -44) * ((100vw - var(--minView))/(var(--maxViewUnitless) - var(--minViewUnitless))));
+    --fluidH3: calc(var(--minH1) - 44px + (var(--maxH1Unitless) - var(--minH1Unitless) -44) * ((100vw - var(--minView))/(var(--maxViewUnitless) - var(--minViewUnitless))));
     --fluidH3: calc(var(--minH1) - 40px + (var(--maxH1Unitless) - var(--minH1Unitless)) * ((100vw - var(--minView))/(var(--maxViewUnitless) - var(--minViewUnitless))));
     --fluidH4: calc(var(--minH1) - 96px + (var(--maxH1Unitless) - var(--minH1Unitless)) * ((100vw - var(--minView))/(var(--maxViewUnitless) - var(--minViewUnitless))));
 }
@@ -88,7 +88,7 @@ h3 {
     margin-left: 12px;
     margin-right: 12px;
     margin-top: 12px;
-    margin-bottom: 0px;
+    margin-bottom: 12px;
 }
 
 h4 {
@@ -118,7 +118,7 @@ li{
 p.small {
     font-family: 'Inter', sans-serif;
     font-weight: 100;
-    font-size: var(--fluidParagraph);
+    font-size: calc(var(--fluidParagraph));
     margin-left: 12px;
     margin-right: 12px;
 
@@ -146,7 +146,8 @@ p.small {
     border-radius: 16px;
 
     padding:0px;
-    background-color: var(--Fill);
+    background-color: var(--Surface);
+    color: var(--onSurface);
     box-shadow: 4px 4px 4px 0px var(--Shadow);
     transition: all 400ms;
   
@@ -170,8 +171,9 @@ img.card_cover {
         border-radius: 16px;
 
         padding:0px;
-        background-color: var(--Fill);
-        box-shadow: 4px 4px 4px 0px var(--Shadow);
+        background-color: var(--Surface);
+        color:var(--onSurface);
+        box-shadow: var(--Shadow);
         transition: all 400ms;
       
     }
@@ -197,8 +199,9 @@ img.card_cover {
         border-radius: 16px;
 
         padding:0px;
-        background-color: var(--Fill);
-        box-shadow: 4px 4px 4px 0px var(--Shadow);
+        background-color: var(--Surface);
+        color: var(--onSurface);
+        box-shadow: (--Shadow);
         transition: all 400ms;
       
     }
@@ -223,8 +226,9 @@ img.card_cover {
         border-radius: 16px;
 
         padding:0px;
-        background-color: var(--Fill);
-        box-shadow: 4px 4px 4px 0px var(--Shadow);
+        background-color: var(--Surface);
+        color: var(--onSurface);
+        box-shadow: var(--Shadow);
         transition: all 400ms;
       
     }
@@ -314,12 +318,15 @@ nav{
     padding-left: 24px;
     padding-right: 24px;
     padding-top:8px;
-    padding-bottom: 12px;
-    width: 100%;
+    padding-bottom: 8px;
+    width: -webkit-calc(100% - 64px);
+    margin:8px;
 
     display:flex;
     flex-flow: row wrap;
     gap: 10px 24px;
+
+    /*box-shadow: var(--Shadow);*/
 
     transition: top 500ms;
     font-family: "Helvetica", sans-serif;
@@ -334,8 +341,9 @@ nav{
     justify-content: flex-start;
     align-items: center;
 
-    color:  var(--Text);
-    background-color: var(--Fill);
+    color:  var(--onSurface);
+    background-color: var(--Surface);
+    border-radius: 8px;
     z-index: 10;
 }
 
@@ -343,7 +351,7 @@ nav{
   
 wrapper {
 
-    padding-top:10vh;
+    padding-top:0px;
     padding-left:5%;
     padding-right:5%;
     padding-bottom: 20vh;
@@ -406,7 +414,7 @@ container.flex_stacker {
 }
 .hero_container{
     height: 80vh;
-    width: 100%;
+    width: 100vw;
     margin-bottom: 10vh;
 
     display: flex;
@@ -415,7 +423,7 @@ container.flex_stacker {
     align-items: center;
 
     overflow: clip;
-    border-radius: 16px;
+    border-radius: 0px;
     
     background: url(assets/hero.jpg) ;
     background-size: cover;
@@ -433,10 +441,11 @@ container.flex_stacker {
     justify-content: center;
     align-items: center;
     
-    background: #ffffff50;
+    background: #00000020;
 
-    color: rgb(0, 0, 0);
+    color:var(--TextAlt);
 }
+
 
 .above_the_fold{
     height: 100vh;
@@ -456,9 +465,14 @@ container.flex_stacker {
 }
 
 @media only screen and (max-width:750px) {
+
+    .hero_text{
+        font-size: larger;
+    }
+
     .less_space{
         padding-left:24px;
-        opacity: 90%;
+        opacity: 100%;
     }
 }
 
