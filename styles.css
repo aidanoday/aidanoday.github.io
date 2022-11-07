@@ -120,6 +120,12 @@ h4 {
     height:auto;
 }
 
+.tactileCubeIso{
+    width:300px;
+    height:300px;
+    border-radius: 24px;
+}
+
 .full-height {
     height:100%;
     width:auto;
@@ -405,7 +411,8 @@ container.flex_wrapper {
     align-items: center;
     justify-items: left;
     row-gap: 24px;
-    justify-content: space-around;
+    align-content: center;
+    justify-content: center;
     padding: 0px;
     gap: 24px;
     width:100%;
