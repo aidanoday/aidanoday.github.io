@@ -568,3 +568,9 @@ wrapper.garden{
   p.vegetable_row{
     font-family: 'Times New Roman', Times, serif;
 }
+
+.youtube_embed{
+    width:85vw;
+    height:48vw;
+    border-radius: 24px;
+}
