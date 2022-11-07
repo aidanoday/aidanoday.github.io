@@ -165,7 +165,7 @@ p.small {
     gap: 24px;
 }
 
-.projects_list{
+.project_list{
     padding: top 24px;
     display: flex;
     flex-direction: column;
