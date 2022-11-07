@@ -162,14 +162,17 @@ p.small {
     display: flex;
     flex-direction: column;
     align-items: center;
+    gap: 24px;
 }
 
-.project_list{
+.projects_list{
     padding: top 24px;
     display: flex;
     flex-direction: column;
     align-items: center;
+    gap: 24px;
 }
+
 
 .full-width{
     width: 100%;
@@ -417,13 +420,14 @@ container.flex_wrapper {
     flex-wrap: wrap;
     flex-direction: row;
     align-items: center;
-    justify-items: center;
+    justify-items: left;
     row-gap: 24px;
     align-content: center;
     justify-content: center;
     padding: 0px;
     gap: 24px;
     width:100%;
+    max-width: 1100px;
 }
 
 container.flex_stacker {
