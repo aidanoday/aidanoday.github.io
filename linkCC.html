@@ -50,7 +50,7 @@
         <container id="introduction" class="flex_stacker">
             <p><b>Problem:</b> The ILWE.io app is too complex, lacks profile customization, and needs a design makeover facelift.</p>
             <p><em>"How might we cut to the core of creative connection, allow users to put their own  and make our app so simple that everyone can enjoy it?"</em></p>
-            <p><b>Solution:</b></p>
+            <p><b>Solution:</b> Adapt and Simplify our complex social portfolio app to create the foundation for a customizable and accessible creative networking tool with an updated look and feel.</p>
         </container>
         <container id="roleAndImpact" class="flex_stacker">
             <p><b>Role:</b> Design Lead, Product Lead, UI Designer</p>
@@ -77,61 +77,84 @@
 
     </container>
 
-    <h2>Simplify, Simplify, Simplify</h2>
+    <h2>Simplify, Refocus, Facelift</h2>
 
     <container class="flex-stacker">
-      <p>The most incisive question we asked ourselves was: if we could go back to Nov 2019, knowing what we know now, what would we build?  Throughout I Love What Ever's journey, our mission has been to foster genuine connections betweeen up and coming artists.  For a long time, we thought that the best way to do this was through simplifying the portfolio experience, having artists upload their work, and tracking mutual collaboration.  It would have been much simpler to just ask people "who are your trusted creative peers?" and have them add their truted peers. But it took a long time and lots of iteration for key stakeholders to accept that simple declarative connection was an option. Relaxing that constraint gave us a lot of freedom to rethink the tangled information web we had woven.</p>
+      <p>The most incisive question we asked ourselves was: if we could go back to Nov 2019, knowing what we know now, what would we build?  Throughout ILOVEWHATEVER's journey, our mission has been to foster genuine connections betweeen up and coming artists.  For a long time, we thought that the best way to do this was through improving the portfolio experience, having artists upload their work, and tracking mutual collaboration.  But consistently through our interviewing, it became more and more clear that for most artists and creatives, our current portfolio experience was just not working.  A large part of this is that we did not have the resources to support direct upload of audio or video files.  So, without the capacity or near-term prospect of supporting hi-fidelity portfolio uploads, it would have been much simpler to just ask people "who are your trusted creative peers?" and focus on networking. But it took a long time and lots of iteration for key stakeholders to accept that simple declarative connection, without was a valid indicator of genuine creative connection. Relaxing that constraint gave us a lot of freedom to rethink the tangled information web we had woven.  Becuase those we interviewed responed well to our mission of fostering creative connection accross the board, and only some users were engaging with the portfolio building aspects of ILWE, we felt that simplification of the app and a refocus on networking was the best way forward.</p>
 
     <container class="flex_stacker">
         <p>We arrived at three core features of an app geared towards creative connection:</p>
         <ul>
-        <li><b>Representation of the artistic self.</b> Interviews with core users and observed trends in the creative community towards link lists indicated that a simple, customizable profile page with list of important links is preferable to a complex and incomplete portfolio system. </li>
-        <li><b>Ability to search for creatives by name, role, and location:</b> </li>
-        <li><b>Information about your own creative network.</b></li>
+          <li><b>Representation of the artistic self.</b> Interviews with core users and observed trends in the creative community towards link lists indicated that a simple, customizable profile page with list of important links is preferable to a complex and incomplete portfolio system. </li>
+          <li><b>Information about your own creative network.</b> Access to everyone in your creative network, in your pocket, without any noise.</li>
+          <li><b>Ability to search for creatives by name, role, and location:</b> It is essential that our users can easily find each other once they are on the app.</li>
         </ul>
+        <p> The new app is simple, elegant and focused on creative connection.  It consistes of the Search Page, the Connections Hub with an integrated messenger, the Network Graph Explorer, and a Customizeable Profile:</p>
+
+        <container class="flex-wrapper">
+          <img src="assets/linkTM_appScreen_network.png" class="app_screen">
+          <img src="assets/linkTM_appScreen_search.png" class="app_screen">
+          <img src="assets/linkTM_appScreen_people.png" class="app_screen">
+          <img src="assets/linkTM_appScreen_messages.png" class="app_screen">
+          <img src="assets/linkTM_appScreen_profile.png" class="app_screen">
+          <img src="assets/linkTM_appScreen_profileEditor.png" class="app_screen">
+          <img src="assets/linkTM_appScreen_profileEditor_linkEditor.png" class="app_screen">
+        </container>
+
+        <!--container class="horizontal_scrolling_app_preview">
+          <container class="app_screens_side_by_side">
+            <img src="assets/linkTM_appScreen_network.png" class="full-height">
+            <img src="assets/linkTM_appScreen_network.png" class="full-height">
+            <img src="assets/linkTM_appScreen_network.png" class="full-height">
+            <img src="assets/linkTM_appScreen_network.png" class="full-height">
+            <img src="assets/linkTM_appScreen_network.png" class="full-height">
+            <img src="assets/linkTM_appScreen_network.png" class="full-height">
+            <img src="assets/linkTM_appScreen_network.png" class="full-height">
+
+          </container>
+        </container-->
+
     </container>
 
 
-      <p> ability to find and connect to the creatives you know, and 3) Information about your own creative network.  Another constraint: what can we build in the next two months, while we still have the latitude to pursue this full-time?</p>
-
-
-      <p>More extensive team discussions ensued. In the end, we decided to add greater customizability (a top request from our users), to eschew complex page-nesting portfolios for link lists on mobile (which had proven to one of the most successful parts of the web application) and to support those two features with great searchability (the core of exploring your virtual network).  If we had time after all of that, then we could add a prototypical graph visualization.</p>
-    </container> 
       
-    <h2>Wireframing</h2>
+    <!--h2>Updated Design System</h2>
 
-    <container class="flex-stacker"></container>
-      <p>After we had agreed on the core of what we were going to build, I set to work wireframing these critical features.  Normally, I might start sketching and wireframing on paper, but since I already had at this point several years of noodling on the basic structure, I went straight to digital wireframes.  Here are a couple samples:</p>
-      <img src="assets/linkWireframes_profile_builder.png" alt="Forty-nine wireframes that made up the links/profile-editor/account settings flows." class="full-width">
-      <p>That's 49 screens for adding links and other kinds of widgets to your profile, which a really comprehensive wireframe.  Wireframing this extensively allows us to get a clear idea and feel for lots of proposed functionality before deciding what makes the cut.  We ended up limiting the functionality to be much simpler for the first release.</p>
-    
-    <container class="flex-stacker"></container>
-      <p>As I go, I like to make a local wireframe component library as a way to keep track the pieces and atomic elements of this app.  I like to build apps this way, because it means that everything included in the wireframe can be edited en masse, and it also encourages a frugality, such that everything is built in terms of clearly defined units from the start.  In the future, I might make a generalized wireframing library of the most common componentsthat I can use for any project.</p>
-      <img src="assets/linkWireframes_componentLibrary.png" alt="A screenshot of the component library overview menu from Figma, which shows Wireframe Components - App Navigation, Blocks, Buttons, Images, Inputs, List Items, Menus, Modals and Popups, Scrollable Sections, and Selectors" class="full-width">
-      <img src="assets/linkWireframes_componentBirdsEye.png" alt="A screenshot of all the wireframe components from the Figma Wireframes." class="full-width">
-      <p>At junctures during the wireframing process, I run product syncs with our small team to get more perspectives and feedback on each pass of the design.  Typically, once the wireframes passed muster with our internal team, I would create hi-fi prototypes that we could test with users.  This project was a little different because we were trying to move at a highly accelerated pace.  And, we felt comfortable kicking off development directly after wireframing because we had already tested many of our component ideas with core users.  So, once things reach an equilibrium of "these look structurally sound, and this is something we can build," Henry and Gabe started development using the wireframes, and I moved on to creating and styling Hi-fidelity prototypes.</p>
-      
-    <h2>Hi-Fidelity Assets, and an updated Design System</h2>
-
-    <container class="flex-stacker"></container>
+    <container class="flex-stacker">
       <p>In contrast to the minimalist, "move fast and break stuff" ILWE.io and the app we had been working on for 8 months, wanted to create a new, intentional, "finished" look for Link.  Keeping the basic layout agreed upon during wireframing, I defined all of the colors and shadows in the high-fidelity prototype using colors and styles stored in our Design Library.  This early investment in time and thought paid off massively because it allowed me to iterate with color, font, and style very quickly using a control panel and see those styles instantly propogate throughout the entire design. </p>
-      <!--img src="assets/LinkDesignSystem_sideboard.png" alt="View of the high fidelity component library menu from Figma." class="full-width">
-      <img src="assets/linkDesignSystem_AppColors.png" alt="View of the color styles from Figma" class="full-width">
-      <img src="assets/linkDesignSystem_AppFonts.png" alt="View of the font styles from Figma" class="full-width"-->
+
       <p>Here are the most consistently supported color themes:</p>
-      <img src="assets/linkTM_Neumorphic Iterations.png" alt="Four Neumorphic theme mockups in rose gold, sage green, light gray, and dark gray." class="full-width">
-     
-    <container class="flex-stacker"></container>
-      <p>The above four designs were the most consistently popular, with the dark theme getting the most consistent support, but also often critiqued as too masculine.  The team ultimately chose the dark theme for our first release. For the prototype at top, I reverted to a white theme inspired by work from Dieter Rams.  The following four themes were also quite popular. Each was the "favorite" of various users, but none recieved consistent support across users except for the purple and blue theme.</p>
-      <img src="assets/linkTM_flatColorIterations.png" alt="Four theme mockups in an orange/light theme, deep purple, light vaporwave, and orange/dark gray theme." class="full-width">
+      <img src="assets/Themes:Light.png" alt="Four Neumorphic theme mockups in rose gold, sage green, light gray, and dark gray." class="full-width">
+      <img src="assets/ThemesDark.png" alt="Four Neumorphic theme mockups in rose gold, sage green, light gray, and dark gray." class="full-width">
+      <img src="assets/ThemesFuturalley.png" alt="Four Neumorphic theme mockups in rose gold, sage green, light gray, and dark gray." class="full-width">
+
+      <p>The above three designs were the most consistently popular, with the dark theme getting the most consistent support, but also often critiqued as too masculine.  The team ultimately chose the dark theme for our first release becuase of the consistent support it recieved, with plans to test more neutral tones with users for the second release.</p>
+
       <p>Maybe a blue neumorphic theme is in order. The benefit of the parameter-controlled prototype is that even while writing up this case study, I can tweak the theme in a matter of minutes:</p>
       <iframe style="border: 1px solid rgba(0, 0, 0, 0.1);" class="mobile_prototype" src="https://www.figma.com/embed?embed_host=share&url=https%3A%2F%2Fwww.figma.com%2Fproto%2FMZzbGBMp4KpjxPX4uCILDj%2FLink%253A-Creative-Connections--Blue%3Fpage-id%3D402%253A25430%26node-id%3D461%253A26423%26viewport%3D905%252C998%252C0.3%26scaling%3Dscale-down%26starting-point-node-id%3D461%253A26423" allowfullscreen></iframe>
 
-    <h2>Results, Takeaways and Next Steps</h2>
+    </container>
+    <container class="flex-stacker"></container-->
+
+    <h2>Takeaways and Next Steps</h2>
 
     <container class="flex-stacker">
-      <p> Even despite our compressed timeline, we were able to build and release <a href="https://apps.apple.com/us/app/link-creative-connections/id1598695254">Link: Creative Connections MVP</a> in September.  We were not able to achieve the viral, explosive growth that we needed to continue with focus on this project - but without resources to put behind improvement, promotion and release, it's not unexpected.  The jury is out on  In the first week after release, we saw 117 new accounts, attributable to a small backyard concert we threw to support launch.  As of Nov 4th, we've seen accounts continue to trickle in (11 so far), absent any promotion.  </p>
-      <!--p> Without yet going into a full retrospective, I think that the biggest reason for this slow growth is that the creatives we have been pursuing for so long dont <em>need</em> a different way to represent themselves or connect with each other.  Instagram exists. Linktree exists.  Many users were conceptually receptive to ILWE, and out of 300 artists we interviewed and surveyed, none said explicitly "Honestly, I don't need this;" Our NPS score was great.</p-->
+      <p> Even despite our compressed timeline, we were able to build and release <a href="https://apps.apple.com/us/app/link-creative-connections/id1598695254">the Link: Creative Connections MVP</a> in September.  It felt amazing to come together in the grips of existential crises and put together a beautiful, cohesive, and refocused design, and to release a great foundation for improvements.  The design provides for the following improvements, should anyone wish to pick up on our progress and continue with next steps:</p>
+
+        <ol>
+          <li><b>Contact-list integration-</b> Users could integrate their contacts list to find Link users they might know or recruit close friends who are not yet on the app.</li>
+          <li><b>More comprehensive profile customizability-</b> Users could control button opacity, pick custom background colors. and add dimension using background filters.</li>
+          <li><b>Auto-import link lists-</b> Automatic transfers from competitors like LinkTree would make the switch from LinkTree to relatively easy for users who want the expanded networking capabilites that Link offers.</li>
+          <li><b>Feed-</b> A master-list of all of their connections newest profile blocks. Users could stay up to date with, respond to, and spread the latest projects that their creative connections have added to their profiles.</li>
+          <li><b>Group Messaging-</b> Even better than talking to each of your creative connections, is talking together.  This would form the basis for collective action and creation.</li>
+          <li><b>MultiMedia Messages-</b> Chat-based communication is multimedia by default.  In order to be successful, Link's messenger would have to support photo content if not more expanded options.</li>
+          <li><b>Expanded profile block options-</b> Right now the app only suports link blocks, but I also envisioned user options expanding to include Text, Photo, and Video blocks.</li>
+          <li><b>Link analytics-</b> Understanding how many people have clicked each link in your profile is important for professional artists who use the links to direct fans to their work, and would be cool for even more casual users.</li>
+        </ol>
+
+      
+      <p> We were not able to achieve the viral, explosive growth that we needed to continue with focus on this project.  In the first week after release, we saw 117 new accounts, attributable to a small backyard concert we threw to support launch.  As of Nov 4th, we've seen accounts continue to trickle in absent any promotion, and a handful of user sessions every week.  Maybe it will catch on and grow.  Without resources to put behind improvement, promotion and release, spontaneous organic growth is not expected.</p>
+
     </container>
       
   
