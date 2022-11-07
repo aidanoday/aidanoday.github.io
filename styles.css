@@ -44,6 +44,12 @@
     --maxParagraph: 24px;
     --maxParagraphUnitless:24;
 
+    --minParagraphSmall: 12px;
+    --minParagraphUnitlessSmall:12;
+
+    --maxParagraphSmall: 18px;
+    --maxParagraphUnitlessSmall:18;
+
     --minH1: 72px;
     --minH1Unitless:72;
 
@@ -151,7 +157,7 @@ li{
 p.small {
     font-family: 'Inter', sans-serif;
     font-weight: 100;
-    font-size: calc(var(--fluidParagraph));
+    font-size: var(--fluidParagraphSmall);
     margin-left: 12px;
     margin-right: 12px;
 
