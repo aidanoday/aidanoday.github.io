@@ -1,6 +1,6 @@
 :root {
-    --Fill: hsl(0, 0%, 99%);
-    --Text: rgb(0, 0, 0);
+    --Fill: hsl(0, 0%, 0%);
+    --Text: rgb(255, 255, 255);
     --Surface: hsl(0, 0%, 100%);
     --onSurface:rgb(0, 0, 0);
     --FillAlt: hsl(0, 0%, 20%);
@@ -362,6 +362,41 @@ a.animated:active {
     opacity: 50%;
     
 }
+
+a.onSurface {
+    font-family: 'Helvetica';
+    font-style: normal;
+    font-weight: lighter;
+    font-size: var(--fluidParagraph);
+    line-height: 30px;
+  
+    color: var(--onSurface);
+  
+  /* Inspired by this article by Harshil Patel:
+  https://css-tricks.com/css-link-hover-effects */
+      text-decoration: none;
+  
+      background:
+        var(--UnderlineGradient);
+  
+      background-size: 100% 1px, 0 1px;
+      background-position: 100% 100%, 0 100%;
+      background-repeat: no-repeat;
+      transition: all 400ms;
+  }
+
+a.onSurface:hover {
+    background-size: 0 3px, 100% 3px;
+    color: var(--onSurface);
+    font-weight: bolder;
+    font-size: calc(var(--fluidParagraph) + 2px);
+  }
+
+a.onSurface:active {
+    opacity: 50%;
+    
+}
+
 
 
 a.subtle {
