@@ -542,7 +542,7 @@ img.spinner{
     overflow: clip;
     border-radius: 0px;
     
-    background: url(assets/hero.jpg) ;
+    background: url(assets/background.jpg) ;
     background-size: cover;
     background-position: center;
 
@@ -566,8 +566,6 @@ p.hero_text{
     justify-content: flex-end;
     align-items: center;
     padding-bottom: 20vh;
-    
-    background: #00000020;
 
     color:var(--TextAlt);
 }
