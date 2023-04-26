@@ -66,6 +66,7 @@
 }
 
 @import url('https://fonts.googleapis.com/css2?family=Inter&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Work+Sans:ital,wght@0,300;0,400;0,600;0,700;1,300;1,400;1,600;1,700&display=swap');
 
 html {
     scroll-behavior:smooth ;
@@ -80,7 +81,7 @@ a{
 }
 
 h1 {
-    font-family: Helvetica, sans-serif;
+    font-family: 'Work Sans';
     font-size: var(--fluidH1);
     word-wrap: break-word;
     margin: 0px;
@@ -88,20 +89,20 @@ h1 {
 }
 
 h2 {
-    font-family: Helvetica, sans-serif;
+    font-family: 'Work Sans', sans-serif;
     font-size: var(--fluidH2);
     margin-left: 12px;
 }
 
 h3 {
-    font-family: Helvetica, sans-serif;
+    font-family: 'Work Sans', sans-serif;
     margin-left: 12px;
     margin-right: 12px;
     margin-top: 12px;
 }
 
 h4 {
-    font-family: Helvetica, sans-serif;
+    font-family: 'Work Sans', sans-serif;
     margin:0px;
 
 }
@@ -162,7 +163,7 @@ spinner{
 }
 
 p {
-    font-family: 'Inter', sans-serif;
+    font-family:'Work Sans', sans-serif;
     font-weight: 100;
     font-size: var(--fluidParagraph);
     margin-top: 0px;
@@ -171,7 +172,7 @@ p {
 }
 
 li{
-    font-family: 'Inter', sans-serif;
+    font-family: 'Work Sans', sans-serif;
     font-weight: 100;
     font-size: var(--fluidParagraph);
     margin-bottom:12px;
@@ -179,7 +180,7 @@ li{
 }
 
 p.small {
-    font-family: 'Inter', sans-serif;
+    font-family:'Work Sans', sans-serif;
     font-weight: 100;
     font-size: var(--fluidParagraphSmall);
     margin-left: 12px;
@@ -400,7 +401,7 @@ a.onSurface:active {
 
 
 a.subtle {
-  font-family: 'Inter', sans-serif;
+  font-family: 'Work Sans', sans-serif;
   text-decoration: none;
   font-weight: 400;
   font-size: var(--fluidParagraph);
