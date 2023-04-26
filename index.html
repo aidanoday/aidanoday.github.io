@@ -3,21 +3,38 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
      <!--Open Graph Properties-->
     <meta property="og:title" content="Aidan's Portfolio" />
     <meta property="og:type" content="website" />
     <meta property="og:url" content="https://www.aidanoday.me/index.html" />
     <meta property="og:image" content="https://www.aidanoday.me/assets/hero.jpg" />
     <meta property="description" content="Hi!  I'm a UI Designer with 3 years of startup experience. Check out what I've done." />
-    <title>✍️🧑‍💻📐📽 Aidan O'Day ☕️🎿🤓♟ | Home</title>
 
-   <link rel="shortcut icon" href="assets/apod.ico" type="image/x-icon"/>
-   <link rel="apple-touch-icon" href="assets/apod.ico" type="image/x-icon"/>
+    <title>✍️🧑‍💻📐📽 Aidan O'Day ☕️🎿🤓♟ | Home</title>
+    
+    <!--favicon-->
+    <link rel="shortcut icon" href="assets/apod.ico" type="image/x-icon"/>
+    <link rel="apple-touch-icon" href="assets/apod.ico" type="image/x-icon"/>
+
+   <!--stylesheet-->
    <link rel="stylesheet" href="styles.css">
+
+   <!--google fonts-->
+   <link rel="preconnect" href="https://fonts.googleapis.com">
+   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+   <link href="https://fonts.googleapis.com/css2?family=Work+Sans:ital,wght@0,300;0,400;0,600;0,700;1,300;1,400;1,600;1,700&display=swap" rel="stylesheet">
+
+   <!--lottiefile player-->
    <script src="https://unpkg.com/@lottiefiles/lottie-player@latest/dist/lottie-player.js"></script>
+
+   <!--peekaboo navigation-->
    <script src="js/peekabooNav.js"></script>
+
+   <!--loading state enabler-->
    <script src="js/loadingState.js"></script>
 
+   <!--google tag-->
    <script async src="https://www.googletagmanager.com/gtag/js?id=G-DYDCM8KNK6"></script>
    <script>
      window.dataLayer = window.dataLayer || [];
@@ -26,10 +43,13 @@
    
      gtag('config', 'G-DYDCM8KNK6');
    </script>
+
   </head>
+
   <spinner>
     <img class="spinner" src="assets/apodLoader.gif" >
   </spinner>
+
   <body>
     <nav id="peekaboo">
       <svg width="24" height="24" viewBox="0 0 44 44" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -48,8 +68,9 @@
             </clipPath>
         </defs>
       </svg>
+      <!--Navigation Buttons-->
       <a class="onSurface" href="#projects">Featured Work</a>
-      <a class="onSurface" href="design_background/index.html">My Story</a>
+      <a class="onSurface" href="#story">About Me</a>
       <a class="onSurface" href="assets/Aidan_ODay_Resume.pdf" target="_blank" rel="noopener noreferrer">Resume</a>
 
     </nav>
@@ -63,15 +84,14 @@
         </container>
       </container>
 
-      <container class="flex_stacker">
+      <container id="story" class="flex_stacker">
         
-        <p>Based in Seattle, WA, I am a seasoned UX Designer, Product Manager, and Entrepreneur (ugh, I know) with robust experience in user research, interface design, and product leadership.  I’m leveraging my unique background in human values, ontology, and social psychology and my interests in tech, industrial design, art, philosophy, and the creative world to gain detailed understandings of user needs, tackle complex problems, and create delightful products.</p>
+        <p>Based in Seattle, WA, I am a seasoned UX designer, product manager, and startup veteran with robust experience in user research, interface design, and product leadership.  I’m leveraging my unique background in human values, ontology, and social psychology and my interests in tech, industrial design, art, philosophy, and the creative world to gain detailed understandings of user needs, tackle complex problems, and create delightful products.</p>
           
-        <p>For the past 3 years I've been running product and acting as the sole full-stack designer for cross-platform digital products at ILWE.io, wearing lots of hats to save on haircuts.
-          Over 36 months our small scrappy team raised a pre-seed round, brought to life a web app, and released two mobile apps aimed at empowering and connecting the next generation of 'bedroom creatives.'
+        <p>From 2019-2022 I was the lead designer and team lead for cross-platform digital products at ILWE.io, wearing lots of hats to save on haircuts. Over 36 months our small scrappy team raised a pre-seed round, brought to life a web app, and released two mobile apps aimed at empowering and connecting the next generation of 'bedroom creatives.'  Now, I'm working as a freelance UX designer and product strategist helping other teams identify problems and develop meaningful solutions.
         </p>
 
-        <p>I'm looking to join a new team working to make life better for people. Maybe you're looking for a new teammate?  Feel free to poke around my portfolio. It's under construction right now, and know it's not much, but it's all mine.</p>
+        <p>I'm looking to join a new team working to make life better for people, and I'm looking for industry veterans who can challenge and mentor me.  Maybe you're looking for a new teammate?  Feel free to poke around my portfolio, check out my resume, and reach out if anything catches your eye.</p>
         
       </container>
 
@@ -96,6 +116,7 @@
               <p class="small"> Logo and Motion Design for Synq</p>
               <p class="small"> A monolithic “S” revealed as just a part of the larger whole: a composite isometric cube - which, reminiscent of the molecular structure of sugar, carbon fiber and crystalline diamond, evokes the strength and sweetness of "synqing" swiftly with others to join in spontaneous shenanigans.</p>
             </section>
+          </a>
 
           <a class="card" href="jordache.html">
             <img class="card_cover" src="assets/Jordache_Cover.png">
