@@ -6,8 +6,8 @@
     --FillAlt: hsl(0, 0%, 20%);
     --TextAlt: rgb(255, 255, 255);
     --Shadow: 4px 4px 4px 0px #00000020;
-    --AccentShadow:#F8C62576;
-    --AccentShadowPressed: #094fffcd;
+    --AccentShadow:#4851B4;
+    --AccentShadowPressed: #97D9A2;
     --Accent: orangered;
     --UnderlineGradient: 
         linear-gradient(
