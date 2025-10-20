@@ -41,20 +41,20 @@
     --minParagraph: 12px;
     --minParagraphUnitless:12;
 
-    --maxParagraph: 24px;
-    --maxParagraphUnitless:24;
+    --maxParagraph: 12px;
+    --maxParagraphUnitless:12;
 
     --minParagraphSmall: 12px;
     --minParagraphUnitlessSmall:12;
 
-    --maxParagraphSmall: 18px;
-    --maxParagraphUnitlessSmall:18;
+    --maxParagraphSmall: 12px;
+    --maxParagraphUnitlessSmall:12;
 
     --minH1: 72px;
     --minH1Unitless:72;
 
-    --maxH1: 144px;
-    --maxH1Unitless:144;
+    --maxH1: 72px;
+    --maxH1Unitless:72;
 
     --fluidParagraph: calc(var(--minParagraph) + (var(--maxParagraphUnitless) - var(--minParagraphUnitless)) * ((100vw - var(--minView))/(var(--maxViewUnitless) - var(--minViewUnitless))));
     --fluidParagraphSmall: calc(var(--minParagraphSmall) + (var(--maxParagraphSmallUnitless) - var(--minParagraphSmallUnitless)) * ((100vw - var(--minView))/(var(--maxViewUnitless) - var(--minViewUnitless))));
