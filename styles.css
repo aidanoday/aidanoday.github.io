@@ -38,17 +38,17 @@
     --maxView:1600px;
     --maxViewUnitless:1600;
 
-    --minParagraph: 12px;
-    --minParagraphUnitless:12;
+    --minParagraph: 16px;
+    --minParagraphUnitless:16;
 
-    --maxParagraph: 12px;
-    --maxParagraphUnitless:12;
+    --maxParagraph: 16px;
+    --maxParagraphUnitless:16;
 
-    --minParagraphSmall: 12px;
-    --minParagraphUnitlessSmall:12;
+    --minParagraphSmall: 16px;
+    --minParagraphUnitlessSmall:16;
 
-    --maxParagraphSmall: 12px;
-    --maxParagraphUnitlessSmall:12;
+    --maxParagraphSmall: 16px;
+    --maxParagraphUnitlessSmall:16;
 
     --minH1: 72px;
     --minH1Unitless:72;
@@ -58,11 +58,11 @@
 
     --fluidParagraph: calc(var(--minParagraph) + (var(--maxParagraphUnitless) - var(--minParagraphUnitless)) * ((100vw - var(--minView))/(var(--maxViewUnitless) - var(--minViewUnitless))));
     --fluidParagraphSmall: calc(var(--minParagraphSmall) + (var(--maxParagraphSmallUnitless) - var(--minParagraphSmallUnitless)) * ((100vw - var(--minView))/(var(--maxViewUnitless) - var(--minViewUnitless))));
-    --fluidH1: calc(var(--minH1) + (var(--maxH1Unitless) - var(--minH1Unitless)) * ((100vw - var(--minView))/(var(--maxViewUnitless) - var(--minViewUnitless))));
-    --fluidH2: calc(var(--minH1) - 44px + (var(--maxH1Unitless) - var(--minH1Unitless) -44) * ((100vw - var(--minView))/(var(--maxViewUnitless) - var(--minViewUnitless))));
-    --fluidH3: calc(var(--minH1) - 44px + (var(--maxH1Unitless) - var(--minH1Unitless) -44) * ((100vw - var(--minView))/(var(--maxViewUnitless) - var(--minViewUnitless))));
-    --fluidH3: calc(var(--minH1) - 40px + (var(--maxH1Unitless) - var(--minH1Unitless)) * ((100vw - var(--minView))/(var(--maxViewUnitless) - var(--minViewUnitless))));
-    --fluidH4: calc(var(--minH1) - 96px + (var(--maxH1Unitless) - var(--minH1Unitless)) * ((100vw - var(--minView))/(var(--maxViewUnitless) - var(--minViewUnitless))));
+    --fluidH1: 72px /* calc(var(--minH1) + (var(--maxH1Unitless) - var(--minH1Unitless)) * ((100vw - var(--minView))/(var(--maxViewUnitless) - var(--minViewUnitless))))*/;
+    --fluidH2: 36px/* calc(var(--minH1) - 44px + (var(--maxH1Unitless) - var(--minH1Unitless) -44) * ((100vw - var(--minView))/(var(--maxViewUnitless) - var(--minViewUnitless))))*/;
+    --fluidH3: 18px/* calc(var(--minH1) - 44px + (var(--maxH1Unitless) - var(--minH1Unitless) -44) * ((100vw - var(--minView))/(var(--maxViewUnitless) - var(--minViewUnitless))))*/;
+    --fluidH4: 16px/* calc(var(--minH1) - 40px + (var(--maxH1Unitless) - var(--minH1Unitless)) * ((100vw - var(--minView))/(var(--maxViewUnitless) - var(--minViewUnitless))))*/;
+    --fluidH5: 12px/* calc(var(--minH1) - 96px + (var(--maxH1Unitless) - var(--minH1Unitless)) * ((100vw - var(--minView))/(var(--maxViewUnitless) - var(--minViewUnitless))))*/;
 }
 
 @import url('https://fonts.googleapis.com/css2?family=Inter&display=swap');
