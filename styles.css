@@ -1,10 +1,10 @@
 :root {
-    --Fill: hsl(0, 0%, 0%);
-    --Text: rgb(255, 255, 255);
-    --Surface: hsl(0, 0%, 100%);
-    --onSurface:rgb(0, 0, 0);
-    --FillAlt: hsl(0, 0%, 20%);
-    --TextAlt: rgb(255, 255, 255);
+    --Fill: hsl(30, 100%, 95%);
+    --Text: hsl(240, 1%, 15%);
+    --Surface: hsl(240, 1%, 15%);
+    --onSurface:hsl(30, 100%, 95%);
+    --FillAlt: hsl(30, 100%, 95%);
+    --TextAlt: hsl(240, 1%, 15%);
     --Shadow: 4px 4px 4px 0px #00000020;
     --AccentShadow:#4851B4;
     --AccentShadowPressed: #97D9A2;
@@ -12,8 +12,8 @@
     --UnderlineGradient: 
         linear-gradient(
             to right,
-            rgba(255, 60, 0, 1),
-            rgba(255, 60, 0, 0)
+            rgb(47, 0, 255),
+            rgb(255, 60, 0)
         ),
         linear-gradient(
             to right,
@@ -207,12 +207,14 @@ p.small {
 
 .full-width{
     width: 100%;
+    max-width: 1000px;
     border-radius: 8px;
     margin-bottom: 12px;
 }
 
 .card {
     width: 100%;
+    max-width: 1000px;
     height: 300px;
     padding-bottom:12px;
     display:flex;
@@ -543,7 +545,7 @@ img.spinner{
     overflow: clip;
     border-radius: 0px;
     
-    background: url(assets/background.jpg) ;
+    background: url(assets/background_light.jpg) ;
     background-size: cover;
     background-position: center;
 
