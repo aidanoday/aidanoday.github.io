@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Under Construction Demo</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+            background: #f0f0f0;
+        }
+
+        .test-button {
+            padding: 12px 24px;
+            font-size: 16px;
+            background: #007bff;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: background 0.3s;
+        }
+
+        .test-button:hover {
+            background: #0056b3;
+        }
+
+        dialog {
+            border: none;
+            border-radius: 8px;
+            padding: 0;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            max-width: 400px;
+        }
+
+        dialog::backdrop {
+            background: rgba(0, 0, 0, 0.5);
+        }
+
+        .dialog-content {
+            padding: 30px;
+            text-align: center;
+        }
+
+        .dialog-content h2 {
+            margin: 0 0 15px 0;
+            color: #333;
+            font-size: 24px;
+        }
+
+        .dialog-content p {
+            margin: 0 0 25px 0;
+            color: #666;
+            line-height: 1.5;
+        }
+
+        .close-button {
+            padding: 10px 20px;
+            background: #007bff;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+
+        .close-button:hover {
+            background: #0056b3;
+        }
+    </style>
+</head>
+<body>
+    <button class="test-button" onclick="showDialog()">Click Me!</button>
+
+    <dialog id="constructionDialog">
+        <div class="dialog-content">
+            <h2>🚧 Under Construction 🚧</h2>
+            <p>This feature is currently being built. Please check back soon!</p>
+            <button class="close-button" onclick="closeDialog()">Got it</button>
+        </div>
+    </dialog>
+
+    <script>
+        const dialog = document.getElementById('constructionDialog');
+
+        function showDialog() {
+            dialog.showModal();
+        }
+
+        function closeDialog() {
+            dialog.close();
+        }
+
+        // Allow closing with Escape key (built-in) or clicking backdrop
+        dialog.addEventListener('click', (e) => {
+            if (e.target === dialog) {
+                closeDialog();
+            }
+        });
+    </script>
+</body>
+</html>

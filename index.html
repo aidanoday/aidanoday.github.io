@@ -44,6 +44,7 @@
      gtag('config', 'G-DYDCM8KNK6');
    </script>
 
+
   </head>
 
   <spinner>
@@ -51,6 +52,82 @@
   </spinner>
 
   <body>
+      <!--Dialog-->
+    <dialog id="constructionDialog">
+      <div class="dialog-content">
+          <h2>🚧 Page In Progress 📑✍🏻 🚧</h2>
+          <p> So sorry! This project is done but the writeup is still in progress. Rather than give you a premature peek behind the curtain, I've put up this barrier. Check back soon!</p>
+          <button class="close-button" onclick="closeDialog()">Done (esc)</button>
+      </div>
+    </dialog>
+    <style>
+      dialog {
+            border: none;
+            border-radius: 8px;
+            padding-bottom: 16px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            max-width: 400px;
+        }
+
+        dialog::backdrop {
+            background: rgba(0, 0, 0, 0.5);
+        }
+
+        .dialog-content {
+            padding: 0px;
+            text-align: center;
+        }
+
+        .dialog-content h2 {
+            margin: bottom 0px;
+            color: #333;
+            font-size: 24px;
+        }
+
+        .dialog-content p {
+            margin: bottom 16px;;
+            color: #666;
+            line-height: 1.5;
+        }
+
+        .close-button {
+            padding: 8px 16px;
+            background: var(--surface);
+            color:var(--onSurface);
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            outline: 1px #333;
+        }
+
+        .close-button:hover {
+          padding: 8px 16px;
+            background:paleturquoise;
+            color:black;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            
+        }
+    </style>
+    <script>
+      const dialog = document.getElementById('constructionDialog');
+
+      function showDialog() {
+          dialog.showModal();
+      }
+
+      function closeDialog() {
+          dialog.close();
+      }
+
+      // Allow closing with Escape key (built-in) or clicking backdrop
+      dialog.addEventListener('click', (e) => {
+          if (e.target === dialog) {
+              closeDialog();
+          }
+      });
+      </script>
     <nav id="peekaboo">
       <svg width="24" height="24" viewBox="0 0 44 44" fill="none" xmlns="http://www.w3.org/2000/svg">
         <g clip-path="url(#clip0_194_15860)">
@@ -86,12 +163,19 @@
 
       <container id="story" class="flex_stacker">
         
-        <p>Based in Seattle, WA, I am a tinker artist turned Product Designer. Growing up, I took hard drives apart with my friends and siblings to make art with the pieces. Today, I bring that same technical and creative curiosity, an academic background in psychology and user-centered design, and seven years of product design experience to the table.</p>
-        <p>In 2025, I'm working as a product designer on the Outbound Logistics Technology team at Lululemon, designing clear and powerful tools for making million-dollar logistics decisions.</p>
-        <p>Over the past seven years, I’ve done a lot! From 2019-2022 I was the lead designer and team lead for cross-platform digital products at ILWE.io, wearing lots of hats to save on haircuts. Over 36 months our small scrappy team raised a pre-seed round, brought to life a web app, and released two mobile apps aimed at empowering and connecting the next generation of 'bedroom creatives.' After we closed shop, I moved to Seattle and spent time consulting as a freelance UX designer and product strategist. During that time I helped the founders of Knomee refine, develop, and prototype their vision, which allowed them to raise an initial $300,000 pre-seed fund. In July 2023, I joined inquirED as their first UX/UI designer, where I established a design system using Figma and brought better navigation, accessibility, and mobile compatibility to the forefront of their curriculum platform for teachers.</p>
+        <p><b>About:</b> Based in Seattle, WA, I am a tinker artist turned product designer. Growing up, I took hard drives apart with my friends and siblings to make art with the pieces. Today, I bring that same technical and creative curiosity, an academic background in psychology and user-centered design, and seven years of product design experience to the table.</p>
+        <p><b>Currently:</b> I'm working as a product designer on the Outbound Logistics Technology team at Lululemon, where I've been designing tools to more easily automate logistics decisions since 2024.</p>
+        <p><b>Where I've Been:</b></p>
+        <container class="timeline">
+          <p>2024<br> 2023</p> 
+          <p>I moved to Seattle and consulted as a freelance UX designer and product strategist. I helped the founders of Knomee refine, develop, and prototype their vision, which allowed them to raise an initial $250,000 pre-seed round. In July 2023, I joined inquirED as their first UX/UI designer, where I established a Figma design system using and brought better navigation, accessibility, and mobile compatibility to the forefront of their curriculum platform for teachers.</p>
+        </container>
+        <container class="timeline">
+          <p>2022<br> 2021<br> 2020<br> 2019</p>
+          <p> I was co-founder and product lead for cross-platform digital products at ILWE.io, wearing lots of hats to save on haircuts. Over 36 months our small scrappy team raised a $350,000 pre-seed round, brought to life a web app, and released two mobile apps aimed at empowering and connecting the next generation of 'bedroom creatives.'</p></container> 
         <p>Thank you for coming to poke around my portfolio.  Stay tuned for updates, check out my resume, and reach out if anything catches your eye.</p>
 
-        <p>Cheers, Aidan</p>
+        <p>Cheers,<br> Aidan</p>
         
       </container>
 
@@ -99,19 +183,19 @@
       <container id="projects">
         <h2>Featured Work:</h2>
 
-        <a class="card" href="">
+        <a class="card" onclick="showDialog()">
           <img class="card_cover" src="assets/ai_pebble.png">
           <section class="text">
-            <h3>Pebble AI - In-context Academic Advising </h3>
+            <h3>Pebble AI </h3>
             <!--p class="small"><em>Summer/Fall 2022</em></p-->
-            <p class="small"> Improving the inquirED portal with accessibility and clear navigation</p>
+            <p class="small"> In-context Academic Advising</p>
             <p class="small"> How might we guide lost students at a critical junctures in their academic journeys using agentic adivsors trained on historic student data and advising materials?</p>
           </section>
         
         </a>
 
-        <a class="card" href="">
-          <img class="card_cover" src="assets/Caution.png">
+        <a class="card" onclick="showDialog()">
+          <img class="card_cover" src="assets/InquirED.png">
           <section class="text">
             <h3>Better Curriculum Navigation and Accessibility📓👩‍🏫🗺️</h3>
             <!--p class="small"><em>Summer/Fall 2022</em></p-->
@@ -144,13 +228,13 @@
           <section class="text">
             <h3>Twabler 🐣 🏷</h3>
             <!--p class="small"><em>Summer/Fall 2022</em></p-->
-            <p class="small"> Logo and Mobile UX for Code for San Francisco</p>
+            <p class="small"> Mobile UX for Code for San Francisco</p>
             <p class="small"> A labeling method for ML NLP training sets that improves on old methods by segmenting and batching tweet labeling tasks, so that labelers can spend less time thinking and more time labeling.</p>
           </section>
         </a>
 
-        <a class="card" href="">
-          <img class="card_cover" src="assets/Caution.png">
+        <a class="card" onclick="showDialog()">
+          <img class="card_cover" src="assets/knomee.png">
           <section class="text">
             <h3>Knomee Financial Identity Prototype📱💵🧘‍♀️</h3>
             <!--p class="small"><em>Summer/Fall 2022</em></p-->

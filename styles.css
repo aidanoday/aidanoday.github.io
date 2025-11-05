@@ -1,8 +1,8 @@
 :root {
     --Fill: hsl(30, 100%, 95%);
     --Text: hsl(240, 1%, 15%);
-    --Surface: hsl(240, 1%, 15%);
-    --onSurface:hsl(30, 100%, 95%);
+    --Surface: hsl(0, 0%, 98%);
+    --onSurface:hsl(0, 1%, 15%);
     --FillAlt: hsl(30, 100%, 95%);
     --TextAlt: hsl(240, 1%, 15%);
     --Shadow: 4px 4px 4px 0px #00000020;
@@ -566,7 +566,8 @@ p.hero_text{
     
     display: flex;
     flex-direction: column;
-    justify-content: flex-end;
+    justify-content: center;
+    padding-top: 300px;
     align-items: center;
     padding-bottom: 20vh;
 
@@ -605,7 +606,7 @@ p.hero_text{
     }
 
     .less_space{
-        padding-left:20vw;
+        padding:20vw;
         opacity: 100%;
     }
 }
@@ -648,3 +649,30 @@ wrapper.garden{
     height:48vw;
     border-radius: 24px;
 }
+
+/*AI Styling----------------------------------------------------------------------
+/* 1. The main timeline container */
+.timeline {
+    display: flex;
+    flex-direction: row; /* Aligns children side-by-side */
+    width: 100%;       /* Fills the available width */
+    height: auto;        /* Adjusts height to content */
+    gap: 0px;         /* Creates the 24px space between items */
+    align-items: flex-start; /* Aligns items to the top */
+  }
+  
+  /* 2. The first <p> (the date) */
+  .timeline p:first-child {
+    /* This shorthand means: don't grow, don't shrink, and be 20% wide */
+    flex: 0 0 10%;
+    font-weight: 500;
+  }
+  
+  /* 3. The second <p> (the description) */
+  .timeline p:last-child {
+    /* This shorthand means: grow to fill space (1), don't shrink (0), and have an initial size of 0 */
+    flex: 1 0 0;
+  }
+  
+  /* 4. The media query for stacking on small screens */
+ 
