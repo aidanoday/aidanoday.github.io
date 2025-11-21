@@ -41,14 +41,14 @@
     --minParagraph: 16px;
     --minParagraphUnitless:16;
 
-    --maxParagraph: 16px;
-    --maxParagraphUnitless:16;
+    --maxParagraph: 24px;
+    --maxParagraphUnitless:24;
 
     --minParagraphSmall: 16px;
     --minParagraphUnitlessSmall:16;
 
-    --maxParagraphSmall: 16px;
-    --maxParagraphUnitlessSmall:16;
+    --maxParagraphSmall: 24px;
+    --maxParagraphUnitlessSmall:24;
 
     --minH1: 72px;
     --minH1Unitless:72;
@@ -74,6 +74,9 @@ html {
 
 body {
     transition: opacity 500ms;
+    position: relative;
+    width: 100vw;
+    margin: 0;
 }
 
 a{
