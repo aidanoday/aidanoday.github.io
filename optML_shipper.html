@@ -71,6 +71,9 @@
             </container>
             
             <!--Claude Prototype-->
+            <container class="flex_stacker">
+                <h2>Proof of Concept:</h2>
+            </container>
             <iframe src="https://claude.site/public/artifacts/0452e2ed-5d3b-4427-ab10-327dad6c618b/embed" title="Claude Artifact" width="100%" height="600" frameborder="0" allow="clipboard-write" allowfullscreen></iframe>
             <container class="project_summary">
                 <container id="introduction" class="flex_stacker">
@@ -80,6 +83,23 @@
                     <p><b>Role:</b> Product Designer</p>
                     <p><b>Impact:</b> Developed business case and proof of concept dashboard for handoff to AI implementation team.</p>
                 </container>
+            </container>
+            <container class="flex_stacker">
+                <h2>Background</h2>
+                <p>The client currently determines optimal shipper selection through lengthy analysis cycles and hard-codes business rules, which requires large time and capitol investment for optimization and maintenance. This approach has two downsides: it is expensive to maintain, and slow to adapt to fast changing logistics situations. The mass-adoption of capable AI models has them asking "how could we be using ai to optimize our business practices?"</p>
+                <h2>Proposal: Use Machine Learning to Optimize Carrier Selection</h2>
+                <p>This solution would be built of 3 layers. In the first layer, an algorithm would hit shipper's apis to generate alternative cost datapoints for each package and cache the results so that the client doesn't spend API calls on similar shipments.</p>
+                <p>In the second layer, an ML algorithm would be trained on the costing data from the first layer and become adept at predicting the least expensive and most reliable carriers for each situation. Models like Gradient Boosting (e.g., XGBoost, LightGBM) and Random Forest are also well-suited for structured, tabular data like this and are known for their strong performance and interpretability. XGBoost in particular is a popular choice for this type of problem due to its speed and accuracy.</p>
+                <p>In the third layer, an agent could be deployed to surface and communicate savings opportunities through a dashboard similar to the one mocked up above.</p>
+                <h2>Impact:</h2>
+                <p>This product would deliver the following key benefits to 
+                    Key benefits to the logistics team:
+                    <ul>
+                        <li>Reduce shipping costs: Algorithm will be able to effectively consider every shipment option available and exhaustively identify the least expensive shipment methods.</li>
+                        <li>Improve shipment reliability: Algorithm will observe historic shipment data to identify the most reliable shipment methods and generate more accurate delivery date predictions than those provided by couriers.</li>
+                        <li>Simplified UI: Agent-driven reccomendations for understanding shipping volume, carrier selection, and costs make business choices more clear for analysts.</li>
+                    </ul>
+                </p>
             </container>
 
         </wrapper>
