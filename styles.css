@@ -666,7 +666,7 @@ wrapper.garden{
 spline-viewer {
   /* Set the container size */
   width: 100vw;
-  height: 100vh; /* Or use a percentage/viewport units for responsiveness, e.g., 60vh */
+  height: 110vh; /* Or use a percentage/viewport units for responsiveness, e.g., 60vh */
   
   /* Center the viewer within a flexible container */
   display: flex;
