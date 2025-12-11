@@ -49,6 +49,84 @@
   </spinner>
 
   <body>
+    <container tag="dialog">
+        <dialog id="constructionDialog">
+        <div class="dialog-content">
+            <h2>🚧 Page In Progress 📑✍🏻 🚧</h2>
+            <p> So sorry! This project is done but the writeup is still in progress. Rather than give you a premature peek behind the curtain, I've put up this barrier. Check back soon!</p>
+            <button class="close-button" onclick="closeDialog()">Done (esc)</button>
+        </div>
+        </dialog>
+        <style>
+        dialog {
+                border: none;
+                border-radius: 8px;
+                padding-bottom: 16px;
+                box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+                max-width: 400px;
+            }
+
+            dialog::backdrop {
+                background: rgba(0, 0, 0, 0.5);
+            }
+
+            .dialog-content {
+                padding: 0px;
+                text-align: center;
+            }
+
+            .dialog-content h2 {
+                margin: bottom 0px;
+                color: #333;
+                font-size: 24px;
+            }
+
+            .dialog-content p {
+                margin: bottom 16px;;
+                color: #666;
+                line-height: 1.5;
+            }
+
+            .close-button {
+                padding: 8px 16px;
+                background: var(--surface);
+                color:var(--onSurface);
+                border: none;
+                border-radius: 4px;
+                cursor: pointer;
+                font-size: 14px;
+                box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+                outline: 1px #333;
+            }
+
+            .close-button:hover {
+            padding: 8px 16px;
+                background:paleturquoise;
+                color:black;
+                box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+                
+            }
+        </style>
+        <script>
+        const dialog = document.getElementById('constructionDialog');
+
+        function showDialog() {
+            dialog.showModal();
+        }
+
+        function closeDialog() {
+            dialog.close();
+        }
+
+        // Allow closing with Escape key (built-in) or clicking backdrop
+        dialog.addEventListener('click', (e) => {
+            if (e.target === dialog) {
+                closeDialog();
+            }
+        });
+        </script>
+        
+    </container>
     <nav id="peekaboo">
       <svg width="24" height="24" viewBox="0 0 44 44" fill="none" xmlns="http://www.w3.org/2000/svg">
         <g clip-path="url(#clip0_194_15860)">
@@ -131,41 +209,6 @@
           <img src="assets/linkTM_appScreen_profileEditor_linkEditor.png" class="app_screen">
         </container>
 
-        <!--container class="horizontal_scrolling_app_preview">
-          <container class="app_screens_side_by_side">
-            <img src="assets/linkTM_appScreen_network.png" class="full-height">
-            <img src="assets/linkTM_appScreen_network.png" class="full-height">
-            <img src="assets/linkTM_appScreen_network.png" class="full-height">
-            <img src="assets/linkTM_appScreen_network.png" class="full-height">
-            <img src="assets/linkTM_appScreen_network.png" class="full-height">
-            <img src="assets/linkTM_appScreen_network.png" class="full-height">
-            <img src="assets/linkTM_appScreen_network.png" class="full-height">
-
-          </container>
-        </container-->
-
-    </container>
-
-
-      
-    <!--h2>Updated Design System</h2>
-
-    <container class="flex-stacker">
-      <p>In contrast to the minimalist, "move fast and break stuff" ILWE.io and the app we had been working on for 8 months, wanted to create a new, intentional, "finished" look for Link.  Keeping the basic layout agreed upon during wireframing, I defined all of the colors and shadows in the high-fidelity prototype using colors and styles stored in our Design Library.  This early investment in time and thought paid off massively because it allowed me to iterate with color, font, and style very quickly using a control panel and see those styles instantly propogate throughout the entire design. </p>
-
-      <p>Here are the most consistently supported color themes:</p>
-      <img src="assets/Themes:Light.png" alt="Four Neumorphic theme mockups in rose gold, sage green, light gray, and dark gray." class="full-width">
-      <img src="assets/ThemesDark.png" alt="Four Neumorphic theme mockups in rose gold, sage green, light gray, and dark gray." class="full-width">
-      <img src="assets/ThemesFuturalley.png" alt="Four Neumorphic theme mockups in rose gold, sage green, light gray, and dark gray." class="full-width">
-
-      <p>The above three designs were the most consistently popular, with the dark theme getting the most consistent support, but also often critiqued as too masculine.  The team ultimately chose the dark theme for our first release becuase of the consistent support it recieved, with plans to test more neutral tones with users for the second release.</p>
-
-      <p>Maybe a blue neumorphic theme is in order. The benefit of the parameter-controlled prototype is that even while writing up this case study, I can tweak the theme in a matter of minutes:</p>
-      <iframe style="border: 1px solid rgba(0, 0, 0, 0.1);" class="mobile_prototype" src="https://www.figma.com/embed?embed_host=share&url=https%3A%2F%2Fwww.figma.com%2Fproto%2FMZzbGBMp4KpjxPX4uCILDj%2FLink%253A-Creative-Connections--Blue%3Fpage-id%3D402%253A25430%26node-id%3D461%253A26423%26viewport%3D905%252C998%252C0.3%26scaling%3Dscale-down%26starting-point-node-id%3D461%253A26423" allowfullscreen></iframe>
-
-    </container>
-    <container class="flex-stacker"></container-->
-
     <h2>Takeaways and Next Steps</h2>
 
     <container class="flex-stacker">
@@ -202,9 +245,28 @@
       <p>When we finished our concept sprint, we decided to try to build a platform for the interdisciplinary Mikes and Alexs of the world.  On a longer timeframe and with a bigger team, we may have been able to acheive a scalable product for them- but as history shows, at every juncture, user feedback pointed to a simpler product that would work well for users who had released no work, or only wanted to highlight a few pieces of content.  If I could go back and do it all again, I would start with the simplest interactions - in this case friending and profile building - and try to make those tools as strong as possible, hopefully getting something simple that is immediately helpful that scales quickly, and then build more functionality in as we grow.</p>
 
     </container>
-      
-  
+    <container class="project_list">
+                <h2>Other Projects</h2>
 
+                <a class="card" onclick="showDialog()"><!--href="ai_pebble.html"></!-->
+                    <img class="card_cover" src="assets/ai_pebble.png">
+                    <section class="text">
+                        <h3>Pebble AI </h3>
+                        <p class="small"> In-context Academic Advising</p>
+                        <p class="small"> Spring 2025 - How might we guide lost students at a critical junctures in their academic journeys using agentic adivsors trained on historic student data and advising materials?</p>
+                    </section>
+                </a>
+                <a class="card" href="stayHome.html">
+                  <img class="card_cover" src="assets/StayHome_Cover.png">
+                  <section class="text">
+                    <h3>Stay Home 🏠 🦠</h3>
+                    <p class="small"> Mobile App Hack </p>
+                    <p class="small"> Summer 2020 - How might we transform staying home into a fun, safe, and rewarding communnal experience?</p>
+                  </section>
+                </a>
+
+            </container>
+  
 
     </wrapper>
   </body>

@@ -464,6 +464,22 @@ nav{
     z-index: 10;
 }
 
+/* Show navigation when any element inside receives keyboard focus */
+nav:focus-within {
+    top: 0 !important;
+}
+
+/* Ensure focusable elements have visible focus indicators */
+nav a:focus {
+    outline: 2px solid var(--Accent);
+    outline-offset: 4px;
+}
+
+nav svg:focus {
+    outline: 2px solid var(--Accent);
+    outline-offset: 4px;
+}
+
 
   
 wrapper {
