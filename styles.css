@@ -663,6 +663,22 @@ wrapper.garden{
     font-family: 'Times New Roman', Times, serif;
 }
 
+spline-viewer {
+  /* Set the container size */
+  width: 100vw;
+  height: 100vh; /* Or use a percentage/viewport units for responsiveness, e.g., 60vh */
+  
+  /* Center the viewer within a flexible container */
+  display: flex;
+  justify-content: center;
+  align-items: center;
+
+  /* Set visibility for debugging
+  border:solid, black;
+  border-radius: 24px;*/
+
+}
+
 .youtube_embed{
     width:85vw;
     height:48vw;
