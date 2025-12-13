@@ -638,31 +638,6 @@ p.hero_text{
 }
 
 
-
-wrapper.garden{
-    padding:5%;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-
-    position:absolute;
-    left:0px;
-    right:0px;
-    top:0px;
-    bottom:0px;
-
-    background-color: rgb(62, 73, 11);
-    color:rgb(216, 226, 175);
-  }
-
-  p.flowerbed{
-    font-family: 'Times New Roman', Times, serif;
-  }
-
-  p.vegetable_row{
-    font-family: 'Times New Roman', Times, serif;
-}
-
 spline-viewer {
   /* Set the container size */
   width: 100vw;
