@@ -1,0 +1,383 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>waybetterboxd</title>
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --sheets-green: #188038;
+            --header-bg: #f8f9fa;
+            --border-color: #c0c0c0;
+            --selection-bg: #e6f4ea;
+            --text-color: #202124;
+            --instruction-bg: #ffffff;
+        }
+
+        body {
+            font-family: 'Roboto', arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            color: var(--text-color);
+            background-color: #fff;
+            overflow-x: hidden;
+        }
+
+        /* Top Bar Container */
+        .toolbar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px 20px;
+            background-color: #fff;
+            border-bottom: 1px solid #dadce0;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+
+        .sheet-title {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 22px;
+            color: var(--sheets-green);
+            font-weight: 500;
+        }
+
+        .sheet-icon {
+            font-size: 24px; /* Slightly larger for the logo feel */
+        }
+
+        /* Instructions Bar (The "Formula Bar" look) */
+        .instruction-bar {
+            background-color: var(--instruction-bg);
+            padding: 8px 20px;
+            border-bottom: 1px solid var(--border-color);
+            font-size: 13px;
+            color: #5f6368;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .fx-icon {
+            font-family: 'Times New Roman', serif;
+            font-style: italic;
+            font-weight: bold;
+            color: #9aa0a6;
+            font-size: 16px;
+        }
+
+        .add-btn {
+            background-color: var(--sheets-green);
+            color: white;
+            border: none;
+            padding: 8px 24px;
+            border-radius: 4px;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            box-shadow: 0 1px 2px rgba(0,0,0,0.15);
+            transition: background 0.2s;
+        }
+
+        .add-btn:hover {
+            background-color: #137333;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.25);
+        }
+
+        .table-container {
+            padding: 0;
+            margin: 0;
+            width: 100%;
+            overflow-x: auto;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            table-layout: fixed;
+        }
+
+        th {
+            background-color: var(--header-bg);
+            border: 1px solid var(--border-color);
+            color: #5f6368;
+            font-size: 12px;
+            font-weight: 700;
+            text-align: left;
+            padding: 8px;
+        }
+
+        td {
+            border: 1px solid var(--border-color);
+            vertical-align: top;
+            padding: 0;
+            background: #fff;
+        }
+
+        textarea, input {
+            width: 100%;
+            border: none;
+            outline: none;
+            padding: 6px 8px;
+            font-family: 'Roboto', arial, sans-serif;
+            font-size: 13px;
+            color: var(--text-color);
+            background: transparent;
+            box-sizing: border-box;
+            resize: vertical;
+            min-height: 32px;
+            display: block;
+            overflow: hidden;
+        }
+
+        input[type="date"] {
+            font-family: 'Roboto', sans-serif;
+            height: 32px;
+        }
+
+        textarea:focus, input:focus {
+            border: 2px solid var(--sheets-green);
+            margin: -1px;
+            z-index: 10;
+            position: relative;
+            background-color: #fff;
+        }
+
+        .link-field {
+            color: #1155cc;
+            text-decoration: underline;
+            cursor: pointer;
+            font-size: 12px;
+        }
+
+        .delete-btn {
+            background: none;
+            border: none;
+            color: #d93025;
+            font-size: 16px;
+            cursor: pointer;
+            width: 100%;
+            height: 100%;
+            opacity: 0;
+        }
+
+        tr:hover .delete-btn {
+            opacity: 1;
+        }
+        
+        .col-title { width: 20%; }
+        .col-link { width: 20%; }
+        .col-desc { width: 30%; }
+        .col-date { width: 12%; }
+        .col-loc { width: 13%; }
+        .col-act { width: 40px; text-align: center; }
+
+    </style>
+</head>
+<body>
+
+<div class="toolbar">
+    <div class="sheet-title">
+        <div class="sheet-icon">田</div>
+        <span>waybetterboxd</span>
+    </div>
+    <button class="add-btn" onclick="addRow()">+ Add Movie</button>
+</div>
+
+<div class="instruction-bar">
+    <span class="fx-icon">fx</span>
+    <span><strong>How to use:</strong> Type a movie title to auto-generate the link. Fill in your notes. All data is automatically saved to your browser.</span>
+</div>
+
+<div class="table-container">
+    <table id="movieTable">
+        <thead>
+            <tr>
+                <th class="col-title">Movie Title</th>
+                <th class="col-link">Letterboxd Link</th>
+                <th class="col-desc">Description</th>
+                <th class="col-date">Date</th>
+                <th class="col-loc">whose house?</th>
+                <th class="col-act"></th>
+            </tr>
+        </thead>
+        <tbody>
+            </tbody>
+    </table>
+</div>
+
+<script>
+    // Load data from LocalStorage
+    window.onload = function() {
+        loadData();
+    };
+
+    function loadData() {
+        const storedData = localStorage.getItem('waybetterboxdData'); // Updated storage key name
+        if (storedData) {
+            const movies = JSON.parse(storedData);
+            if (movies.length > 0) {
+                movies.forEach(movie => addRow(movie));
+            } else {
+                addRow(); 
+            }
+        } else {
+            // Attempt to migrate old data if exists, otherwise new row
+            const oldData = localStorage.getItem('movieTrackerSheetData');
+            if (oldData) {
+                const movies = JSON.parse(oldData);
+                movies.forEach(movie => addRow(movie));
+                // Remove old key to finish migration
+                localStorage.removeItem('movieTrackerSheetData');
+                saveData(); 
+            } else {
+                addRow(); 
+            }
+        }
+    }
+
+    function saveData() {
+        const tableBody = document.getElementById("movieTable").getElementsByTagName('tbody')[0];
+        const rows = tableBody.getElementsByTagName('tr');
+        const data = [];
+
+        for (let row of rows) {
+            const title = row.querySelector('.input-title').value;
+            const link = row.querySelector('.input-link').value;
+            const desc = row.querySelector('.input-desc').value;
+            const date = row.querySelector('.input-date').value;
+            const loc = row.querySelector('.input-loc').value;
+
+            data.push({ title, link, desc, date, loc });
+        }
+        
+        localStorage.setItem('waybetterboxdData', JSON.stringify(data));
+    }
+
+    function addRow(data = null) {
+        const tableBody = document.getElementById("movieTable").getElementsByTagName('tbody')[0];
+        const newRow = tableBody.insertRow();
+
+        // Helper to create Textarea
+        function createTextarea(value, placeholder, className) {
+            const input = document.createElement("textarea");
+            input.value = value || '';
+            input.placeholder = placeholder || '';
+            input.className = className;
+            input.rows = 1;
+            
+            input.addEventListener('input', function() {
+                this.style.height = 'auto';
+                this.style.height = (this.scrollHeight) + 'px';
+                saveData();
+            });
+            if(value) {
+                setTimeout(() => {
+                    input.style.height = 'auto';
+                    input.style.height = (input.scrollHeight) + 'px';
+                }, 0);
+            }
+            return input;
+        }
+
+        // Helper for Inputs
+        function createInput(type, value, placeholder, className) {
+            const input = document.createElement("input");
+            input.type = type;
+            input.value = value || '';
+            input.placeholder = placeholder || '';
+            input.className = className;
+            input.addEventListener('input', saveData);
+            input.addEventListener('change', saveData);
+            return input;
+        }
+
+        // 1. Title
+        const titleCell = newRow.insertCell(0);
+        const titleInput = createTextarea(data ? data.title : "", "Enter title", "input-title");
+        titleCell.appendChild(titleInput);
+
+        // 2. Link
+        const linkCell = newRow.insertCell(1);
+        const linkInput = createInput("text", data ? data.link : "", "Link...", "input-link link-field");
+        linkInput.readOnly = true;
+        linkInput.addEventListener('click', function() {
+            if (this.value && this.value.startsWith('http')) {
+                window.open(this.value, '_blank');
+            }
+        });
+        linkCell.appendChild(linkInput);
+
+        // Wire Auto-populate
+        titleInput.addEventListener('input', function() {
+            updateLink(this, linkInput);
+            saveData();
+        });
+
+        // 3. Description
+        const descCell = newRow.insertCell(2);
+        const descInput = createTextarea(data ? data.desc : "", "copy and paste from letterboxed", "input-desc");
+        descCell.appendChild(descInput);
+
+        // 4. Date
+        const dateCell = newRow.insertCell(3);
+        const dateInput = createInput("date", data ? data.date : "", "", "input-date");
+        dateCell.appendChild(dateInput);
+
+        // 5. Whose House
+        const locCell = newRow.insertCell(4);
+        const locInput = createTextarea(data ? data.loc : "", "Name...", "input-loc");
+        locCell.appendChild(locInput);
+
+        // 6. Delete
+        const actionCell = newRow.insertCell(5);
+        actionCell.style.textAlign = "center";
+        actionCell.style.verticalAlign = "middle";
+        const deleteBtn = document.createElement("button");
+        deleteBtn.innerHTML = "×";
+        deleteBtn.className = "delete-btn";
+        deleteBtn.title = "Delete Row";
+        deleteBtn.onclick = function() {
+            newRow.remove();
+            if (tableBody.rows.length === 0) addRow();
+            saveData();
+        };
+        actionCell.appendChild(deleteBtn);
+
+        if (!data) {
+            titleInput.focus();
+            saveData();
+        }
+    }
+
+    function updateLink(titleInput, linkInput) {
+        const title = titleInput.value;
+        
+        if (!title || title.trim() === "") {
+            linkInput.value = "";
+            return;
+        }
+
+        let formattedTitle = title.toLowerCase()
+            .trim()
+            .replace(/['":,.]/g, '')
+            .replace(/\s+/g, '-')
+            .replace(/&/g, 'and')
+            .replace(/[^a-z0-9-]/g, '')
+            .replace(/-+/g, '-');
+
+        if (formattedTitle.endsWith('-')) {
+            formattedTitle = formattedTitle.slice(0, -1);
+        }
+
+        const baseUrl = "https://letterboxd.com/film/";
+        linkInput.value = baseUrl + formattedTitle;
+    }
+</script>
+
+</body>
+</html>
