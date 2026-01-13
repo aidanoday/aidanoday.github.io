@@ -288,6 +288,20 @@
         #toast.show { visibility: visible; animation: fadein 0.5s, fadeout 0.5s 2.5s; }
         @keyframes fadein { from {bottom: 0; opacity: 0;} to {bottom: 30px; opacity: 1;} }
         @keyframes fadeout { from {bottom: 30px; opacity: 1;} to {bottom: 0; opacity: 0;} }
+
+        /* NEW: Shared View Banner */
+        .shared-banner {
+            position: fixed; bottom: 0; left: 0; width: 100%;
+            background-color: #e8f0fe; border-top: 1px solid #1a73e8;
+            padding: 16px 20px; box-sizing: border-box;
+            display: flex; justify-content: space-between; align-items: center;
+            z-index: 2000; transform: translateY(100%); transition: transform 0.3s;
+        }
+        .shared-banner.visible { transform: translateY(0); }
+        .shared-text { color: #1967d2; font-size: 14px; font-weight: 500; }
+        .shared-actions { display: flex; gap: 10px; }
+
+        
     </style>
 </head>
 <body>
@@ -369,14 +383,24 @@
     </div>
 </div>
 
+<div id="sharedBanner" class="shared-banner">
+    <span class="shared-text">
+        <strong>Shared Mode:</strong> Viewing a shared list. Autosave is disabled.
+    </span>
+    <div class="shared-actions">
+        <button class="toolbar-btn secondary-btn" onclick="exitSharedMode()">Exit</button>
+        <button class="toolbar-btn primary-btn" onclick="mergeSharedList()">+ Add to My List</button>
+    </div>
+</div>
+
 <script>
     let dragSrcEl = null;
-    let masterData = []; // The authoritative list in Custom Order
-    let lastSortMode = 'custom'; // Tracks state to prevent overwriting custom order
+    let masterData = []; 
+    let lastSortMode = 'custom'; 
+    let isSharedView = false; 
 
     window.onload = function() {
         loadData();
-        // Initialize lastSortMode to match what we loaded
         lastSortMode = document.getElementById('sortSelect').value;
         
         document.addEventListener('click', function(e) {
@@ -391,12 +415,84 @@
         return Date.now().toString(36) + Math.random().toString(36).substr(2);
     }
 
+    // --- SHARED MODE LOGIC ---
+    function exitSharedMode() {
+        window.history.replaceState({}, document.title, window.location.pathname);
+        isSharedView = false;
+        document.getElementById('sharedBanner').classList.remove('visible');
+        loadData(); 
+        showToast("Returned to your list");
+    }
+
+    function mergeSharedList() {
+        // 1. Get Local Data
+        const storedStr = localStorage.getItem('waybetterboxdData');
+        let localData = storedStr ? JSON.parse(storedStr) : [];
+        localData = localData.map(m => m.id ? m : {...m, id: generateId()});
+        
+        // 2. Prepare Shared Items
+        const sharedItems = masterData.map(m => ({...m, id: generateId()}));
+        
+        // 3. DUPLICATE CHECK
+        // Create a set of existing normalized titles for fast lookup
+        const existingTitles = new Set(localData.map(m => (m.title || "").toLowerCase().trim()));
+        
+        const newItems = sharedItems.filter(m => {
+            const normalizedTitle = (m.title || "").toLowerCase().trim();
+            if (!normalizedTitle) return true; // Always allow empty rows
+            return !existingTitles.has(normalizedTitle);
+        });
+
+        // 4. Merge In Memory
+        masterData = [...localData, ...newItems];
+
+        // 5. Restore User's List Name
+        const savedName = localStorage.getItem('waybetterboxdListName') || "";
+        document.getElementById('listName').value = savedName;
+        updatePageTitle();
+
+        // 6. Update State & UI
+        isSharedView = false;
+        document.getElementById('sharedBanner').classList.remove('visible');
+        window.history.replaceState({}, document.title, window.location.pathname);
+        
+        // 7. Save DIRECTLY
+        localStorage.setItem('waybetterboxdData', JSON.stringify(masterData));
+        
+        // 8. Refresh View
+        updateFilterList();
+        renderTable();
+        
+        const skipped = sharedItems.length - newItems.length;
+        showToast(`Added ${newItems.length} movies! (${skipped} skipped)`);
+    }
+
+    // --- ENCODING ---
+    function packData(data) {
+        return data.map(m => [
+            m.title || "", m.link || "", m.genre || "", m.desc || "", m.prio || "1", m.loc || "", m.watched ? 1 : 0
+        ]);
+    }
+
+    function unpackData(packed) {
+        return packed.map(p => ({
+            id: generateId(),
+            title: p[0], link: p[1], genre: p[2], desc: p[3], prio: p[4], loc: p[5], watched: p[6] === 1
+        }));
+    }
+
     // --- WATCHED LOGIC ---
     function toggleWatched(btn) {
         const row = btn.closest('tr');
         row.classList.toggle('watched');
+        updateWatchedButton(btn, row.classList.contains('watched'));
         
-        if(row.classList.contains('watched')) {
+        saveDataBasedOnMode(lastSortMode);
+        if (lastSortMode !== 'custom') renderTable();
+    }
+
+    function updateWatchedButton(btn, isWatched) {
+        if(isWatched) {
             btn.classList.add('btn-checked');
             btn.innerHTML = "✓ <span class='btn-text'>Unwatch</span>";
             btn.title = "Unwatch";
@@ -405,47 +501,26 @@
             btn.innerHTML = "✅ <span class='btn-text'>Watched</span>";
             btn.title = "Mark Watched";
         }
-        
-        // Save using current mode logic
-        saveDataBasedOnMode(lastSortMode);
-
-        // Only auto-sort if not in custom mode
-        if (lastSortMode !== 'custom') {
-            renderTable(); // Re-render to sort immediately
-        }
     }
 
-    // --- SORTING LOGIC ---
+    // --- SORTING ---
     function handleSortChange() {
-        // 1. Save data based on the mode we are LEAVING
         saveDataBasedOnMode(lastSortMode);
-
-        // 2. Update mode tracker
         lastSortMode = document.getElementById('sortSelect').value;
-
-        // 3. Render new view
         renderTable();
     }
 
-    // --- RENDER & DISPLAY ---
     function renderTable() {
-        const sortType = lastSortMode; // Use the current active mode
+        const sortType = lastSortMode; 
         let displayData = [];
 
-        // If Custom, show masterData directly
         if (sortType === 'custom') {
             displayData = [...masterData];
         } else {
-            // If Sorted, create a sorted copy (do NOT reorder masterData)
             displayData = [...masterData].sort((a, b) => {
-                // Always push watched to bottom first
                 if (a.watched !== b.watched) return a.watched ? 1 : -1;
-                
-                if (sortType === 'prio') {
-                    return (a.prio || 99) - (b.prio || 99);
-                } else if (sortType === 'title') {
-                    return (a.title || "").localeCompare(b.title || "");
-                }
+                if (sortType === 'prio') return (a.prio || 99) - (b.prio || 99);
+                if (sortType === 'title') return (a.title || "").localeCompare(b.title || "");
                 return 0;
             });
         }
@@ -453,153 +528,105 @@
         const tbody = document.querySelector('#movieTable tbody');
         tbody.innerHTML = '';
         displayData.forEach(movie => addRow(movie));
-        
-        // Re-apply filters
         applyGenreFilter(currentGenreFilter);
     }
 
     // --- DATA HANDLING ---
-    // Scrapes DOM to get current values (titles, links, etc)
     function scrapeTableData() {
         const tableBody = document.querySelector('#movieTable tbody');
         const rows = tableBody.getElementsByTagName('tr');
         const data = [];
         for (let row of rows) {
-            const id = row.getAttribute('data-id');
-            const title = row.querySelector('.input-title').value;
-            const link = row.querySelector('.input-link').value;
-            const genre = row.querySelector('.input-genre').value;
-            const desc = row.querySelector('.input-desc').value;
-            const prio = row.querySelector('.input-prio').value;
-            const loc = row.querySelector('.input-loc').value;
-            const isWatched = row.classList.contains('watched');
-            
-            data.push({ id, title, link, genre, desc, prio, loc, watched: isWatched });
+            data.push({
+                id: row.getAttribute('data-id'),
+                title: row.querySelector('.input-title').value,
+                link: row.querySelector('.input-link').value,
+                genre: row.querySelector('.input-genre').value,
+                desc: row.querySelector('.input-desc').value,
+                prio: row.querySelector('.input-prio').value,
+                loc: row.querySelector('.input-loc').value,
+                watched: row.classList.contains('watched')
+            });
         }
         return data;
     }
 
-    // The Core Save Logic
     function saveDataBasedOnMode(mode) {
+        if (isSharedView) return;
+
         const currentViewData = scrapeTableData();
 
         if (mode === 'custom') {
-            // We were in custom mode, so the DOM order IS the master order.
             masterData = currentViewData;
         } else {
-            // We were in a sorted mode. 
-            // We must update the CONTENT of masterData items, but NOT their order.
-            
             const viewMap = new Map(currentViewData.map(item => [item.id, item]));
-
-            // Update existing items
-            masterData = masterData.map(item => {
-                if (viewMap.has(item.id)) {
-                    return viewMap.get(item.id);
-                }
-                return item; 
-            });
-
-            // Handle New Rows (added while sorted) - push to end of master
+            masterData = masterData.map(item => viewMap.has(item.id) ? viewMap.get(item.id) : item);
+            
             const masterIds = new Set(masterData.map(i => i.id));
             currentViewData.forEach(item => {
-                if (!masterIds.has(item.id)) {
-                    masterData.push(item);
-                }
+                if (!masterIds.has(item.id)) masterData.push(item);
             });
-
-            // Handle Deleted Rows
+            
             const currentViewIds = new Set(currentViewData.map(i => i.id));
-            // Only remove if it was visible in the view (don't delete filtered items)
-            // But since scrapeTableData grabs hidden rows too, this is safe.
             masterData = masterData.filter(item => currentViewIds.has(item.id));
         }
 
-        // Commit to storage
         localStorage.setItem('waybetterboxdData', JSON.stringify(masterData));
-        
-        // Update the filter list in case genres changed
         updateFilterList();
     }
     
-    // Generic save wrapper for inputs
-    function saveDataToLocal() {
-        saveDataBasedOnMode(lastSortMode);
-    }
-
-    // --- TITLE UPDATE ---
-    function updatePageTitle() {
-        const listName = document.getElementById('listName').value;
-        const baseTitle = "waybetterboxd";
-        if (listName && listName.trim() !== "") {
-            document.title = `${listName} | ${baseTitle}`;
-        } else {
-            document.title = baseTitle;
-        }
-    }
-
-    function saveListName() { 
-        localStorage.setItem('waybetterboxdListName', document.getElementById('listName').value); 
-        updatePageTitle();
-    }
+    function saveDataToLocal() { saveDataBasedOnMode(lastSortMode); }
 
     // --- ROW CREATION ---
     function addRow(data = null) {
         const tableBody = document.querySelector('#movieTable tbody');
         const newRow = tableBody.insertRow();
-        
-        // ID MANAGEMENT
         const rowId = (data && data.id) ? data.id : generateId();
         newRow.setAttribute('data-id', rowId);
         
         if (data && data.watched) newRow.classList.add('watched');
-        
         enableDrag(newRow);
 
-        function createTextarea(value, placeholder, className) {
-            const input = document.createElement("textarea");
-            input.value = value || ''; input.placeholder = placeholder || ''; input.className = className;
-            input.rows = 1;
-            input.addEventListener('input', function() { this.style.height = 'auto'; this.style.height = (this.scrollHeight) + 'px'; saveDataToLocal(); });
-            if(value) { setTimeout(() => { input.style.height = 'auto'; input.style.height = (input.scrollHeight) + 'px'; }, 0); }
-            return input;
-        }
-
-        function createInput(type, value, placeholder, className) {
-            const input = document.createElement("input");
-            input.type = type; input.value = value || ''; input.placeholder = placeholder || ''; input.className = className;
-            input.addEventListener('input', saveDataToLocal); input.addEventListener('change', saveDataToLocal);
-            return input;
-        }
+        // Helper to create inputs
+        const createEl = (tag, cls, val, ph, ro) => {
+            const el = document.createElement(tag);
+            el.className = cls; el.value = val || ''; el.placeholder = ph || '';
+            if(tag === 'input') el.type = "text"; 
+            if(ro) el.readOnly = true;
+            if(tag === 'textarea') {
+                el.rows = 1;
+                el.addEventListener('input', function() { 
+                    this.style.height = 'auto'; this.style.height = this.scrollHeight + 'px'; 
+                    saveDataToLocal(); 
+                });
+                setTimeout(() => { el.style.height = 'auto'; el.style.height = el.scrollHeight + 'px'; }, 0);
+            } else {
+                el.addEventListener('input', saveDataToLocal);
+            }
+            return el;
+        };
 
         // 1. Title
-        const titleCell = newRow.insertCell(0);
-        const titleInput = createTextarea(data ? data.title : "", "Enter title", "input-title");
-        titleInput.addEventListener('keydown', function(e) { if (e.key === 'Enter') { e.preventDefault(); addRow(); } });
-        titleCell.appendChild(titleInput);
+        const titleInput = createEl('textarea', 'input-title', data?.title, "Enter title");
+        titleInput.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); addRow(); } });
+        newRow.insertCell(0).appendChild(titleInput);
 
         // 2. Link
-        const linkCell = newRow.insertCell(1);
-        const linkInput = document.createElement("input");
-        linkInput.type = "text"; linkInput.value = data ? data.link : ""; linkInput.placeholder = "Link..."; linkInput.className = "input-link link-field"; linkInput.readOnly = true;
-        linkInput.addEventListener('click', function() { if (this.value && this.value.startsWith('http')) window.open(this.value, '_blank'); });
-        linkCell.appendChild(linkInput);
+        const linkInput = createEl('input', 'input-link link-field', data?.link, "Link...", true);
+        linkInput.onclick = function() { if(this.value.startsWith('http')) window.open(this.value, '_blank'); };
+        newRow.insertCell(1).appendChild(linkInput);
+        
+        titleInput.addEventListener('input', () => { updateLink(titleInput, linkInput); saveDataToLocal(); });
 
-        titleInput.addEventListener('input', function() { updateLink(this, linkInput); saveDataToLocal(); });
-
-        // 3. Genre
-        const genreCell = newRow.insertCell(2);
-        const genreInput = createInput("text", data ? data.genre : "", "Genre", "input-genre");
-        genreInput.addEventListener('change', updateFilterList);
-        genreCell.appendChild(genreInput);
+        // 3. Genre 
+        const genreInput = createEl('input', 'input-genre', data?.genre, "Genre");
+        genreInput.addEventListener('change', updateFilterList); 
+        newRow.insertCell(2).appendChild(genreInput);
 
         // 4. Desc
-        const descCell = newRow.insertCell(3);
-        const descInput = createTextarea(data ? data.desc : "", "paste from letterboxd", "input-desc");
-        descCell.appendChild(descInput);
+        newRow.insertCell(3).appendChild(createEl('textarea', 'input-desc', data?.desc, "paste from letterboxd"));
 
         // 5. Priority
-        const prioCell = newRow.insertCell(4);
         const prioSelect = document.createElement("select");
         prioSelect.className = "cell-select input-prio";
         for (let i = 1; i <= 5; i++) {
@@ -608,173 +635,203 @@
             prioSelect.appendChild(opt);
         }
         prioSelect.addEventListener('change', saveDataToLocal);
-        prioCell.appendChild(prioSelect);
+        newRow.insertCell(4).appendChild(prioSelect);
 
         // 6. Location
-        const locCell = newRow.insertCell(5);
-        const locInput = createTextarea(data ? data.loc : "", "Name...", "input-loc");
-        locCell.appendChild(locInput);
+        newRow.insertCell(5).appendChild(createEl('textarea', 'input-loc', data?.loc, "Name..."));
 
         // 7. Actions
         const actionCell = newRow.insertCell(6);
-        const container = document.createElement("div");
-        container.className = "action-cell-content";
+        const div = document.createElement("div"); div.className = "action-cell-content";
 
-        const checkBtn = document.createElement("button");
-        checkBtn.className = "unified-btn";
-        if(data && data.watched) {
-            checkBtn.innerHTML = "✓ <span class='btn-text'>Unwatch</span>";
-            checkBtn.title = "Unwatch";
-            checkBtn.classList.add('btn-checked');
-        } else {
-            checkBtn.innerHTML = "✅ <span class='btn-text'>Watched</span>";
-            checkBtn.title = "Mark Watched";
-        }
-        checkBtn.onclick = function() { toggleWatched(this); };
-
-        const calBtn = document.createElement("button");
-        calBtn.className = "unified-btn";
+        const calBtn = document.createElement("button"); calBtn.className = "unified-btn";
         calBtn.innerHTML = "📅 <span class='btn-text'>Schedule</span>";
         calBtn.onclick = function() { addToGoogleCalendar(this); };
 
-        const deleteBtn = document.createElement("button");
-        deleteBtn.innerHTML = "🗑 <span class='btn-text'>Delete</span>";
-        deleteBtn.className = "unified-btn btn-delete";
-        deleteBtn.onclick = function() {
-            newRow.remove();
-            saveDataToLocal(); // Saves deletion
+        const checkBtn = document.createElement("button"); checkBtn.className = "unified-btn";
+        updateWatchedButton(checkBtn, data?.watched);
+        checkBtn.onclick = function() { toggleWatched(this); };
+
+        const delBtn = document.createElement("button"); delBtn.className = "unified-btn btn-delete";
+        delBtn.innerHTML = "🗑 <span class='btn-text'>Delete</span>";
+        delBtn.onclick = function() {
+            newRow.remove(); saveDataToLocal();
             if (document.querySelector('#movieTable tbody').rows.length === 0) addRow();
             updateFilterList();
         };
 
-        container.appendChild(calBtn);
-        container.appendChild(checkBtn);
-        container.appendChild(deleteBtn);
-        actionCell.appendChild(container);
+        div.append(calBtn, checkBtn, delBtn);
+        actionCell.appendChild(div);
 
         if (!data) { titleInput.focus(); saveDataToLocal(); }
         if (currentGenreFilter !== 'all') applyGenreFilter(currentGenreFilter);
     }
 
-    // --- DRAG AND DROP ---
     function enableDrag(row) {
         row.setAttribute('draggable', 'true');
-        
         row.addEventListener('dragstart', function(e) {
-            dragSrcEl = this;
-            e.dataTransfer.effectAllowed = 'move';
-            this.classList.add('dragging');
+            dragSrcEl = this; e.dataTransfer.effectAllowed = 'move'; this.classList.add('dragging');
         });
-
         row.addEventListener('dragover', function(e) {
-            e.preventDefault();
-            e.dataTransfer.dropEffect = 'move';
+            e.preventDefault(); e.dataTransfer.dropEffect = 'move';
             const tbody = document.querySelector('#movieTable tbody');
-            const afterElement = getDragAfterElement(tbody, e.clientY);
-            if (afterElement == null) {
-                tbody.appendChild(dragSrcEl);
-            } else {
-                tbody.insertBefore(dragSrcEl, afterElement);
-            }
+            const after = getDragAfterElement(tbody, e.clientY);
+            if (after == null) tbody.appendChild(dragSrcEl); else tbody.insertBefore(dragSrcEl, after);
         });
-
         row.addEventListener('dragend', function() {
             this.classList.remove('dragging');
-            // If dragging happened, force switch to Custom mode
-            const sortSelect = document.getElementById('sortSelect');
-            if (sortSelect.value !== 'custom') {
-                sortSelect.value = 'custom';
-            }
-            lastSortMode = 'custom'; // Update tracker manually
-            saveDataBasedOnMode('custom'); // Save the new order as Master
+            document.getElementById('sortSelect').value = 'custom';
+            lastSortMode = 'custom';
+            saveDataBasedOnMode('custom');
         });
     }
 
     function getDragAfterElement(container, y) {
-        const draggableElements = [...container.querySelectorAll('tr:not(.dragging)')];
-        return draggableElements.reduce((closest, child) => {
+        return [...container.querySelectorAll('tr:not(.dragging)')].reduce((closest, child) => {
             const box = child.getBoundingClientRect();
             const offset = y - box.top - box.height / 2;
-            if (offset < 0 && offset > closest.offset) {
-                return { offset: offset, element: child };
-            } else {
-                return closest;
-            }
+            return (offset < 0 && offset > closest.offset) ? { offset: offset, element: child } : closest;
         }, { offset: Number.NEGATIVE_INFINITY }).element;
     }
 
-    // --- OTHER HELPERS ---
+    // --- TITLE UPDATE ---
+    function updatePageTitle() {
+        const listName = document.getElementById('listName').value;
+        document.title = (listName && listName.trim() !== "") ? `${listName} | waybetterboxd` : "waybetterboxd";
+    }
+    function saveListName() { 
+        if(!isSharedView) localStorage.setItem('waybetterboxdListName', document.getElementById('listName').value); 
+        updatePageTitle();
+    }
+
+    // --- SHARE LINK LOGIC ---
+    function generateShareLink() {
+        const packed = packData(masterData);
+        const json = JSON.stringify(packed);
+        const encoded = btoa(unescape(encodeURIComponent(json)))
+            .replace(/\+/g, '-') 
+            .replace(/\//g, '_')
+            .replace(/=+$/, '');
+            
+        const url = window.location.origin + window.location.pathname + '?list=' + encoded;
+        navigator.clipboard.writeText(url).then(() => showToast("Link copied!"));
+    }
+
+    function decodeData(str) {
+        try {
+            str = str.replace(/-/g, '+').replace(/_/g, '/');
+            while (str.length % 4) str += '=';
+            const json = decodeURIComponent(escape(atob(str)));
+            const data = JSON.parse(json);
+            if (data.length > 0 && Array.isArray(data[0])) return unpackData(data);
+            return data; 
+        } catch (e) { return null; }
+    }
+
+    function loadData() {
+        const params = new URLSearchParams(window.location.search);
+        let sharedStr = params.get('list');
+        if (!sharedStr && window.location.hash) sharedStr = window.location.hash.substring(1);
+
+        if (sharedStr) {
+            const sharedData = decodeData(sharedStr);
+            if (sharedData && Array.isArray(sharedData)) {
+                masterData = sharedData.map(m => ({...m, id: generateId()}));
+                isSharedView = true;
+                document.getElementById('sharedBanner').classList.add('visible');
+                document.getElementById('listName').value = "Shared List (View Only)";
+                updatePageTitle();
+                renderTable();
+                showToast("Loaded Shared List");
+                return;
+            }
+        }
+
+        const listName = localStorage.getItem('waybetterboxdListName');
+        if (listName) { document.getElementById('listName').value = listName; updatePageTitle(); }
+        
+        const storedData = localStorage.getItem('waybetterboxdData');
+        if (storedData) { 
+            const parsed = JSON.parse(storedData);
+            masterData = parsed.map(m => m.id ? m : {...m, id: generateId()});
+        } else {
+            masterData = [];
+        }
+        if(masterData.length === 0) masterData.push({ id: generateId(), watched: false });
+        
+        renderTable();
+    }
+
+    // --- BOILERPLATE ---
     function addToGoogleCalendar(btn) {
         const row = btn.closest('tr');
         const title = row.querySelector('.input-title').value;
         const link = row.querySelector('.input-link').value;
         const desc = row.querySelector('.input-desc').value;
-        const loc = row.querySelector('.input-loc').value; 
-        if (!title) { showToast("Enter a movie title first!"); return; }
-        const locationString = loc && loc.trim() !== "" ? loc : "TBD";
-        const fullEventTitle = `${title} movie night @ ${locationString}`;
-        const eventDetails = `Movie night for ${title}\n${link}\n${desc}`;
-        window.open(`https://calendar.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent(fullEventTitle)}&details=${encodeURIComponent(eventDetails)}&location=${encodeURIComponent(locationString)}`, '_blank');
+        const loc = row.querySelector('.input-loc').value;
+        if (!title) { showToast("Title required"); return; }
+        const url = `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent(title + " movie night")}&details=${encodeURIComponent(link + "\n" + desc)}&location=${encodeURIComponent(loc || "TBD")}`;
+        window.open(url, '_blank');
+    }
+    
+    function updateLink(titleInput, linkInput) {
+        const title = titleInput.value; if (!title) { linkInput.value = ""; return; }
+        let slug = title.toLowerCase().trim().replace(/['":,.]/g, '').replace(/\s+/g, '-').replace(/&/g, 'and').replace(/[^a-z0-9-]/g, '').replace(/-+/g, '-');
+        if (slug.endsWith('-')) slug = slug.slice(0, -1);
+        linkInput.value = "https://letterboxd.com/film/" + slug;
     }
 
-    function openAddModal() { document.getElementById('addModal').classList.remove('hidden'); document.getElementById('shareLinkInput').value = ''; document.getElementById('importBtn').disabled = true; document.getElementById('shareLinkInput').focus(); }
+    function openAddModal() { document.getElementById('addModal').classList.remove('hidden'); document.getElementById('shareLinkInput').value = ''; document.getElementById('shareLinkInput').focus(); }
     function closeAddModal() { document.getElementById('addModal').classList.add('hidden'); }
-    function checkLinkInput() { document.getElementById('importBtn').disabled = document.getElementById('shareLinkInput').value.trim() === ""; }
+    function checkLinkInput() { document.getElementById('importBtn').disabled = !document.getElementById('shareLinkInput').value.trim(); }
     
     function importFromLink() {
-        const url = document.getElementById('shareLinkInput').value;
-        try {
-            let hash = url.includes("#") ? url.split("#")[1] : url;
-            const sharedData = decodeData(hash);
-            if (sharedData && Array.isArray(sharedData)) {
-                sharedData.forEach(movie => {
-                    movie.id = generateId(); // New IDs for imports
-                    masterData.push(movie); // Add directly to master
-                });
-                renderTable(); // Refresh
-                saveDataBasedOnMode('custom'); // Save
-                closeAddModal(); 
-                showToast(`Added ${sharedData.length} movies!`);
-            } else { showToast("Invalid link or data."); }
-        } catch (e) { showToast("Error parsing link."); }
+        let val = document.getElementById('shareLinkInput').value;
+        let code = val.includes('list=') ? val.split('list=')[1] : (val.includes('#') ? val.split('#')[1] : val);
+        const data = decodeData(code);
+        
+        if (data) {
+            // DUPLICATE CHECK FOR LINK IMPORT
+            const existingTitles = new Set(masterData.map(m => (m.title || "").toLowerCase().trim()));
+            let addedCount = 0;
+
+            data.forEach(m => {
+                const normTitle = (m.title || "").toLowerCase().trim();
+                if (!normTitle || !existingTitles.has(normTitle)) {
+                    m.id = generateId(); 
+                    masterData.push(m);
+                    if(normTitle) existingTitles.add(normTitle);
+                    addedCount++;
+                }
+            });
+
+            renderTable(); 
+            saveDataBasedOnMode('custom'); 
+            closeAddModal(); 
+            
+            const skipped = data.length - addedCount;
+            showToast(`Imported ${addedCount} movies (${skipped} skipped)`);
+        } else { 
+            showToast("Invalid link"); 
+        }
     }
 
     function copyTableToClipboard() {
-        // Copy what is currently visible on screen
-        const data = scrapeTableData(); 
-        if (data.length === 0) return;
-        const headers = ["Title", "Link", "Genre", "Desc", "Priority", "Location", "Watched"];
-        const rows = [headers.join("\t")];
-        for (const row of data) {
-            const values = [row.title, row.link, row.genre, row.desc, row.prio, row.loc, row.watched ? "Yes" : "No"];
-            const processCell = (val) => { if (!val) return ""; let s = String(val); if (s.includes("\t") || s.includes("\n")) { s = s.replace(/"/g, '""'); return `"${s}"`; } return s; };
-            rows.push(values.map(processCell).join("\t"));
-        }
-        navigator.clipboard.writeText(rows.join("\n")).then(() => showToast("Copied!")).catch(() => showToast("Copy failed"));
+        const data = scrapeTableData(); if (!data.length) return;
+        const rows = data.map(r => [r.title, r.link, r.genre, r.desc, r.prio, r.loc, r.watched?"Yes":"No"].join("\t"));
+        navigator.clipboard.writeText(["Title\tLink\tGenre\tDesc\tPrio\tLoc\tWatched", ...rows].join("\n"));
+        showToast("Copied to clipboard");
     }
-
-    function generateShareLink() {
-        // Share masterData (no IDs needed for export)
-        const data = masterData.map(({id, ...rest}) => rest);
-        if (data.length === 0) return;
-        const encoded = encodeData(data); window.location.hash = encoded;
-        navigator.clipboard.writeText(window.location.href).then(() => showToast("Link copied!"));
-    }
-
-    function encodeData(dataObj) { return btoa(unescape(encodeURIComponent(JSON.stringify(dataObj)))); }
-    function decodeData(encodedStr) { try { return JSON.parse(decodeURIComponent(escape(atob(encodedStr)))); } catch (e) { return null; } }
 
     let currentGenreFilter = 'all';
     function updateFilterList() {
-        // Build filters from MASTER list so all options are available
         const genres = new Set();
         masterData.forEach(d => { if(d.genre) genres.add(d.genre.trim()); });
         const menu = document.getElementById('filterMenu');
         menu.innerHTML = `<div class="filter-item"><input type="radio" name="genreFilter" id="filter-all" value="all" ${currentGenreFilter==='all'?'checked':''} onchange="applyGenreFilter('all')"><label for="filter-all">All Genres</label></div>`;
         genres.forEach(g => {
             const id = `filter-${g.replace(/\s+/g,'')}`;
-            const div = document.createElement('div');
-            div.className = 'filter-item';
+            const div = document.createElement('div'); div.className = 'filter-item';
             div.innerHTML = `<input type="radio" name="genreFilter" id="${id}" value="${g}" ${currentGenreFilter===g?'checked':''} onchange="applyGenreFilter('${g}')"><label for="${id}">${g}</label>`;
             menu.appendChild(div);
         });
@@ -785,61 +842,13 @@
         document.querySelector('.filter-btn').firstChild.textContent = genre === 'all' ? "All Genres" : genre;
         const rows = document.querySelectorAll('#movieTable tbody tr');
         rows.forEach(row => {
-            const gInput = row.querySelector('.input-genre');
-            if (genre === 'all' || (gInput && gInput.value.trim() === genre)) {
-                row.classList.remove('hidden');
-            } else {
-                row.classList.add('hidden');
-            }
+            const val = row.querySelector('.input-genre').value.trim();
+            if (genre === 'all' || val === genre) row.classList.remove('hidden'); else row.classList.add('hidden');
         });
         document.getElementById('filterMenu').classList.remove('show');
     }
 
-    function loadData() {
-        const listName = localStorage.getItem('waybetterboxdListName');
-        if (listName) {
-            document.getElementById('listName').value = listName;
-            updatePageTitle();
-        }
-        
-        // Check for Shared Link
-        const hash = window.location.hash.substring(1);
-        if (hash) {
-            const sharedData = decodeData(hash);
-            if (sharedData && Array.isArray(sharedData)) {
-                masterData = sharedData.map(m => ({...m, id: generateId()}));
-                saveDataBasedOnMode('custom');
-                showToast("Loaded shared list!");
-                history.pushState("", document.title, window.location.pathname + window.location.search);
-                renderTable();
-                return;
-            }
-        }
-
-        // Check Local Storage
-        const storedData = localStorage.getItem('waybetterboxdData');
-        if (storedData) { 
-            const parsed = JSON.parse(storedData);
-            masterData = parsed.map(m => m.id ? m : {...m, id: generateId()});
-        } else {
-            masterData = [];
-        }
-
-        if(masterData.length === 0) {
-            masterData.push({ id: generateId(), title: "", link: "", genre: "", desc: "", prio: "1", loc: "", watched: false });
-        }
-        
-        renderTable();
-    }
-    
-    function updateLink(titleInput, linkInput) {
-        const title = titleInput.value; if (!title || title.trim() === "") { linkInput.value = ""; return; }
-        let formattedTitle = title.toLowerCase().trim().replace(/['":,.]/g, '').replace(/\s+/g, '-').replace(/&/g, 'and').replace(/[^a-z0-9-]/g, '').replace(/-+/g, '-');
-        if (formattedTitle.endsWith('-')) formattedTitle = formattedTitle.slice(0, -1);
-        linkInput.value = "https://letterboxd.com/film/" + formattedTitle;
-    }
-    
-    function showToast(msg) { const x = document.getElementById("toast"); x.innerText = msg; x.className = "show"; setTimeout(() => x.className = x.className.replace("show", ""), 3000); }
+    function showToast(msg) { const x = document.getElementById("toast"); x.innerText = msg; x.className = "show"; setTimeout(() => x.classList.remove("show"), 3000); }
 </script>
 
 </body>
