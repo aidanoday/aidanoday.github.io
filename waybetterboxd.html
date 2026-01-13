@@ -164,7 +164,7 @@
             border: 1px solid #dadce0; 
             padding: 10px; 
             border-radius: 4px; 
-            margin-bottom: 12px; /* Updated to 12px */
+            margin-bottom: 12px;
             font-size: 14px;
             box-sizing: border-box;
             color: var(--text-color);
@@ -316,7 +316,7 @@
             padding: 8px 10px;
         }
 
-        th.col-act, th.col-prio { text-align: center; }
+        th.col-act, th.col-prio, th.col-cal { text-align: center; }
 
         td {
             border: 1px solid var(--border-color);
@@ -327,7 +327,7 @@
 
         tr:hover td { background-color: var(--row-hover-bg); }
 
-        textarea, input[type="text"], input[type="date"], select.cell-select {
+        textarea, input[type="text"], select.cell-select {
             width: 100%;
             border: none;
             outline: none;
@@ -343,11 +343,6 @@
             line-height: 1.5;
             display: block;
             overflow: hidden;
-        }
-
-        input[type="date"] {
-            font-family: 'Roboto', sans-serif;
-            height: 20px;
         }
 
         select.cell-select {
@@ -373,12 +368,33 @@
             font-size: 12px;
         }
         
+        .gcal-btn {
+            background: none;
+            border: 1px solid #dadce0;
+            border-radius: 4px;
+            padding: 4px 8px;
+            font-size: 12px;
+            color: #5f6368;
+            cursor: pointer;
+            width: 100%;
+            text-align: center;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 4px;
+        }
+        .gcal-btn:hover {
+            background-color: #f1f3f4;
+            color: var(--sheets-green);
+            border-color: var(--sheets-green);
+        }
+
         .col-title { width: 18%; }
         .col-link { width: 18%; }
         .col-genre { width: 12%; }
         .col-desc { width: 22%; }
         .col-prio { width: 6%; }
-        .col-date { width: 10%; }
+        .col-cal { width: 10%; }
         .col-loc { width: 10%; }
         .col-act { width: 50px; }
 
@@ -459,7 +475,6 @@
         <select id="sortSelect" class="sort-select" onchange="handleSortChange()">
             <option value="custom">Custom</option>
             <option value="prio">Priority, low to high</option>
-            <option value="date">Date, soonest to latest</option>
             <option value="title">Title, alphabetical</option>
         </select>
     </div>
@@ -482,7 +497,7 @@
     <span class="fx-icon">fx</span>
     <span>
         <strong>How to use:</strong> Type a title & press <strong>Enter</strong> to add a row. 
-        <strong>Priority</strong> is 1 (Top) to 5 (Low). Use <strong>Filter</strong> to see specific genres.
+        <strong>Priority</strong> is 1 (Top) to 5 (Low). Use <strong>Link Import</strong> to combine lists.
     </span>
 </div>
 
@@ -495,7 +510,7 @@
                 <th class="col-genre">Genre</th>
                 <th class="col-desc">Description</th>
                 <th class="col-prio">Priority</th>
-                <th class="col-date">Date</th>
+                <th class="col-cal">Schedule</th>
                 <th class="col-loc">Whose House?</th>
                 <th class="col-act">Actions</th>
             </tr>
@@ -528,6 +543,36 @@
             }
         });
     };
+
+    // --- GOOGLE CALENDAR LOGIC (UPDATED) ---
+    function addToGoogleCalendar(btn) {
+        const row = btn.closest('tr');
+        const title = row.querySelector('.input-title').value;
+        const link = row.querySelector('.input-link').value;
+        const desc = row.querySelector('.input-desc').value;
+        const loc = row.querySelector('.input-loc').value;
+
+        if (!title) {
+            showToast("Enter a movie title first!");
+            return;
+        }
+
+        // Determine location string (TBD if empty)
+        const locationString = loc && loc.trim() !== "" ? loc : "TBD";
+
+        // Construct Event Data
+        const fullEventTitle = `${title} movie night @ ${locationString}`;
+        const eventDetails = `Movie night for ${title}\n${link}\n${desc}`;
+        
+        const encodedTitle = encodeURIComponent(fullEventTitle);
+        const encodedDetails = encodeURIComponent(eventDetails);
+        const encodedLoc = encodeURIComponent(locationString);
+        
+        // GCal URL
+        const calendarUrl = `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${encodedTitle}&details=${encodedDetails}&location=${encodedLoc}`;
+        
+        window.open(calendarUrl, '_blank');
+    }
 
     // --- MODAL FUNCTIONS ---
     function openAddModal() {
@@ -654,12 +699,6 @@
         
         if (sortType === 'prio') {
             data.sort((a, b) => a.prio - b.prio);
-        } else if (sortType === 'date') {
-            data.sort((a, b) => {
-                if (!a.date) return 1;
-                if (!b.date) return -1;
-                return new Date(a.date) - new Date(b.date);
-            });
         } else if (sortType === 'title') {
             data.sort((a, b) => a.title.localeCompare(b.title));
         }
@@ -729,11 +768,11 @@
         const data = scrapeTableData();
         if (data.length === 0) return;
 
-        const headers = ["Title", "Link", "Genre", "Desc", "Priority", "Date", "Location"];
+        const headers = ["Title", "Link", "Genre", "Desc", "Priority", "Location"];
         const rows = [headers.join("\t")];
 
         for (const row of data) {
-            const values = [row.title, row.link, row.genre, row.desc, row.prio, row.date, row.loc];
+            const values = [row.title, row.link, row.genre, row.desc, row.prio, row.loc];
             const processCell = (val) => {
                 if (!val) return "";
                 let s = String(val);
@@ -781,7 +820,6 @@
     }
 
     function loadData() {
-        // Load Custom List Name
         const listName = localStorage.getItem('waybetterboxdListName');
         if (listName) document.getElementById('listName').value = listName;
 
@@ -828,11 +866,10 @@
             const genre = row.querySelector('.input-genre').value;
             const desc = row.querySelector('.input-desc').value;
             const prio = row.querySelector('.input-prio').value;
-            const date = row.querySelector('.input-date').value;
             const loc = row.querySelector('.input-loc').value;
             
-            if(title || desc || date || loc || genre) {
-                data.push({ title, link, genre, desc, prio, date, loc });
+            if(title || desc || loc || genre) {
+                data.push({ title, link, genre, desc, prio, loc });
             }
         }
         return data;
@@ -946,10 +983,13 @@
         prioSelect.addEventListener('change', saveDataToLocal);
         prioCell.appendChild(prioSelect);
 
-        // 6. Date
+        // 6. Schedule (Replaces Date)
         const dateCell = newRow.insertCell(5);
-        const dateInput = createInput("date", data ? data.date : "", "", "input-date");
-        dateCell.appendChild(dateInput);
+        const calBtn = document.createElement("button");
+        calBtn.className = "gcal-btn";
+        calBtn.innerHTML = "📅 Add";
+        calBtn.onclick = function() { addToGoogleCalendar(this); };
+        dateCell.appendChild(calBtn);
 
         // 7. Location
         const locCell = newRow.insertCell(6);
