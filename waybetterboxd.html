@@ -11,7 +11,7 @@
             --pastel-green: #c6e7c6;
             --header-bg: #f8f9fa;
             --border-color: #c0c0c0;
-            --text-color: #202124;
+            --text-color: #202124; /* Dark Gray Primary Text */
             --instruction-bg: #ffffff;
             --row-hover-bg: #f8f9fa;
         }
@@ -40,18 +40,52 @@
 
         .sheet-title {
             display: flex;
-            align-items: center;
+            align-items: baseline;
             gap: 10px;
+        }
+
+        .sheet-icon { 
+            font-size: 24px; 
+            position: relative;
+            top: 3px;
+            color: var(--sheets-green); /* GREEN */
+            font-weight: 700;           /* BOLD */
+        }
+
+        .logo-text {
             font-size: 22px;
             color: var(--sheets-green);
             font-weight: 500;
+            white-space: nowrap;
         }
 
-        .sheet-icon { font-size: 24px; }
+        /* Custom List Name Input */
+        .list-name-input {
+            border: none;
+            background: transparent;
+            font-family: 'Roboto', sans-serif;
+            font-size: 22px;           /* Size 22px */
+            font-weight: 700; 
+            color: var(--text-color);  /* Dark Gray (matches primary text) */
+            outline: none;
+            padding: 0 8px;
+            min-width: 250px;
+            border-radius: 4px;
+            line-height: 1;
+        }
+        .list-name-input:focus {
+            background-color: #f1f3f4;
+            border-bottom: 2px solid var(--sheets-green);
+        }
+        .list-name-input::placeholder {
+            color: #9aa0a6;
+            font-weight: 500;
+        }
 
         .button-group {
             display: flex;
             gap: 10px;
+            align-items: center;
         }
 
         button {
@@ -94,7 +128,7 @@
 
         .hidden { display: none !important; }
 
-        /* --- CONTROL BAR (SORT & FILTER) --- */
+        /* --- CONTROL BAR --- */
         .control-bar {
             background-color: #fff;
             padding: 8px 20px;
@@ -104,7 +138,7 @@
             gap: 20px;
             font-size: 13px;
             color: #5f6368;
-            position: relative; /* For dropdown positioning */
+            position: relative;
         }
 
         .control-group {
@@ -127,7 +161,6 @@
             background-color: #f1f3f4;
         }
 
-        /* Custom Filter Dropdown */
         .filter-dropdown-container {
             position: relative;
         }
@@ -174,7 +207,6 @@
         .filter-item:hover { background: #f1f3f4; }
         .filter-item input { margin: 0 8px 0 0; width: auto; min-height: auto; }
         .filter-item label { cursor: pointer; flex: 1; }
-
 
         /* --- INSTRUCTION BAR --- */
         .instruction-bar {
@@ -232,7 +264,6 @@
 
         tr:hover td { background-color: var(--row-hover-bg); }
 
-        /* General Inputs */
         textarea, input[type="text"], input[type="date"], select.cell-select {
             width: 100%;
             border: none;
@@ -256,15 +287,13 @@
             height: 20px;
         }
 
-        /* Priority Select Specifics */
         select.cell-select {
-            appearance: none; /* Hide default arrow for cleaner look inside cell */
+            appearance: none;
             -webkit-appearance: none;
             cursor: pointer;
             text-align: center;
-            text-align-last: center; /* Center text in dropdown */
+            text-align-last: center;
         }
-        /* Restore subtle hover effect for select */
         select.cell-select:hover {
             background-color: rgba(0,0,0,0.02);
         }
@@ -284,9 +313,9 @@
         /* Column Widths */
         .col-title { width: 18%; }
         .col-link { width: 18%; }
-        .col-genre { width: 12%; } /* New */
+        .col-genre { width: 12%; }
         .col-desc { width: 22%; }
-        .col-prio { width: 6%; }  /* New */
+        .col-prio { width: 6%; }
         .col-date { width: 10%; }
         .col-loc { width: 10%; }
         .col-act { width: 50px; }
@@ -352,7 +381,8 @@
 <div class="toolbar">
     <div class="sheet-title">
         <div class="sheet-icon">田</div>
-        <span>waybetterboxd</span>
+        <span class="logo-text">waybetterboxd</span>
+        <input type="text" id="listName" class="list-name-input" placeholder="Untitled List" oninput="saveListName()">
     </div>
     <div class="button-group">
         <button class="primary-btn" onclick="addRow()">+ Add Movie</button>
@@ -427,6 +457,12 @@
         });
     };
 
+    // --- LIST NAME PERSISTENCE ---
+    function saveListName() {
+        const name = document.getElementById('listName').value;
+        localStorage.setItem('waybetterboxdListName', name);
+    }
+
     // --- FILTER LOGIC ---
     let currentGenreFilter = 'all';
 
@@ -435,11 +471,9 @@
     }
 
     function populateGenreFilter(data) {
-        // Collect unique genres
         const genres = new Set();
         data.forEach(row => {
             if (row.genre && row.genre.trim() !== "") {
-                // Normalize slightly (Title Case preferred, but we assume user input)
                 genres.add(row.genre.trim());
             }
         });
@@ -447,7 +481,6 @@
         const sortedGenres = Array.from(genres).sort();
         const menu = document.getElementById('filterMenu');
         
-        // Keep the "All" option
         let html = `
             <div class="filter-item">
                 <input type="radio" name="genreFilter" id="filter-all" value="all" 
@@ -458,7 +491,6 @@
         `;
         
         sortedGenres.forEach(genre => {
-            // Simple ID generation
             const id = 'filter-' + genre.replace(/\s+/g, '-').toLowerCase();
             const isChecked = currentGenreFilter === genre ? 'checked' : '';
             html += `
@@ -478,7 +510,6 @@
         currentGenreFilter = genre;
         document.querySelector('.filter-btn').textContent = (genre === 'all') ? "All Genres" : genre;
         
-        // Hide/Show rows based on genre
         const rows = document.querySelectorAll('#movieTable tbody tr');
         rows.forEach(row => {
             const rowGenreInput = row.querySelector('.input-genre');
@@ -492,14 +523,13 @@
         });
         
         document.getElementById('filterMenu').classList.remove('show');
+        updateArrowVisibility(); // Re-check arrows for visible rows
     }
 
-    // Refresh filter list whenever data changes
     function updateFilterList() {
         const data = scrapeTableData();
         populateGenreFilter(data);
     }
-
 
     // --- SORTING LOGIC ---
     function handleSortChange() {
@@ -524,18 +554,13 @@
         tbody.innerHTML = '';
         data.forEach(movie => addRow(movie));
         saveDataToLocal();
-        
-        // Re-apply current filter after sort
         applyGenreFilter(currentGenreFilter);
     }
-
 
     // --- ARROWS ---
     function updateArrowVisibility() {
         const tbody = document.querySelector('#movieTable tbody');
-        // Only consider visible rows if we want arrows to work visually in filtered list?
-        // Standard Sheets behavior: moves actual row index. 
-        // We will stick to DOM order.
+        // Only consider visible rows
         const rows = Array.from(tbody.rows).filter(r => r.style.display !== 'none');
         
         rows.forEach((row, index) => {
@@ -548,7 +573,6 @@
 
     function moveRowUp(btn) {
         const row = btn.closest('tr');
-        // Find previous visible row if filtered
         let prev = row.previousElementSibling;
         while (prev && prev.style.display === 'none') {
             prev = prev.previousElementSibling;
@@ -564,7 +588,6 @@
 
     function moveRowDown(btn) {
         const row = btn.closest('tr');
-        // Find next visible row
         let next = row.nextElementSibling;
         while (next && next.style.display === 'none') {
             next = next.nextElementSibling;
@@ -578,7 +601,7 @@
         }
     }
 
-    // --- STANDARD ACTIONS ---
+    // --- ACTIONS ---
     function updateButtonVisibility() {
         const data = scrapeTableData();
         const actionButtons = document.querySelectorAll('.action-btn');
@@ -674,6 +697,10 @@
     }
 
     function loadData() {
+        // Load Custom List Name
+        const listName = localStorage.getItem('waybetterboxdListName');
+        if (listName) document.getElementById('listName').value = listName;
+
         const hash = window.location.hash.substring(1); 
         if (hash) {
             const sharedData = decodeData(hash);
@@ -697,7 +724,7 @@
             addRow();
         }
         updateButtonVisibility();
-        updateFilterList(); // Init filter list
+        updateFilterList();
     }
 
     function saveDataToLocal() {
@@ -805,25 +832,23 @@
         });
         linkCell.appendChild(linkInput);
 
-        // Auto-link logic
         titleInput.addEventListener('input', function() {
             updateLink(this, linkInput);
             saveDataToLocal();
         });
 
-        // 3. Genre (New)
+        // 3. Genre
         const genreCell = newRow.insertCell(2);
         const genreInput = createInput("text", data ? data.genre : "", "Genre", "input-genre");
-        // Update filter list when genre changes
         genreInput.addEventListener('change', updateFilterList);
         genreCell.appendChild(genreInput);
 
         // 4. Desc
         const descCell = newRow.insertCell(3);
-        const descInput = createTextarea(data ? data.desc : "", "Notes...", "input-desc");
+        const descInput = createTextarea(data ? data.desc : "", "paste from letterboxd", "input-desc");
         descCell.appendChild(descInput);
 
-        // 5. Priority (New)
+        // 5. Priority
         const prioCell = newRow.insertCell(4);
         const prioSelect = document.createElement("select");
         prioSelect.className = "cell-select input-prio";
@@ -867,7 +892,7 @@
             if (tableBody.rows.length === 0) addRow();
             saveDataToLocal();
             updateArrowVisibility();
-            updateFilterList(); // Re-scan genres on delete
+            updateFilterList();
         };
 
         const downBtn = document.createElement("button");
@@ -887,11 +912,7 @@
         }
         
         updateArrowVisibility();
-        // Check if we are currently filtering; if so, new row might be hidden if it doesn't match
         if (currentGenreFilter !== 'all') {
-           // Optionally reveal it or leave it hidden? 
-           // Usually better to show it so user sees what they added.
-           // For now, let's just re-apply filter logic (which hides it if empty genre doesn't match filter)
            applyGenreFilter(currentGenreFilter);
         }
     }
