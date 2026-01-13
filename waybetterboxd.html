@@ -11,7 +11,7 @@
             --pastel-green: #c6e7c6;
             --header-bg: #f8f9fa;
             --border-color: #c0c0c0;
-            --text-color: #202124; /* Dark Gray Primary Text */
+            --text-color: #202124;
             --instruction-bg: #ffffff;
             --row-hover-bg: #f8f9fa;
         }
@@ -48,8 +48,8 @@
             font-size: 24px; 
             position: relative;
             top: 3px;
-            color: var(--sheets-green); /* GREEN */
-            font-weight: 700;           /* BOLD */
+            color: var(--sheets-green);
+            font-weight: 700;
         }
 
         .logo-text {
@@ -64,9 +64,9 @@
             border: none;
             background: transparent;
             font-family: 'Roboto', sans-serif;
-            font-size: 22px;           /* Size 22px */
+            font-size: 22px;
             font-weight: 700; 
-            color: var(--text-color);  /* Dark Gray (matches primary text) */
+            color: var(--text-color);
             outline: none;
             padding: 0 8px;
             min-width: 250px;
@@ -127,6 +127,69 @@
         }
 
         .hidden { display: none !important; }
+
+        /* --- MODAL STYLES --- */
+        .modal-overlay {
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.5);
+            z-index: 200;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+        
+        .modal {
+            background: white;
+            padding: 24px;
+            border-radius: 8px;
+            width: 450px;
+            max-width: 90%;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            display: flex;
+            flex-direction: column; 
+        }
+
+        .modal h3 { margin: 0 0 12px 0; color: var(--text-color); font-size: 18px; }
+        
+        .modal p { 
+            color: #5f6368; 
+            font-size: 14px; 
+            margin-bottom: 20px; 
+            line-height: 1.5; 
+        }
+
+        .modal-input {
+            width: 100%;
+            border: 1px solid #dadce0; 
+            padding: 10px; 
+            border-radius: 4px; 
+            margin-bottom: 12px; /* Updated to 12px */
+            font-size: 14px;
+            box-sizing: border-box;
+            color: var(--text-color);
+            display: block;
+        }
+        .modal-input:focus {
+            outline: none;
+            border-color: var(--sheets-green);
+            border-width: 2px;
+            padding: 9px;
+        }
+
+        .modal-buttons {
+            display: flex;
+            justify-content: flex-end;
+            gap: 12px;
+            margin-top: auto; 
+        }
+
+        .modal button:disabled {
+            background-color: #e0e0e0;
+            color: #9aa0a6;
+            cursor: not-allowed;
+            box-shadow: none;
+        }
 
         /* --- CONTROL BAR --- */
         .control-bar {
@@ -310,7 +373,6 @@
             font-size: 12px;
         }
         
-        /* Column Widths */
         .col-title { width: 18%; }
         .col-link { width: 18%; }
         .col-genre { width: 12%; }
@@ -320,7 +382,6 @@
         .col-loc { width: 10%; }
         .col-act { width: 50px; }
 
-        /* --- ACTIONS COLUMN --- */
         .action-cell-content {
             display: flex;
             flex-direction: column;
@@ -386,8 +447,8 @@
     </div>
     <div class="button-group">
         <button class="primary-btn" onclick="addRow()">+ Add Movie</button>
+        <button class="secondary-btn" onclick="openAddModal()">Link Import</button>
         <button class="secondary-btn action-btn" onclick="copyTableToClipboard()">Copy Table</button>
-        <button class="secondary-btn action-btn" onclick="exportToCSV()">CSV</button>
         <button class="secondary-btn action-btn" onclick="generateShareLink()">Shareable Link</button>
     </div>
 </div>
@@ -445,10 +506,21 @@
 
 <div id="toast">Notification</div>
 
+<div id="addModal" class="modal-overlay hidden">
+    <div class="modal">
+        <h3>Link Import</h3>
+        <p>Paste a shareable waybetterboxd link below to add the entries from that list to yours.</p>
+        <input type="text" id="shareLinkInput" class="modal-input" placeholder="Paste link here..." oninput="checkLinkInput()">
+        <div class="modal-buttons">
+            <button class="secondary-btn" onclick="closeAddModal()">Cancel</button>
+            <button id="importBtn" class="primary-btn" onclick="importFromLink()" disabled>Add movies to list</button>
+        </div>
+    </div>
+</div>
+
 <script>
     window.onload = function() {
         loadData();
-        // Close filter menu when clicking outside
         document.addEventListener('click', function(e) {
             const container = document.querySelector('.filter-dropdown-container');
             if (!container.contains(e.target)) {
@@ -456,6 +528,48 @@
             }
         });
     };
+
+    // --- MODAL FUNCTIONS ---
+    function openAddModal() {
+        document.getElementById('addModal').classList.remove('hidden');
+        document.getElementById('shareLinkInput').value = '';
+        document.getElementById('importBtn').disabled = true;
+        document.getElementById('shareLinkInput').focus();
+    }
+
+    function closeAddModal() {
+        document.getElementById('addModal').classList.add('hidden');
+    }
+
+    function checkLinkInput() {
+        const val = document.getElementById('shareLinkInput').value;
+        document.getElementById('importBtn').disabled = val.trim() === "";
+    }
+
+    function importFromLink() {
+        const url = document.getElementById('shareLinkInput').value;
+        try {
+            let hash = "";
+            if (url.includes("#")) {
+                hash = url.split("#")[1];
+            } else {
+                hash = url;
+            }
+
+            const sharedData = decodeData(hash);
+            
+            if (sharedData && Array.isArray(sharedData)) {
+                sharedData.forEach(movie => addRow(movie));
+                saveDataToLocal();
+                closeAddModal();
+                showToast(`Added ${sharedData.length} movies!`);
+            } else {
+                showToast("Invalid link or data.");
+            }
+        } catch (e) {
+            showToast("Error parsing link.");
+        }
+    }
 
     // --- LIST NAME PERSISTENCE ---
     function saveListName() {
@@ -523,7 +637,7 @@
         });
         
         document.getElementById('filterMenu').classList.remove('show');
-        updateArrowVisibility(); // Re-check arrows for visible rows
+        updateArrowVisibility();
     }
 
     function updateFilterList() {
@@ -560,7 +674,6 @@
     // --- ARROWS ---
     function updateArrowVisibility() {
         const tbody = document.querySelector('#movieTable tbody');
-        // Only consider visible rows
         const rows = Array.from(tbody.rows).filter(r => r.style.display !== 'none');
         
         rows.forEach((row, index) => {
@@ -653,35 +766,6 @@
         try { document.execCommand('copy'); showToast("Copied! Ready to paste."); } 
         catch (err) { showToast("Copy failed."); }
         document.body.removeChild(textArea);
-    }
-
-    function exportToCSV() {
-        const data = scrapeTableData();
-        if (data.length === 0) return;
-
-        const headers = ["Title", "Link", "Genre", "Desc", "Priority", "Date", "Location"];
-        const csvRows = [];
-        csvRows.push(headers.join(",")); 
-
-        for (const row of data) {
-            const values = [row.title, row.link, row.genre, row.desc, row.prio, row.date, row.loc];
-            const escapedValues = values.map(val => {
-                if (!val) return '""';
-                const escaped = val.replace(/"/g, '""');
-                return `"${escaped}"`;
-            });
-            csvRows.push(escapedValues.join(","));
-        }
-
-        const csvString = csvRows.join("\n");
-        const blob = new Blob([csvString], { type: "text/csv" });
-        const url = window.URL.createObjectURL(blob);
-        const a = document.createElement("a");
-        a.href = url;
-        a.download = "waybetterboxd-export.csv";
-        a.click();
-        window.URL.revokeObjectURL(url);
-        showToast("CSV Downloaded!");
     }
 
     // --- DATA HANDLING ---
