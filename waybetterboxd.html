@@ -415,6 +415,47 @@
         return Date.now().toString(36) + Math.random().toString(36).substr(2);
     }
 
+    // --- COMPRESSION HELPERS ---
+    async function compress(str) {
+        const stream = new Blob([str]).stream();
+        const compressed = stream.pipeThrough(new CompressionStream("gzip"));
+        const response = await new Response(compressed);
+        const blob = await response.blob();
+        const buffer = await blob.arrayBuffer();
+        return arrayBufferToBase64(buffer);
+    }
+
+    async function decompress(str) {
+        try {
+            const buffer = base64ToArrayBuffer(str);
+            const stream = new Blob([buffer]).stream();
+            const decompressed = stream.pipeThrough(new DecompressionStream("gzip"));
+            const response = await new Response(decompressed);
+            return await response.text();
+        } catch (e) {
+            console.error("Decompression failed", e);
+            return null;
+        }
+    }
+
+    function arrayBufferToBase64(buffer) {
+        let binary = '';
+        const bytes = new Uint8Array(buffer);
+        const len = bytes.byteLength;
+        for (let i = 0; i < len; i++) binary += String.fromCharCode(bytes[i]);
+        return window.btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+    }
+
+    function base64ToArrayBuffer(base64) {
+        base64 = base64.replace(/-/g, '+').replace(/_/g, '/');
+        while (base64.length % 4) base64 += '=';
+        const binary_string = window.atob(base64);
+        const len = binary_string.length;
+        const bytes = new Uint8Array(len);
+        for (let i = 0; i < len; i++) bytes[i] = binary_string.charCodeAt(i);
+        return bytes.buffer;
+    }
+
     // --- SHARED MODE LOGIC ---
     function exitSharedMode() {
         window.history.replaceState({}, document.title, window.location.pathname);
@@ -425,41 +466,33 @@
     }
 
     function mergeSharedList() {
-        // 1. Get Local Data
         const storedStr = localStorage.getItem('waybetterboxdData');
         let localData = storedStr ? JSON.parse(storedStr) : [];
         localData = localData.map(m => m.id ? m : {...m, id: generateId()});
         
-        // 2. Prepare Shared Items
         const sharedItems = masterData.map(m => ({...m, id: generateId()}));
         
-        // 3. DUPLICATE CHECK
-        // Create a set of existing normalized titles for fast lookup
+        // DUPLICATE CHECK
         const existingTitles = new Set(localData.map(m => (m.title || "").toLowerCase().trim()));
-        
         const newItems = sharedItems.filter(m => {
             const normalizedTitle = (m.title || "").toLowerCase().trim();
-            if (!normalizedTitle) return true; // Always allow empty rows
+            if (!normalizedTitle) return true; 
             return !existingTitles.has(normalizedTitle);
         });
 
-        // 4. Merge In Memory
         masterData = [...localData, ...newItems];
 
-        // 5. Restore User's List Name
+        // Restore User's List Name
         const savedName = localStorage.getItem('waybetterboxdListName') || "";
         document.getElementById('listName').value = savedName;
         updatePageTitle();
 
-        // 6. Update State & UI
         isSharedView = false;
         document.getElementById('sharedBanner').classList.remove('visible');
         window.history.replaceState({}, document.title, window.location.pathname);
         
-        // 7. Save DIRECTLY
         localStorage.setItem('waybetterboxdData', JSON.stringify(masterData));
         
-        // 8. Refresh View
         updateFilterList();
         renderTable();
         
@@ -467,7 +500,7 @@
         showToast(`Added ${newItems.length} movies! (${skipped} skipped)`);
     }
 
-    // --- ENCODING ---
+    // --- PACKING ---
     function packData(data) {
         return data.map(m => [
             m.title || "", m.link || "", m.genre || "", m.desc || "", m.prio || "1", m.loc || "", m.watched ? 1 : 0
@@ -481,7 +514,7 @@
         }));
     }
 
-    // --- WATCHED LOGIC ---
+    // --- MAIN LOGIC ---
     function toggleWatched(btn) {
         const row = btn.closest('tr');
         row.classList.toggle('watched');
@@ -503,7 +536,6 @@
         }
     }
 
-    // --- SORTING ---
     function handleSortChange() {
         saveDataBasedOnMode(lastSortMode);
         lastSortMode = document.getElementById('sortSelect').value;
@@ -531,7 +563,6 @@
         applyGenreFilter(currentGenreFilter);
     }
 
-    // --- DATA HANDLING ---
     function scrapeTableData() {
         const tableBody = document.querySelector('#movieTable tbody');
         const rows = tableBody.getElementsByTagName('tr');
@@ -561,12 +592,10 @@
         } else {
             const viewMap = new Map(currentViewData.map(item => [item.id, item]));
             masterData = masterData.map(item => viewMap.has(item.id) ? viewMap.get(item.id) : item);
-            
             const masterIds = new Set(masterData.map(i => i.id));
             currentViewData.forEach(item => {
                 if (!masterIds.has(item.id)) masterData.push(item);
             });
-            
             const currentViewIds = new Set(currentViewData.map(i => i.id));
             masterData = masterData.filter(item => currentViewIds.has(item.id));
         }
@@ -577,7 +606,6 @@
     
     function saveDataToLocal() { saveDataBasedOnMode(lastSortMode); }
 
-    // --- ROW CREATION ---
     function addRow(data = null) {
         const tableBody = document.querySelector('#movieTable tbody');
         const newRow = tableBody.insertRow();
@@ -587,7 +615,6 @@
         if (data && data.watched) newRow.classList.add('watched');
         enableDrag(newRow);
 
-        // Helper to create inputs
         const createEl = (tag, cls, val, ph, ro) => {
             const el = document.createElement(tag);
             el.className = cls; el.value = val || ''; el.placeholder = ph || '';
@@ -606,27 +633,22 @@
             return el;
         };
 
-        // 1. Title
         const titleInput = createEl('textarea', 'input-title', data?.title, "Enter title");
         titleInput.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); addRow(); } });
         newRow.insertCell(0).appendChild(titleInput);
 
-        // 2. Link
         const linkInput = createEl('input', 'input-link link-field', data?.link, "Link...", true);
         linkInput.onclick = function() { if(this.value.startsWith('http')) window.open(this.value, '_blank'); };
         newRow.insertCell(1).appendChild(linkInput);
         
         titleInput.addEventListener('input', () => { updateLink(titleInput, linkInput); saveDataToLocal(); });
 
-        // 3. Genre 
         const genreInput = createEl('input', 'input-genre', data?.genre, "Genre");
         genreInput.addEventListener('change', updateFilterList); 
         newRow.insertCell(2).appendChild(genreInput);
 
-        // 4. Desc
         newRow.insertCell(3).appendChild(createEl('textarea', 'input-desc', data?.desc, "paste from letterboxd"));
 
-        // 5. Priority
         const prioSelect = document.createElement("select");
         prioSelect.className = "cell-select input-prio";
         for (let i = 1; i <= 5; i++) {
@@ -637,10 +659,8 @@
         prioSelect.addEventListener('change', saveDataToLocal);
         newRow.insertCell(4).appendChild(prioSelect);
 
-        // 6. Location
         newRow.insertCell(5).appendChild(createEl('textarea', 'input-loc', data?.loc, "Name..."));
 
-        // 7. Actions
         const actionCell = newRow.insertCell(6);
         const div = document.createElement("div"); div.className = "action-cell-content";
 
@@ -694,56 +714,67 @@
         }, { offset: Number.NEGATIVE_INFINITY }).element;
     }
 
-    // --- TITLE UPDATE ---
     function updatePageTitle() {
         const listName = document.getElementById('listName').value;
         document.title = (listName && listName.trim() !== "") ? `${listName} | waybetterboxd` : "waybetterboxd";
     }
+    
     function saveListName() { 
         if(!isSharedView) localStorage.setItem('waybetterboxdListName', document.getElementById('listName').value); 
         updatePageTitle();
     }
 
-    // --- SHARE LINK LOGIC ---
-    function generateShareLink() {
+    // --- SHARE LINK (ASYNC) ---
+    async function generateShareLink() {
+        if(masterData.length === 0) return;
         const packed = packData(masterData);
         const json = JSON.stringify(packed);
-        const encoded = btoa(unescape(encodeURIComponent(json)))
-            .replace(/\+/g, '-') 
-            .replace(/\//g, '_')
-            .replace(/=+$/, '');
-            
-        const url = window.location.origin + window.location.pathname + '?list=' + encoded;
+        
+        // COMPRESS
+        const encoded = await compress(json);
+        
+        // GET LIST NAME & APPEND
+        const listName = document.getElementById('listName').value.trim();
+        let params = '?list=' + encoded;
+        if(listName && listName !== "Shared List (View Only)" && !listName.startsWith("Shared List:")) {
+            params += '&name=' + encodeURIComponent(listName);
+        }
+        
+        const url = window.location.origin + window.location.pathname + params;
         navigator.clipboard.writeText(url).then(() => showToast("Link copied!"));
     }
 
-    function decodeData(str) {
-        try {
-            str = str.replace(/-/g, '+').replace(/_/g, '/');
-            while (str.length % 4) str += '=';
-            const json = decodeURIComponent(escape(atob(str)));
-            const data = JSON.parse(json);
-            if (data.length > 0 && Array.isArray(data[0])) return unpackData(data);
-            return data; 
-        } catch (e) { return null; }
-    }
-
-    function loadData() {
+    // --- LOAD DATA (ASYNC) ---
+    async function loadData() {
         const params = new URLSearchParams(window.location.search);
         let sharedStr = params.get('list');
+        let sharedName = params.get('name'); // GET NAME FROM URL
+
         if (!sharedStr && window.location.hash) sharedStr = window.location.hash.substring(1);
 
         if (sharedStr) {
-            const sharedData = decodeData(sharedStr);
-            if (sharedData && Array.isArray(sharedData)) {
-                masterData = sharedData.map(m => ({...m, id: generateId()}));
-                isSharedView = true;
-                document.getElementById('sharedBanner').classList.add('visible');
-                document.getElementById('listName').value = "Shared List (View Only)";
-                updatePageTitle();
-                renderTable();
-                showToast("Loaded Shared List");
-                return;
+            const json = await decompress(sharedStr);
+            if(json) {
+                const data = JSON.parse(json);
+                if (data && Array.isArray(data)) {
+                    masterData = (data.length && Array.isArray(data[0])) ? unpackData(data) : data;
+                    masterData = masterData.map(m => ({...m, id: generateId()}));
+                    
+                    isSharedView = true;
+                    document.getElementById('sharedBanner').classList.add('visible');
+                    
+                    // SET DISPLAY TITLE
+                    let displayTitle = "Shared List (View Only)";
+                    if(sharedName) {
+                        displayTitle = `Shared List: ${decodeURIComponent(sharedName)} (View Only)`;
+                    }
+                    document.getElementById('listName').value = displayTitle;
+                    
+                    updatePageTitle();
+                    renderTable();
+                    showToast("Loaded Shared List");
+                    return;
+                }
             }
         }
 
@@ -762,7 +793,53 @@
         renderTable();
     }
 
-    // --- BOILERPLATE ---
+    // --- IMPORT (ASYNC) ---
+    async function importFromLink() {
+        let val = document.getElementById('shareLinkInput').value.trim();
+        let code = val;
+        
+        // Smart URL Parsing
+        try {
+            const url = new URL(val);
+            if(url.searchParams.has('list')) {
+                code = url.searchParams.get('list');
+            }
+        } catch(e) {
+            if(val.includes('list=')) {
+                code = val.split('list=')[1].split('&')[0];
+            } else if(val.includes('#')) {
+                code = val.split('#')[1];
+            }
+        }
+        
+        const json = await decompress(code);
+        if (json) {
+            const data = JSON.parse(json);
+            const importedData = (data.length && Array.isArray(data[0])) ? unpackData(data) : data;
+            
+            const existingTitles = new Set(masterData.map(m => (m.title || "").toLowerCase().trim()));
+            let addedCount = 0;
+
+            importedData.forEach(m => {
+                const normTitle = (m.title || "").toLowerCase().trim();
+                if (!normTitle || !existingTitles.has(normTitle)) {
+                    m.id = generateId(); 
+                    masterData.push(m);
+                    if(normTitle) existingTitles.add(normTitle);
+                    addedCount++;
+                }
+            });
+
+            renderTable(); 
+            saveDataBasedOnMode('custom'); 
+            closeAddModal(); 
+            const skipped = importedData.length - addedCount;
+            showToast(`Imported ${addedCount} movies (${skipped} skipped)`);
+        } else { 
+            showToast("Invalid link"); 
+        }
+    }
+
     function addToGoogleCalendar(btn) {
         const row = btn.closest('tr');
         const title = row.querySelector('.input-title').value;
@@ -785,37 +862,6 @@
     function closeAddModal() { document.getElementById('addModal').classList.add('hidden'); }
     function checkLinkInput() { document.getElementById('importBtn').disabled = !document.getElementById('shareLinkInput').value.trim(); }
     
-    function importFromLink() {
-        let val = document.getElementById('shareLinkInput').value;
-        let code = val.includes('list=') ? val.split('list=')[1] : (val.includes('#') ? val.split('#')[1] : val);
-        const data = decodeData(code);
-        
-        if (data) {
-            // DUPLICATE CHECK FOR LINK IMPORT
-            const existingTitles = new Set(masterData.map(m => (m.title || "").toLowerCase().trim()));
-            let addedCount = 0;
-
-            data.forEach(m => {
-                const normTitle = (m.title || "").toLowerCase().trim();
-                if (!normTitle || !existingTitles.has(normTitle)) {
-                    m.id = generateId(); 
-                    masterData.push(m);
-                    if(normTitle) existingTitles.add(normTitle);
-                    addedCount++;
-                }
-            });
-
-            renderTable(); 
-            saveDataBasedOnMode('custom'); 
-            closeAddModal(); 
-            
-            const skipped = data.length - addedCount;
-            showToast(`Imported ${addedCount} movies (${skipped} skipped)`);
-        } else { 
-            showToast("Invalid link"); 
-        }
-    }
-
     function copyTableToClipboard() {
         const data = scrapeTableData(); if (!data.length) return;
         const rows = data.map(r => [r.title, r.link, r.genre, r.desc, r.prio, r.loc, r.watched?"Yes":"No"].join("\t"));
