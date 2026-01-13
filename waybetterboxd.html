@@ -14,6 +14,8 @@
             --text-color: #202124;
             --instruction-bg: #ffffff;
             --row-hover-bg: #f8f9fa;
+            --watched-bg: #f1f3f4;
+            --watched-text: #80868b;
         }
 
         body {
@@ -59,28 +61,24 @@
             white-space: nowrap;
         }
 
-        /* Custom List Name Input */
-        .list-name-input {
+        .toolbar .list-name-input {
             border: none;
             background: transparent;
             font-family: 'Roboto', sans-serif;
-            font-size: 22px;
+            font-size: 22px; 
             font-weight: 700; 
-            color: var(--text-color);
+            color: #3c4043;
             outline: none;
             padding: 0 8px;
             min-width: 250px;
             border-radius: 4px;
             line-height: 1;
         }
-        .list-name-input:focus {
+        .toolbar .list-name-input:focus {
             background-color: #f1f3f4;
             border-bottom: 2px solid var(--sheets-green);
         }
-        .list-name-input::placeholder {
-            color: #9aa0a6;
-            font-weight: 500;
-        }
+        .toolbar .list-name-input::placeholder { color: #9aa0a6; font-weight: 500; }
 
         .button-group {
             display: flex;
@@ -88,7 +86,8 @@
             align-items: center;
         }
 
-        button {
+        /* Toolbar Buttons */
+        .toolbar-btn {
             border: none;
             padding: 8px 16px;
             font-size: 13px;
@@ -101,354 +100,192 @@
             gap: 6px;
             border-radius: 4px;
         }
-        
-        button:active {
-            transform: translateY(1px);
-            box-shadow: none;
-        }
+        .toolbar-btn:active { transform: translateY(1px); box-shadow: none; }
 
-        .primary-btn {
-            background-color: var(--sheets-green);
-            color: white;
-        }
-        .primary-btn:hover {
-            background-color: #137333;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.25);
-        }
+        .primary-btn { background-color: var(--sheets-green); color: white; }
+        .primary-btn:hover { background-color: #137333; box-shadow: 0 2px 4px rgba(0,0,0,0.25); }
 
-        .secondary-btn {
-            background-color: var(--pastel-green);
-            color: var(--text-color);
-        }
-        .secondary-btn:hover {
-            background-color: var(--sheets-green);
-            color: white;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.25);
-        }
+        .secondary-btn { background-color: var(--pastel-green); color: var(--text-color); }
+        .secondary-btn:hover { background-color: var(--sheets-green); color: white; box-shadow: 0 2px 4px rgba(0,0,0,0.25); }
 
         .hidden { display: none !important; }
 
-        /* --- MODAL STYLES --- */
+        /* --- MODAL --- */
         .modal-overlay {
-            position: fixed;
-            top: 0; left: 0; width: 100%; height: 100%;
-            background: rgba(0,0,0,0.5);
-            z-index: 200;
-            display: flex;
-            justify-content: center;
-            align-items: center;
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.5); z-index: 200;
+            display: flex; justify-content: center; align-items: center;
         }
-        
         .modal {
-            background: white;
-            padding: 24px;
-            border-radius: 8px;
-            width: 450px;
-            max-width: 90%;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-            display: flex;
-            flex-direction: column; 
+            background: white; padding: 24px; border-radius: 8px;
+            width: 450px; max-width: 90%; box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            display: flex; flex-direction: column; 
         }
-
         .modal h3 { margin: 0 0 12px 0; color: var(--text-color); font-size: 18px; }
-        
-        .modal p { 
-            color: #5f6368; 
-            font-size: 14px; 
-            margin-bottom: 20px; 
-            line-height: 1.5; 
-        }
-
+        .modal p { color: #5f6368; font-size: 14px; margin-bottom: 20px; line-height: 1.5; }
         .modal-input {
-            width: 100%;
-            border: 1px solid #dadce0; 
-            padding: 10px; 
-            border-radius: 4px; 
-            margin-bottom: 12px;
-            font-size: 14px;
-            box-sizing: border-box;
-            color: var(--text-color);
-            display: block;
+            width: 100%; border: 1px solid #dadce0; padding: 10px; border-radius: 4px; 
+            margin-bottom: 12px; font-size: 14px; box-sizing: border-box; color: var(--text-color); display: block;
         }
-        .modal-input:focus {
-            outline: none;
-            border-color: var(--sheets-green);
-            border-width: 2px;
-            padding: 9px;
-        }
-
-        .modal-buttons {
-            display: flex;
-            justify-content: flex-end;
-            gap: 12px;
-            margin-top: auto; 
-        }
-
-        .modal button:disabled {
-            background-color: #e0e0e0;
-            color: #9aa0a6;
-            cursor: not-allowed;
-            box-shadow: none;
-        }
+        .modal-input:focus { outline: none; border-color: var(--sheets-green); border-width: 2px; padding: 9px; }
+        .modal-buttons { display: flex; justify-content: flex-end; gap: 12px; margin-top: auto; }
+        .modal button:disabled { background-color: #e0e0e0; color: #9aa0a6; cursor: not-allowed; box-shadow: none; }
 
         /* --- CONTROL BAR --- */
         .control-bar {
-            background-color: #fff;
-            padding: 8px 20px;
-            border-bottom: 1px solid #eee;
-            display: flex;
-            align-items: center;
-            gap: 20px;
-            font-size: 13px;
-            color: #5f6368;
-            position: relative;
+            background-color: #fff; padding: 8px 20px; border-bottom: 1px solid #eee;
+            display: flex; align-items: center; gap: 20px; font-size: 13px; color: #5f6368; position: relative;
         }
-
-        .control-group {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-        }
-
+        .control-group { display: flex; align-items: center; gap: 8px; }
         select.sort-select {
-            padding: 4px 8px;
-            border: 1px solid #dadce0;
-            border-radius: 4px;
-            font-family: 'Roboto', sans-serif;
-            font-size: 13px;
-            color: var(--text-color);
-            cursor: pointer;
-            outline: none;
+            padding: 4px 8px; border: 1px solid #dadce0; border-radius: 4px;
+            font-family: 'Roboto', sans-serif; font-size: 13px; color: var(--text-color); cursor: pointer; outline: none;
         }
-        select.sort-select:hover {
-            background-color: #f1f3f4;
-        }
+        select.sort-select:hover { background-color: #f1f3f4; }
 
-        .filter-dropdown-container {
-            position: relative;
-        }
-
+        /* Filter Dropdown */
+        .filter-dropdown-container { position: relative; }
         .filter-btn {
-            background: #fff;
-            border: 1px solid #dadce0;
-            padding: 4px 12px;
-            border-radius: 4px;
-            cursor: pointer;
-            font-size: 13px;
-            display: flex;
-            align-items: center;
-            gap: 6px;
+            background: #fff; border: 1px solid #dadce0; padding: 4px 12px;
+            border-radius: 4px; cursor: pointer; font-size: 13px;
+            display: flex; align-items: center; gap: 6px;
         }
         .filter-btn:hover { background: #f1f3f4; }
         .filter-btn::after { content: "▼"; font-size: 10px; margin-left: 4px; }
-
         .filter-menu {
-            display: none;
-            position: absolute;
-            top: 100%;
-            left: 0;
-            margin-top: 4px;
-            background: #fff;
-            border: 1px solid #ccc;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.2);
-            border-radius: 4px;
-            min-width: 180px;
-            z-index: 200;
-            padding: 8px 0;
-            max-height: 300px;
-            overflow-y: auto;
+            display: none; position: absolute; top: 100%; left: 0; margin-top: 4px;
+            background: #fff; border: 1px solid #ccc; box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+            border-radius: 4px; min-width: 180px; z-index: 200; padding: 8px 0; max-height: 300px; overflow-y: auto;
         }
         .filter-menu.show { display: block; }
-
-        .filter-item {
-            display: flex;
-            align-items: center;
-            padding: 6px 12px;
-            cursor: pointer;
-            font-size: 13px;
-        }
+        .filter-item { display: flex; align-items: center; padding: 6px 12px; cursor: pointer; font-size: 13px; }
         .filter-item:hover { background: #f1f3f4; }
         .filter-item input { margin: 0 8px 0 0; width: auto; min-height: auto; }
         .filter-item label { cursor: pointer; flex: 1; }
 
-        /* --- INSTRUCTION BAR --- */
         .instruction-bar {
-            background-color: var(--instruction-bg);
-            padding: 8px 20px;
-            border-bottom: 1px solid var(--border-color);
-            font-size: 13px;
-            color: #5f6368;
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            line-height: 1.5;
+            background-color: var(--instruction-bg); padding: 8px 20px;
+            border-bottom: 1px solid var(--border-color); font-size: 13px;
+            color: #5f6368; display: flex; align-items: center; gap: 10px; line-height: 1.5;
         }
-
-        .fx-icon {
-            font-family: 'Times New Roman', serif;
-            font-style: italic;
-            font-weight: bold;
-            color: #9aa0a6;
-            font-size: 16px;
-            flex-shrink: 0;
-        }
+        .fx-icon { font-family: 'Times New Roman', serif; font-style: italic; font-weight: bold; color: #9aa0a6; font-size: 16px; flex-shrink: 0; }
 
         /* --- TABLE --- */
-        .table-container {
-            width: 100%;
-            overflow-x: auto;
-            padding-bottom: 60px;
-        }
-
-        table {
-            width: 100%;
-            border-collapse: collapse;
-            table-layout: fixed;
-        }
-
+        .table-container { width: 100%; overflow-x: auto; padding-bottom: 60px; }
+        table { width: 100%; border-collapse: collapse; table-layout: fixed; }
+        
         th {
-            background-color: var(--header-bg);
-            border: 1px solid var(--border-color);
-            color: #5f6368;
-            font-size: 12px;
-            font-weight: 700;
-            text-align: left;
-            padding: 8px 10px;
+            background-color: var(--header-bg); border: 1px solid var(--border-color);
+            color: #5f6368; font-size: 12px; font-weight: 700; text-align: left; padding: 8px 10px;
         }
-
-        th.col-act, th.col-prio, th.col-cal { text-align: center; }
+        th.col-act, th.col-prio { text-align: center; }
 
         td {
-            border: 1px solid var(--border-color);
-            vertical-align: top;
-            padding: 8px 10px;
-            background: #fff;
+            border: 1px solid var(--border-color); vertical-align: top;
+            padding: 8px 10px; background: #fff; transition: background 0.2s;
+            position: relative;
         }
+        
+        /* Row Dragging Styles */
+        tr[draggable="true"] { cursor: grab; }
+        tr[draggable="true"]:active { cursor: grabbing; }
+        tr.dragging { opacity: 0.5; background-color: #e8f0fe !important; }
+        tr.dragging td { background-color: #e8f0fe !important; }
 
         tr:hover td { background-color: var(--row-hover-bg); }
 
+        /* Watched Row Styles */
+        tr.watched td { background-color: var(--watched-bg); }
+        tr.watched textarea, 
+        tr.watched input, 
+        tr.watched select { 
+            color: var(--watched-text); 
+            text-decoration: line-through; 
+        }
+        tr.watched .link-field { color: var(--watched-text); }
+
+        /* Inputs */
         textarea, input[type="text"], select.cell-select {
-            width: 100%;
-            border: none;
-            outline: none;
-            padding: 0;
-            margin: 0;
-            font-family: 'Roboto', arial, sans-serif;
-            font-size: 13px;
-            color: var(--text-color);
-            background: transparent;
-            box-sizing: border-box;
-            resize: vertical;
-            min-height: 20px;
-            line-height: 1.5;
-            display: block;
-            overflow: hidden;
+            width: 100%; border: none; outline: none; padding: 0; margin: 0;
+            font-family: 'Roboto', arial, sans-serif; font-size: 13px; color: var(--text-color);
+            background: transparent; box-sizing: border-box; resize: vertical;
+            min-height: 20px; line-height: 1.5; display: block; overflow: hidden;
         }
 
-        select.cell-select {
-            appearance: none;
-            -webkit-appearance: none;
+        select.cell-select { appearance: none; -webkit-appearance: none; cursor: pointer; text-align: center; text-align-last: center; }
+        select.cell-select:hover { background-color: rgba(0,0,0,0.02); }
+        textarea:focus, input:focus, select.cell-select:focus { border-bottom: 2px solid var(--sheets-green); margin-bottom: -2px; }
+
+        .link-field { color: #1155cc; text-decoration: underline; cursor: pointer !important; font-size: 12px; }
+        
+        /* Unified Action Buttons in Cell */
+        .unified-btn {
+            background: none; 
+            border: 1px solid #dadce0; 
+            border-radius: 4px;
+            padding: 4px 8px; 
+            font-size: 11px; 
+            color: #5f6368; 
             cursor: pointer;
-            text-align: center;
-            text-align-last: center;
+            display: flex; 
+            align-items: center; 
+            justify-content: flex-start; /* Aligns text to left/start */
+            gap: 6px;
+            white-space: nowrap;
+            height: 24px;
+            width: 100%; /* Full width for stacking */
+            box-sizing: border-box;
         }
-        select.cell-select:hover {
-            background-color: rgba(0,0,0,0.02);
-        }
-
-        textarea:focus, input:focus, select.cell-select:focus {
-            border-bottom: 2px solid var(--sheets-green);
-            margin-bottom: -2px; 
-        }
-
-        .link-field {
-            color: #1155cc;
-            text-decoration: underline;
-            cursor: pointer !important;
-            font-size: 12px;
+        .unified-btn:hover { 
+            background-color: #f1f3f4; 
+            color: var(--sheets-green); 
+            border-color: var(--sheets-green); 
         }
         
-        .gcal-btn {
-            background: none;
-            border: 1px solid #dadce0;
-            border-radius: 4px;
-            padding: 4px 8px;
-            font-size: 12px;
-            color: #5f6368;
-            cursor: pointer;
-            width: 100%;
-            text-align: center;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: 4px;
+        .unified-btn.btn-delete { margin-top: 24px; }
+        .unified-btn.btn-delete:hover {
+            color: #d93025; 
+            border-color: #d93025; 
+            background-color: #fce8e6;
         }
-        .gcal-btn:hover {
-            background-color: #f1f3f4;
-            color: var(--sheets-green);
+        
+        .unified-btn.btn-checked {
+            background-color: #e6f4ea;
             border-color: var(--sheets-green);
+            color: var(--sheets-green);
         }
 
-        .col-title { width: 18%; }
-        .col-link { width: 18%; }
+        /* Column Config */
+        .col-act { width: 100px; } 
+        .col-title { width: 22%; }
+        .col-link { width: 16%; }
         .col-genre { width: 12%; }
         .col-desc { width: 22%; }
         .col-prio { width: 6%; }
-        .col-cal { width: 10%; }
-        .col-loc { width: 10%; }
-        .col-act { width: 50px; }
+        .col-loc { width: 12%; }
 
+        /* Actions Column Layout */
         .action-cell-content {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: flex-start;
-            gap: 2px;
+            display: flex; 
+            flex-direction: column; 
+            align-items: stretch;
+            gap: 4px;
         }
 
-        .icon-btn {
-            background: none;
-            border: none;
-            cursor: pointer;
-            padding: 2px;
-            line-height: 1;
-            border-radius: 2px;
-            width: 20px;
-            height: 20px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 10px;
-            color: #9aa0a6;
-            opacity: 0;
-            transition: opacity 0.1s;
+        /* Responsive */
+        @media (max-width: 800px) {
+            .btn-text { display: none; }
+            .col-act { width: 40px; }
+            .unified-btn { justify-content: center; padding: 4px 2px; }
         }
 
-        tr:hover .icon-btn { opacity: 1; }
-        .icon-btn:hover { background-color: #e0e0e0; color: #333; }
-
-        .delete-btn { color: #d93025; font-size: 14px; }
-        .delete-btn:hover { background-color: #fce8e6; color: #d93025; }
-        
+        /* Toast */
         #toast {
-            visibility: hidden;
-            min-width: 250px;
-            background-color: #333;
-            color: #fff;
-            text-align: center;
-            border-radius: 4px;
-            padding: 16px;
-            position: fixed;
-            z-index: 1000;
-            left: 50%;
-            bottom: 30px;
-            transform: translateX(-50%);
-            font-size: 14px;
+            visibility: hidden; min-width: 250px; background-color: #333; color: #fff;
+            text-align: center; border-radius: 4px; padding: 16px; position: fixed;
+            z-index: 1000; left: 50%; bottom: 30px; transform: translateX(-50%); font-size: 14px;
         }
-        #toast.show {
-            visibility: visible;
-            animation: fadein 0.5s, fadeout 0.5s 2.5s;
-        }
+        #toast.show { visibility: visible; animation: fadein 0.5s, fadeout 0.5s 2.5s; }
         @keyframes fadein { from {bottom: 0; opacity: 0;} to {bottom: 30px; opacity: 1;} }
         @keyframes fadeout { from {bottom: 30px; opacity: 1;} to {bottom: 0; opacity: 0;} }
     </style>
@@ -462,10 +299,10 @@
         <input type="text" id="listName" class="list-name-input" placeholder="Untitled List" oninput="saveListName()">
     </div>
     <div class="button-group">
-        <button class="primary-btn" onclick="addRow()">+ Add Movie</button>
-        <button class="secondary-btn" onclick="openAddModal()">Link Import</button>
-        <button class="secondary-btn action-btn" onclick="copyTableToClipboard()">Copy Table</button>
-        <button class="secondary-btn action-btn" onclick="generateShareLink()">Shareable Link</button>
+        <button class="toolbar-btn primary-btn" onclick="addRow()">+ Add Movie</button>
+        <button class="toolbar-btn secondary-btn" onclick="openAddModal()">Link Import</button>
+        <button class="toolbar-btn secondary-btn action-btn" onclick="copyTableToClipboard()">Copy Table</button>
+        <button class="toolbar-btn secondary-btn action-btn" onclick="generateShareLink()">Shareable Link</button>
     </div>
 </div>
 
@@ -497,7 +334,7 @@
     <span class="fx-icon">fx</span>
     <span>
         <strong>How to use:</strong> Type a title & press <strong>Enter</strong> to add a row. 
-        <strong>Priority</strong> is 1 (Top) to 5 (Low). Use <strong>Link Import</strong> to combine lists.
+        <strong>Drag</strong> a row to reorder.
     </span>
 </div>
 
@@ -510,7 +347,6 @@
                 <th class="col-genre">Genre</th>
                 <th class="col-desc">Description</th>
                 <th class="col-prio">Priority</th>
-                <th class="col-cal">Schedule</th>
                 <th class="col-loc">Whose House?</th>
                 <th class="col-act">Actions</th>
             </tr>
@@ -527,15 +363,22 @@
         <p>Paste a shareable waybetterboxd link below to add the entries from that list to yours.</p>
         <input type="text" id="shareLinkInput" class="modal-input" placeholder="Paste link here..." oninput="checkLinkInput()">
         <div class="modal-buttons">
-            <button class="secondary-btn" onclick="closeAddModal()">Cancel</button>
-            <button id="importBtn" class="primary-btn" onclick="importFromLink()" disabled>Add movies to list</button>
+            <button class="toolbar-btn secondary-btn" onclick="closeAddModal()">Cancel</button>
+            <button id="importBtn" class="toolbar-btn primary-btn" onclick="importFromLink()" disabled>Add movies to list</button>
         </div>
     </div>
 </div>
 
 <script>
+    let dragSrcEl = null;
+    let masterData = []; // The authoritative list in Custom Order
+    let lastSortMode = 'custom'; // Tracks state to prevent overwriting custom order
+
     window.onload = function() {
         loadData();
+        // Initialize lastSortMode to match what we loaded
+        lastSortMode = document.getElementById('sortSelect').value;
+        
         document.addEventListener('click', function(e) {
             const container = document.querySelector('.filter-dropdown-container');
             if (!container.contains(e.target)) {
@@ -544,419 +387,205 @@
         });
     };
 
-    // --- GOOGLE CALENDAR LOGIC (UPDATED) ---
-    function addToGoogleCalendar(btn) {
+    function generateId() {
+        return Date.now().toString(36) + Math.random().toString(36).substr(2);
+    }
+
+    // --- WATCHED LOGIC ---
+    function toggleWatched(btn) {
         const row = btn.closest('tr');
-        const title = row.querySelector('.input-title').value;
-        const link = row.querySelector('.input-link').value;
-        const desc = row.querySelector('.input-desc').value;
-        const loc = row.querySelector('.input-loc').value;
-
-        if (!title) {
-            showToast("Enter a movie title first!");
-            return;
+        row.classList.toggle('watched');
+        
+        if(row.classList.contains('watched')) {
+            btn.classList.add('btn-checked');
+            btn.innerHTML = "✓ <span class='btn-text'>Unwatch</span>";
+            btn.title = "Unwatch";
+        } else {
+            btn.classList.remove('btn-checked');
+            btn.innerHTML = "✅ <span class='btn-text'>Watched</span>";
+            btn.title = "Mark Watched";
         }
-
-        // Determine location string (TBD if empty)
-        const locationString = loc && loc.trim() !== "" ? loc : "TBD";
-
-        // Construct Event Data
-        const fullEventTitle = `${title} movie night @ ${locationString}`;
-        const eventDetails = `Movie night for ${title}\n${link}\n${desc}`;
         
-        const encodedTitle = encodeURIComponent(fullEventTitle);
-        const encodedDetails = encodeURIComponent(eventDetails);
-        const encodedLoc = encodeURIComponent(locationString);
-        
-        // GCal URL
-        const calendarUrl = `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${encodedTitle}&details=${encodedDetails}&location=${encodedLoc}`;
-        
-        window.open(calendarUrl, '_blank');
-    }
+        // Save using current mode logic
+        saveDataBasedOnMode(lastSortMode);
 
-    // --- MODAL FUNCTIONS ---
-    function openAddModal() {
-        document.getElementById('addModal').classList.remove('hidden');
-        document.getElementById('shareLinkInput').value = '';
-        document.getElementById('importBtn').disabled = true;
-        document.getElementById('shareLinkInput').focus();
-    }
-
-    function closeAddModal() {
-        document.getElementById('addModal').classList.add('hidden');
-    }
-
-    function checkLinkInput() {
-        const val = document.getElementById('shareLinkInput').value;
-        document.getElementById('importBtn').disabled = val.trim() === "";
-    }
-
-    function importFromLink() {
-        const url = document.getElementById('shareLinkInput').value;
-        try {
-            let hash = "";
-            if (url.includes("#")) {
-                hash = url.split("#")[1];
-            } else {
-                hash = url;
-            }
-
-            const sharedData = decodeData(hash);
-            
-            if (sharedData && Array.isArray(sharedData)) {
-                sharedData.forEach(movie => addRow(movie));
-                saveDataToLocal();
-                closeAddModal();
-                showToast(`Added ${sharedData.length} movies!`);
-            } else {
-                showToast("Invalid link or data.");
-            }
-        } catch (e) {
-            showToast("Error parsing link.");
+        // Only auto-sort if not in custom mode
+        if (lastSortMode !== 'custom') {
+            renderTable(); // Re-render to sort immediately
         }
-    }
-
-    // --- LIST NAME PERSISTENCE ---
-    function saveListName() {
-        const name = document.getElementById('listName').value;
-        localStorage.setItem('waybetterboxdListName', name);
-    }
-
-    // --- FILTER LOGIC ---
-    let currentGenreFilter = 'all';
-
-    function toggleFilterMenu() {
-        document.getElementById('filterMenu').classList.toggle('show');
-    }
-
-    function populateGenreFilter(data) {
-        const genres = new Set();
-        data.forEach(row => {
-            if (row.genre && row.genre.trim() !== "") {
-                genres.add(row.genre.trim());
-            }
-        });
-        
-        const sortedGenres = Array.from(genres).sort();
-        const menu = document.getElementById('filterMenu');
-        
-        let html = `
-            <div class="filter-item">
-                <input type="radio" name="genreFilter" id="filter-all" value="all" 
-                    ${currentGenreFilter === 'all' ? 'checked' : ''} 
-                    onchange="applyGenreFilter('all')">
-                <label for="filter-all">All Genres</label>
-            </div>
-        `;
-        
-        sortedGenres.forEach(genre => {
-            const id = 'filter-' + genre.replace(/\s+/g, '-').toLowerCase();
-            const isChecked = currentGenreFilter === genre ? 'checked' : '';
-            html += `
-                <div class="filter-item">
-                    <input type="radio" name="genreFilter" id="${id}" value="${genre}" 
-                        ${isChecked} 
-                        onchange="applyGenreFilter('${genre.replace(/'/g, "\\'")}')">
-                    <label for="${id}">${genre}</label>
-                </div>
-            `;
-        });
-        
-        menu.innerHTML = html;
-    }
-
-    function applyGenreFilter(genre) {
-        currentGenreFilter = genre;
-        document.querySelector('.filter-btn').textContent = (genre === 'all') ? "All Genres" : genre;
-        
-        const rows = document.querySelectorAll('#movieTable tbody tr');
-        rows.forEach(row => {
-            const rowGenreInput = row.querySelector('.input-genre');
-            const rowGenre = rowGenreInput ? rowGenreInput.value.trim() : "";
-            
-            if (genre === 'all' || rowGenre === genre) {
-                row.style.display = '';
-            } else {
-                row.style.display = 'none';
-            }
-        });
-        
-        document.getElementById('filterMenu').classList.remove('show');
-        updateArrowVisibility();
-    }
-
-    function updateFilterList() {
-        const data = scrapeTableData();
-        populateGenreFilter(data);
     }
 
     // --- SORTING LOGIC ---
     function handleSortChange() {
-        const sortType = document.getElementById('sortSelect').value;
-        if (sortType === 'custom') return; 
+        // 1. Save data based on the mode we are LEAVING
+        saveDataBasedOnMode(lastSortMode);
 
-        let data = scrapeTableData();
-        
-        if (sortType === 'prio') {
-            data.sort((a, b) => a.prio - b.prio);
-        } else if (sortType === 'title') {
-            data.sort((a, b) => a.title.localeCompare(b.title));
+        // 2. Update mode tracker
+        lastSortMode = document.getElementById('sortSelect').value;
+
+        // 3. Render new view
+        renderTable();
+    }
+
+    // --- RENDER & DISPLAY ---
+    function renderTable() {
+        const sortType = lastSortMode; // Use the current active mode
+        let displayData = [];
+
+        // If Custom, show masterData directly
+        if (sortType === 'custom') {
+            displayData = [...masterData];
+        } else {
+            // If Sorted, create a sorted copy (do NOT reorder masterData)
+            displayData = [...masterData].sort((a, b) => {
+                // Always push watched to bottom first
+                if (a.watched !== b.watched) return a.watched ? 1 : -1;
+                
+                if (sortType === 'prio') {
+                    return (a.prio || 99) - (b.prio || 99);
+                } else if (sortType === 'title') {
+                    return (a.title || "").localeCompare(b.title || "");
+                }
+                return 0;
+            });
         }
 
         const tbody = document.querySelector('#movieTable tbody');
         tbody.innerHTML = '';
-        data.forEach(movie => addRow(movie));
-        saveDataToLocal();
+        displayData.forEach(movie => addRow(movie));
+        
+        // Re-apply filters
         applyGenreFilter(currentGenreFilter);
     }
 
-    // --- ARROWS ---
-    function updateArrowVisibility() {
-        const tbody = document.querySelector('#movieTable tbody');
-        const rows = Array.from(tbody.rows).filter(r => r.style.display !== 'none');
-        
-        rows.forEach((row, index) => {
-            const upBtn = row.querySelector('.btn-up');
-            const downBtn = row.querySelector('.btn-down');
-            if (upBtn) upBtn.style.visibility = (index === 0) ? 'hidden' : 'visible';
-            if (downBtn) downBtn.style.visibility = (index === rows.length - 1) ? 'hidden' : 'visible';
-        });
-    }
-
-    function moveRowUp(btn) {
-        const row = btn.closest('tr');
-        let prev = row.previousElementSibling;
-        while (prev && prev.style.display === 'none') {
-            prev = prev.previousElementSibling;
-        }
-
-        if (prev) {
-            row.parentNode.insertBefore(row, prev);
-            document.getElementById('sortSelect').value = 'custom';
-            saveDataToLocal();
-            updateArrowVisibility();
-        }
-    }
-
-    function moveRowDown(btn) {
-        const row = btn.closest('tr');
-        let next = row.nextElementSibling;
-        while (next && next.style.display === 'none') {
-            next = next.nextElementSibling;
-        }
-
-        if (next) {
-            row.parentNode.insertBefore(next, row);
-            document.getElementById('sortSelect').value = 'custom';
-            saveDataToLocal();
-            updateArrowVisibility();
-        }
-    }
-
-    // --- ACTIONS ---
-    function updateButtonVisibility() {
-        const data = scrapeTableData();
-        const actionButtons = document.querySelectorAll('.action-btn');
-        if (data.length === 0) {
-            actionButtons.forEach(btn => btn.classList.add('hidden'));
-        } else {
-            actionButtons.forEach(btn => btn.classList.remove('hidden'));
-        }
-    }
-
-    function copyTableToClipboard() {
-        const data = scrapeTableData();
-        if (data.length === 0) return;
-
-        const headers = ["Title", "Link", "Genre", "Desc", "Priority", "Location"];
-        const rows = [headers.join("\t")];
-
-        for (const row of data) {
-            const values = [row.title, row.link, row.genre, row.desc, row.prio, row.loc];
-            const processCell = (val) => {
-                if (!val) return "";
-                let s = String(val);
-                if (s.includes("\t") || s.includes("\n") || s.includes('"')) {
-                    s = s.replace(/"/g, '""');
-                    return `"${s}"`;
-                }
-                return s;
-            };
-            rows.push(values.map(processCell).join("\t"));
-        }
-        
-        const tsvString = rows.join("\n");
-        if (navigator.clipboard && window.isSecureContext) {
-            navigator.clipboard.writeText(tsvString).then(() => {
-                showToast("Copied! Ready to paste.");
-            }).catch(err => fallbackCopyTextToClipboard(tsvString));
-        } else {
-            fallbackCopyTextToClipboard(tsvString);
-        }
-    }
-
-    function fallbackCopyTextToClipboard(text) {
-        var textArea = document.createElement("textarea");
-        textArea.value = text;
-        textArea.style.position = "fixed"; 
-        document.body.appendChild(textArea);
-        textArea.focus();
-        textArea.select();
-        try { document.execCommand('copy'); showToast("Copied! Ready to paste."); } 
-        catch (err) { showToast("Copy failed."); }
-        document.body.removeChild(textArea);
-    }
-
     // --- DATA HANDLING ---
-    function encodeData(dataObj) {
-        const jsonStr = JSON.stringify(dataObj);
-        return btoa(unescape(encodeURIComponent(jsonStr)));
-    }
-
-    function decodeData(encodedStr) {
-        try {
-            return JSON.parse(decodeURIComponent(escape(atob(encodedStr))));
-        } catch (e) { return null; }
-    }
-
-    function loadData() {
-        const listName = localStorage.getItem('waybetterboxdListName');
-        if (listName) document.getElementById('listName').value = listName;
-
-        const hash = window.location.hash.substring(1); 
-        if (hash) {
-            const sharedData = decodeData(hash);
-            if (sharedData && Array.isArray(sharedData)) {
-                document.querySelector('#movieTable tbody').innerHTML = '';
-                sharedData.forEach(movie => addRow(movie));
-                saveDataToLocal();
-                showToast("Loaded shared list!");
-                history.pushState("", document.title, window.location.pathname + window.location.search);
-                updateButtonVisibility();
-                return;
-            }
-        }
-
-        const storedData = localStorage.getItem('waybetterboxdData');
-        if (storedData) {
-            const movies = JSON.parse(storedData);
-            if (movies.length > 0) movies.forEach(movie => addRow(movie));
-            else addRow();
-        } else {
-            addRow();
-        }
-        updateButtonVisibility();
-        updateFilterList();
-    }
-
-    function saveDataToLocal() {
-        const data = scrapeTableData();
-        localStorage.setItem('waybetterboxdData', JSON.stringify(data));
-        updateButtonVisibility();
-        updateFilterList();
-    }
-
+    // Scrapes DOM to get current values (titles, links, etc)
     function scrapeTableData() {
         const tableBody = document.querySelector('#movieTable tbody');
         const rows = tableBody.getElementsByTagName('tr');
         const data = [];
         for (let row of rows) {
+            const id = row.getAttribute('data-id');
             const title = row.querySelector('.input-title').value;
             const link = row.querySelector('.input-link').value;
             const genre = row.querySelector('.input-genre').value;
             const desc = row.querySelector('.input-desc').value;
             const prio = row.querySelector('.input-prio').value;
             const loc = row.querySelector('.input-loc').value;
+            const isWatched = row.classList.contains('watched');
             
-            if(title || desc || loc || genre) {
-                data.push({ title, link, genre, desc, prio, loc });
-            }
+            data.push({ id, title, link, genre, desc, prio, loc, watched: isWatched });
         }
         return data;
     }
 
-    function generateShareLink() {
-        const data = scrapeTableData();
-        if (data.length === 0) return;
+    // The Core Save Logic
+    function saveDataBasedOnMode(mode) {
+        const currentViewData = scrapeTableData();
+
+        if (mode === 'custom') {
+            // We were in custom mode, so the DOM order IS the master order.
+            masterData = currentViewData;
+        } else {
+            // We were in a sorted mode. 
+            // We must update the CONTENT of masterData items, but NOT their order.
+            
+            const viewMap = new Map(currentViewData.map(item => [item.id, item]));
+
+            // Update existing items
+            masterData = masterData.map(item => {
+                if (viewMap.has(item.id)) {
+                    return viewMap.get(item.id);
+                }
+                return item; 
+            });
+
+            // Handle New Rows (added while sorted) - push to end of master
+            const masterIds = new Set(masterData.map(i => i.id));
+            currentViewData.forEach(item => {
+                if (!masterIds.has(item.id)) {
+                    masterData.push(item);
+                }
+            });
+
+            // Handle Deleted Rows
+            const currentViewIds = new Set(currentViewData.map(i => i.id));
+            // Only remove if it was visible in the view (don't delete filtered items)
+            // But since scrapeTableData grabs hidden rows too, this is safe.
+            masterData = masterData.filter(item => currentViewIds.has(item.id));
+        }
+
+        // Commit to storage
+        localStorage.setItem('waybetterboxdData', JSON.stringify(masterData));
         
-        const encoded = encodeData(data);
-        window.location.hash = encoded;
-        const fullURL = window.location.href;
-        navigator.clipboard.writeText(fullURL).then(() => {
-            showToast("Link copied!");
-        });
+        // Update the filter list in case genres changed
+        updateFilterList();
     }
     
-    function showToast(message) {
-        const x = document.getElementById("toast");
-        x.innerText = message;
-        x.className = "show";
-        setTimeout(function(){ x.className = x.className.replace("show", ""); }, 3000);
+    // Generic save wrapper for inputs
+    function saveDataToLocal() {
+        saveDataBasedOnMode(lastSortMode);
     }
 
+    // --- TITLE UPDATE ---
+    function updatePageTitle() {
+        const listName = document.getElementById('listName').value;
+        const baseTitle = "waybetterboxd";
+        if (listName && listName.trim() !== "") {
+            document.title = `${listName} | ${baseTitle}`;
+        } else {
+            document.title = baseTitle;
+        }
+    }
+
+    function saveListName() { 
+        localStorage.setItem('waybetterboxdListName', document.getElementById('listName').value); 
+        updatePageTitle();
+    }
+
+    // --- ROW CREATION ---
     function addRow(data = null) {
         const tableBody = document.querySelector('#movieTable tbody');
         const newRow = tableBody.insertRow();
+        
+        // ID MANAGEMENT
+        const rowId = (data && data.id) ? data.id : generateId();
+        newRow.setAttribute('data-id', rowId);
+        
+        if (data && data.watched) newRow.classList.add('watched');
+        
+        enableDrag(newRow);
 
         function createTextarea(value, placeholder, className) {
             const input = document.createElement("textarea");
-            input.value = value || '';
-            input.placeholder = placeholder || '';
-            input.className = className;
+            input.value = value || ''; input.placeholder = placeholder || ''; input.className = className;
             input.rows = 1;
-            input.addEventListener('input', function() {
-                this.style.height = 'auto';
-                this.style.height = (this.scrollHeight) + 'px';
-                saveDataToLocal();
-            });
-            if(value) {
-                setTimeout(() => {
-                    input.style.height = 'auto';
-                    input.style.height = (input.scrollHeight) + 'px';
-                }, 0);
-            }
+            input.addEventListener('input', function() { this.style.height = 'auto'; this.style.height = (this.scrollHeight) + 'px'; saveDataToLocal(); });
+            if(value) { setTimeout(() => { input.style.height = 'auto'; input.style.height = (input.scrollHeight) + 'px'; }, 0); }
             return input;
         }
 
         function createInput(type, value, placeholder, className) {
             const input = document.createElement("input");
-            input.type = type;
-            input.value = value || '';
-            input.placeholder = placeholder || '';
-            input.className = className;
-            input.addEventListener('input', saveDataToLocal);
-            input.addEventListener('change', saveDataToLocal);
+            input.type = type; input.value = value || ''; input.placeholder = placeholder || ''; input.className = className;
+            input.addEventListener('input', saveDataToLocal); input.addEventListener('change', saveDataToLocal);
             return input;
         }
 
         // 1. Title
         const titleCell = newRow.insertCell(0);
         const titleInput = createTextarea(data ? data.title : "", "Enter title", "input-title");
-        titleInput.addEventListener('keydown', function(e) {
-            if (e.key === 'Enter') {
-                e.preventDefault(); 
-                addRow();
-            }
-        });
+        titleInput.addEventListener('keydown', function(e) { if (e.key === 'Enter') { e.preventDefault(); addRow(); } });
         titleCell.appendChild(titleInput);
 
         // 2. Link
         const linkCell = newRow.insertCell(1);
         const linkInput = document.createElement("input");
-        linkInput.type = "text";
-        linkInput.value = data ? data.link : "";
-        linkInput.placeholder = "Link...";
-        linkInput.className = "input-link link-field";
-        linkInput.readOnly = true;
-        linkInput.addEventListener('click', function() {
-            if (this.value && this.value.startsWith('http')) window.open(this.value, '_blank');
-        });
+        linkInput.type = "text"; linkInput.value = data ? data.link : ""; linkInput.placeholder = "Link..."; linkInput.className = "input-link link-field"; linkInput.readOnly = true;
+        linkInput.addEventListener('click', function() { if (this.value && this.value.startsWith('http')) window.open(this.value, '_blank'); });
         linkCell.appendChild(linkInput);
 
-        titleInput.addEventListener('input', function() {
-            updateLink(this, linkInput);
-            saveDataToLocal();
-        });
+        titleInput.addEventListener('input', function() { updateLink(this, linkInput); saveDataToLocal(); });
 
         // 3. Genre
         const genreCell = newRow.insertCell(2);
@@ -974,88 +603,243 @@
         const prioSelect = document.createElement("select");
         prioSelect.className = "cell-select input-prio";
         for (let i = 1; i <= 5; i++) {
-            const opt = document.createElement("option");
-            opt.value = i;
-            opt.text = i;
+            const opt = document.createElement("option"); opt.value = i; opt.text = i;
             if (data && data.prio == i) opt.selected = true;
             prioSelect.appendChild(opt);
         }
         prioSelect.addEventListener('change', saveDataToLocal);
         prioCell.appendChild(prioSelect);
 
-        // 6. Schedule (Replaces Date)
-        const dateCell = newRow.insertCell(5);
-        const calBtn = document.createElement("button");
-        calBtn.className = "gcal-btn";
-        calBtn.innerHTML = "📅 Add";
-        calBtn.onclick = function() { addToGoogleCalendar(this); };
-        dateCell.appendChild(calBtn);
-
-        // 7. Location
-        const locCell = newRow.insertCell(6);
+        // 6. Location
+        const locCell = newRow.insertCell(5);
         const locInput = createTextarea(data ? data.loc : "", "Name...", "input-loc");
         locCell.appendChild(locInput);
 
-        // 8. Actions
-        const actionCell = newRow.insertCell(7);
+        // 7. Actions
+        const actionCell = newRow.insertCell(6);
         const container = document.createElement("div");
         container.className = "action-cell-content";
 
-        const upBtn = document.createElement("button");
-        upBtn.innerHTML = "▲";
-        upBtn.className = "icon-btn btn-up";
-        upBtn.title = "Move Up";
-        upBtn.onclick = function() { moveRowUp(this); };
-        
+        const checkBtn = document.createElement("button");
+        checkBtn.className = "unified-btn";
+        if(data && data.watched) {
+            checkBtn.innerHTML = "✓ <span class='btn-text'>Unwatch</span>";
+            checkBtn.title = "Unwatch";
+            checkBtn.classList.add('btn-checked');
+        } else {
+            checkBtn.innerHTML = "✅ <span class='btn-text'>Watched</span>";
+            checkBtn.title = "Mark Watched";
+        }
+        checkBtn.onclick = function() { toggleWatched(this); };
+
+        const calBtn = document.createElement("button");
+        calBtn.className = "unified-btn";
+        calBtn.innerHTML = "📅 <span class='btn-text'>Schedule</span>";
+        calBtn.onclick = function() { addToGoogleCalendar(this); };
+
         const deleteBtn = document.createElement("button");
-        deleteBtn.innerHTML = "×";
-        deleteBtn.className = "icon-btn delete-btn";
-        deleteBtn.title = "Delete Row";
+        deleteBtn.innerHTML = "🗑 <span class='btn-text'>Delete</span>";
+        deleteBtn.className = "unified-btn btn-delete";
         deleteBtn.onclick = function() {
             newRow.remove();
-            if (tableBody.rows.length === 0) addRow();
-            saveDataToLocal();
-            updateArrowVisibility();
+            saveDataToLocal(); // Saves deletion
+            if (document.querySelector('#movieTable tbody').rows.length === 0) addRow();
             updateFilterList();
         };
 
-        const downBtn = document.createElement("button");
-        downBtn.innerHTML = "▼";
-        downBtn.className = "icon-btn btn-down";
-        downBtn.title = "Move Down";
-        downBtn.onclick = function() { moveRowDown(this); };
-
-        container.appendChild(upBtn);
+        container.appendChild(calBtn);
+        container.appendChild(checkBtn);
         container.appendChild(deleteBtn);
-        container.appendChild(downBtn);
         actionCell.appendChild(container);
 
-        if (!data) {
-            titleInput.focus();
-            saveDataToLocal();
-        }
-        
-        updateArrowVisibility();
-        if (currentGenreFilter !== 'all') {
-           applyGenreFilter(currentGenreFilter);
-        }
+        if (!data) { titleInput.focus(); saveDataToLocal(); }
+        if (currentGenreFilter !== 'all') applyGenreFilter(currentGenreFilter);
     }
 
-    function updateLink(titleInput, linkInput) {
-        const title = titleInput.value;
-        if (!title || title.trim() === "") {
-            linkInput.value = "";
-            return;
+    // --- DRAG AND DROP ---
+    function enableDrag(row) {
+        row.setAttribute('draggable', 'true');
+        
+        row.addEventListener('dragstart', function(e) {
+            dragSrcEl = this;
+            e.dataTransfer.effectAllowed = 'move';
+            this.classList.add('dragging');
+        });
+
+        row.addEventListener('dragover', function(e) {
+            e.preventDefault();
+            e.dataTransfer.dropEffect = 'move';
+            const tbody = document.querySelector('#movieTable tbody');
+            const afterElement = getDragAfterElement(tbody, e.clientY);
+            if (afterElement == null) {
+                tbody.appendChild(dragSrcEl);
+            } else {
+                tbody.insertBefore(dragSrcEl, afterElement);
+            }
+        });
+
+        row.addEventListener('dragend', function() {
+            this.classList.remove('dragging');
+            // If dragging happened, force switch to Custom mode
+            const sortSelect = document.getElementById('sortSelect');
+            if (sortSelect.value !== 'custom') {
+                sortSelect.value = 'custom';
+            }
+            lastSortMode = 'custom'; // Update tracker manually
+            saveDataBasedOnMode('custom'); // Save the new order as Master
+        });
+    }
+
+    function getDragAfterElement(container, y) {
+        const draggableElements = [...container.querySelectorAll('tr:not(.dragging)')];
+        return draggableElements.reduce((closest, child) => {
+            const box = child.getBoundingClientRect();
+            const offset = y - box.top - box.height / 2;
+            if (offset < 0 && offset > closest.offset) {
+                return { offset: offset, element: child };
+            } else {
+                return closest;
+            }
+        }, { offset: Number.NEGATIVE_INFINITY }).element;
+    }
+
+    // --- OTHER HELPERS ---
+    function addToGoogleCalendar(btn) {
+        const row = btn.closest('tr');
+        const title = row.querySelector('.input-title').value;
+        const link = row.querySelector('.input-link').value;
+        const desc = row.querySelector('.input-desc').value;
+        const loc = row.querySelector('.input-loc').value; 
+        if (!title) { showToast("Enter a movie title first!"); return; }
+        const locationString = loc && loc.trim() !== "" ? loc : "TBD";
+        const fullEventTitle = `${title} movie night @ ${locationString}`;
+        const eventDetails = `Movie night for ${title}\n${link}\n${desc}`;
+        window.open(`https://calendar.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent(fullEventTitle)}&details=${encodeURIComponent(eventDetails)}&location=${encodeURIComponent(locationString)}`, '_blank');
+    }
+
+    function openAddModal() { document.getElementById('addModal').classList.remove('hidden'); document.getElementById('shareLinkInput').value = ''; document.getElementById('importBtn').disabled = true; document.getElementById('shareLinkInput').focus(); }
+    function closeAddModal() { document.getElementById('addModal').classList.add('hidden'); }
+    function checkLinkInput() { document.getElementById('importBtn').disabled = document.getElementById('shareLinkInput').value.trim() === ""; }
+    
+    function importFromLink() {
+        const url = document.getElementById('shareLinkInput').value;
+        try {
+            let hash = url.includes("#") ? url.split("#")[1] : url;
+            const sharedData = decodeData(hash);
+            if (sharedData && Array.isArray(sharedData)) {
+                sharedData.forEach(movie => {
+                    movie.id = generateId(); // New IDs for imports
+                    masterData.push(movie); // Add directly to master
+                });
+                renderTable(); // Refresh
+                saveDataBasedOnMode('custom'); // Save
+                closeAddModal(); 
+                showToast(`Added ${sharedData.length} movies!`);
+            } else { showToast("Invalid link or data."); }
+        } catch (e) { showToast("Error parsing link."); }
+    }
+
+    function copyTableToClipboard() {
+        // Copy what is currently visible on screen
+        const data = scrapeTableData(); 
+        if (data.length === 0) return;
+        const headers = ["Title", "Link", "Genre", "Desc", "Priority", "Location", "Watched"];
+        const rows = [headers.join("\t")];
+        for (const row of data) {
+            const values = [row.title, row.link, row.genre, row.desc, row.prio, row.loc, row.watched ? "Yes" : "No"];
+            const processCell = (val) => { if (!val) return ""; let s = String(val); if (s.includes("\t") || s.includes("\n")) { s = s.replace(/"/g, '""'); return `"${s}"`; } return s; };
+            rows.push(values.map(processCell).join("\t"));
         }
-        let formattedTitle = title.toLowerCase().trim()
-            .replace(/['":,.]/g, '')
-            .replace(/\s+/g, '-')
-            .replace(/&/g, 'and')
-            .replace(/[^a-z0-9-]/g, '')
-            .replace(/-+/g, '-');
+        navigator.clipboard.writeText(rows.join("\n")).then(() => showToast("Copied!")).catch(() => showToast("Copy failed"));
+    }
+
+    function generateShareLink() {
+        // Share masterData (no IDs needed for export)
+        const data = masterData.map(({id, ...rest}) => rest);
+        if (data.length === 0) return;
+        const encoded = encodeData(data); window.location.hash = encoded;
+        navigator.clipboard.writeText(window.location.href).then(() => showToast("Link copied!"));
+    }
+
+    function encodeData(dataObj) { return btoa(unescape(encodeURIComponent(JSON.stringify(dataObj)))); }
+    function decodeData(encodedStr) { try { return JSON.parse(decodeURIComponent(escape(atob(encodedStr)))); } catch (e) { return null; } }
+
+    let currentGenreFilter = 'all';
+    function updateFilterList() {
+        // Build filters from MASTER list so all options are available
+        const genres = new Set();
+        masterData.forEach(d => { if(d.genre) genres.add(d.genre.trim()); });
+        const menu = document.getElementById('filterMenu');
+        menu.innerHTML = `<div class="filter-item"><input type="radio" name="genreFilter" id="filter-all" value="all" ${currentGenreFilter==='all'?'checked':''} onchange="applyGenreFilter('all')"><label for="filter-all">All Genres</label></div>`;
+        genres.forEach(g => {
+            const id = `filter-${g.replace(/\s+/g,'')}`;
+            const div = document.createElement('div');
+            div.className = 'filter-item';
+            div.innerHTML = `<input type="radio" name="genreFilter" id="${id}" value="${g}" ${currentGenreFilter===g?'checked':''} onchange="applyGenreFilter('${g}')"><label for="${id}">${g}</label>`;
+            menu.appendChild(div);
+        });
+    }
+
+    function applyGenreFilter(genre) {
+        currentGenreFilter = genre;
+        document.querySelector('.filter-btn').firstChild.textContent = genre === 'all' ? "All Genres" : genre;
+        const rows = document.querySelectorAll('#movieTable tbody tr');
+        rows.forEach(row => {
+            const gInput = row.querySelector('.input-genre');
+            if (genre === 'all' || (gInput && gInput.value.trim() === genre)) {
+                row.classList.remove('hidden');
+            } else {
+                row.classList.add('hidden');
+            }
+        });
+        document.getElementById('filterMenu').classList.remove('show');
+    }
+
+    function loadData() {
+        const listName = localStorage.getItem('waybetterboxdListName');
+        if (listName) {
+            document.getElementById('listName').value = listName;
+            updatePageTitle();
+        }
+        
+        // Check for Shared Link
+        const hash = window.location.hash.substring(1);
+        if (hash) {
+            const sharedData = decodeData(hash);
+            if (sharedData && Array.isArray(sharedData)) {
+                masterData = sharedData.map(m => ({...m, id: generateId()}));
+                saveDataBasedOnMode('custom');
+                showToast("Loaded shared list!");
+                history.pushState("", document.title, window.location.pathname + window.location.search);
+                renderTable();
+                return;
+            }
+        }
+
+        // Check Local Storage
+        const storedData = localStorage.getItem('waybetterboxdData');
+        if (storedData) { 
+            const parsed = JSON.parse(storedData);
+            masterData = parsed.map(m => m.id ? m : {...m, id: generateId()});
+        } else {
+            masterData = [];
+        }
+
+        if(masterData.length === 0) {
+            masterData.push({ id: generateId(), title: "", link: "", genre: "", desc: "", prio: "1", loc: "", watched: false });
+        }
+        
+        renderTable();
+    }
+    
+    function updateLink(titleInput, linkInput) {
+        const title = titleInput.value; if (!title || title.trim() === "") { linkInput.value = ""; return; }
+        let formattedTitle = title.toLowerCase().trim().replace(/['":,.]/g, '').replace(/\s+/g, '-').replace(/&/g, 'and').replace(/[^a-z0-9-]/g, '').replace(/-+/g, '-');
         if (formattedTitle.endsWith('-')) formattedTitle = formattedTitle.slice(0, -1);
         linkInput.value = "https://letterboxd.com/film/" + formattedTitle;
     }
+    
+    function showToast(msg) { const x = document.getElementById("toast"); x.innerText = msg; x.className = "show"; setTimeout(() => x.className = x.className.replace("show", ""), 3000); }
 </script>
 
 </body>
