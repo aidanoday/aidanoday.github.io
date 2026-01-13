@@ -1,0 +1,917 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>waybetterboxd</title>
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --sheets-green: #188038;
+            --pastel-green: #c6e7c6;
+            --header-bg: #f8f9fa;
+            --border-color: #c0c0c0;
+            --text-color: #202124;
+            --instruction-bg: #ffffff;
+            --row-hover-bg: #f8f9fa;
+        }
+
+        body {
+            font-family: 'Roboto', arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            color: var(--text-color);
+            background-color: #fff;
+            overflow-x: hidden;
+        }
+
+        /* --- TOOLBAR --- */
+        .toolbar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px 20px;
+            background-color: #fff;
+            border-bottom: 1px solid #dadce0;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+
+        .sheet-title {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 22px;
+            color: var(--sheets-green);
+            font-weight: 500;
+        }
+
+        .sheet-icon { font-size: 24px; }
+
+        .button-group {
+            display: flex;
+            gap: 10px;
+        }
+
+        button {
+            border: none;
+            padding: 8px 16px;
+            font-size: 13px;
+            font-weight: 500;
+            cursor: pointer;
+            box-shadow: 0 1px 2px rgba(0,0,0,0.15);
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            border-radius: 4px;
+        }
+        
+        button:active {
+            transform: translateY(1px);
+            box-shadow: none;
+        }
+
+        .primary-btn {
+            background-color: var(--sheets-green);
+            color: white;
+        }
+        .primary-btn:hover {
+            background-color: #137333;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.25);
+        }
+
+        .secondary-btn {
+            background-color: var(--pastel-green);
+            color: var(--text-color);
+        }
+        .secondary-btn:hover {
+            background-color: var(--sheets-green);
+            color: white;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.25);
+        }
+
+        .hidden { display: none !important; }
+
+        /* --- CONTROL BAR (SORT & FILTER) --- */
+        .control-bar {
+            background-color: #fff;
+            padding: 8px 20px;
+            border-bottom: 1px solid #eee;
+            display: flex;
+            align-items: center;
+            gap: 20px;
+            font-size: 13px;
+            color: #5f6368;
+            position: relative; /* For dropdown positioning */
+        }
+
+        .control-group {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        select.sort-select {
+            padding: 4px 8px;
+            border: 1px solid #dadce0;
+            border-radius: 4px;
+            font-family: 'Roboto', sans-serif;
+            font-size: 13px;
+            color: var(--text-color);
+            cursor: pointer;
+            outline: none;
+        }
+        select.sort-select:hover {
+            background-color: #f1f3f4;
+        }
+
+        /* Custom Filter Dropdown */
+        .filter-dropdown-container {
+            position: relative;
+        }
+
+        .filter-btn {
+            background: #fff;
+            border: 1px solid #dadce0;
+            padding: 4px 12px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 13px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .filter-btn:hover { background: #f1f3f4; }
+        .filter-btn::after { content: "▼"; font-size: 10px; margin-left: 4px; }
+
+        .filter-menu {
+            display: none;
+            position: absolute;
+            top: 100%;
+            left: 0;
+            margin-top: 4px;
+            background: #fff;
+            border: 1px solid #ccc;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+            border-radius: 4px;
+            min-width: 180px;
+            z-index: 200;
+            padding: 8px 0;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+        .filter-menu.show { display: block; }
+
+        .filter-item {
+            display: flex;
+            align-items: center;
+            padding: 6px 12px;
+            cursor: pointer;
+            font-size: 13px;
+        }
+        .filter-item:hover { background: #f1f3f4; }
+        .filter-item input { margin: 0 8px 0 0; width: auto; min-height: auto; }
+        .filter-item label { cursor: pointer; flex: 1; }
+
+
+        /* --- INSTRUCTION BAR --- */
+        .instruction-bar {
+            background-color: var(--instruction-bg);
+            padding: 8px 20px;
+            border-bottom: 1px solid var(--border-color);
+            font-size: 13px;
+            color: #5f6368;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            line-height: 1.5;
+        }
+
+        .fx-icon {
+            font-family: 'Times New Roman', serif;
+            font-style: italic;
+            font-weight: bold;
+            color: #9aa0a6;
+            font-size: 16px;
+            flex-shrink: 0;
+        }
+
+        /* --- TABLE --- */
+        .table-container {
+            width: 100%;
+            overflow-x: auto;
+            padding-bottom: 60px;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            table-layout: fixed;
+        }
+
+        th {
+            background-color: var(--header-bg);
+            border: 1px solid var(--border-color);
+            color: #5f6368;
+            font-size: 12px;
+            font-weight: 700;
+            text-align: left;
+            padding: 8px 10px;
+        }
+
+        th.col-act, th.col-prio { text-align: center; }
+
+        td {
+            border: 1px solid var(--border-color);
+            vertical-align: top;
+            padding: 8px 10px;
+            background: #fff;
+        }
+
+        tr:hover td { background-color: var(--row-hover-bg); }
+
+        /* General Inputs */
+        textarea, input[type="text"], input[type="date"], select.cell-select {
+            width: 100%;
+            border: none;
+            outline: none;
+            padding: 0;
+            margin: 0;
+            font-family: 'Roboto', arial, sans-serif;
+            font-size: 13px;
+            color: var(--text-color);
+            background: transparent;
+            box-sizing: border-box;
+            resize: vertical;
+            min-height: 20px;
+            line-height: 1.5;
+            display: block;
+            overflow: hidden;
+        }
+
+        input[type="date"] {
+            font-family: 'Roboto', sans-serif;
+            height: 20px;
+        }
+
+        /* Priority Select Specifics */
+        select.cell-select {
+            appearance: none; /* Hide default arrow for cleaner look inside cell */
+            -webkit-appearance: none;
+            cursor: pointer;
+            text-align: center;
+            text-align-last: center; /* Center text in dropdown */
+        }
+        /* Restore subtle hover effect for select */
+        select.cell-select:hover {
+            background-color: rgba(0,0,0,0.02);
+        }
+
+        textarea:focus, input:focus, select.cell-select:focus {
+            border-bottom: 2px solid var(--sheets-green);
+            margin-bottom: -2px; 
+        }
+
+        .link-field {
+            color: #1155cc;
+            text-decoration: underline;
+            cursor: pointer !important;
+            font-size: 12px;
+        }
+        
+        /* Column Widths */
+        .col-title { width: 18%; }
+        .col-link { width: 18%; }
+        .col-genre { width: 12%; } /* New */
+        .col-desc { width: 22%; }
+        .col-prio { width: 6%; }  /* New */
+        .col-date { width: 10%; }
+        .col-loc { width: 10%; }
+        .col-act { width: 50px; }
+
+        /* --- ACTIONS COLUMN --- */
+        .action-cell-content {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: flex-start;
+            gap: 2px;
+        }
+
+        .icon-btn {
+            background: none;
+            border: none;
+            cursor: pointer;
+            padding: 2px;
+            line-height: 1;
+            border-radius: 2px;
+            width: 20px;
+            height: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 10px;
+            color: #9aa0a6;
+            opacity: 0;
+            transition: opacity 0.1s;
+        }
+
+        tr:hover .icon-btn { opacity: 1; }
+        .icon-btn:hover { background-color: #e0e0e0; color: #333; }
+
+        .delete-btn { color: #d93025; font-size: 14px; }
+        .delete-btn:hover { background-color: #fce8e6; color: #d93025; }
+        
+        #toast {
+            visibility: hidden;
+            min-width: 250px;
+            background-color: #333;
+            color: #fff;
+            text-align: center;
+            border-radius: 4px;
+            padding: 16px;
+            position: fixed;
+            z-index: 1000;
+            left: 50%;
+            bottom: 30px;
+            transform: translateX(-50%);
+            font-size: 14px;
+        }
+        #toast.show {
+            visibility: visible;
+            animation: fadein 0.5s, fadeout 0.5s 2.5s;
+        }
+        @keyframes fadein { from {bottom: 0; opacity: 0;} to {bottom: 30px; opacity: 1;} }
+        @keyframes fadeout { from {bottom: 30px; opacity: 1;} to {bottom: 0; opacity: 0;} }
+    </style>
+</head>
+<body>
+
+<div class="toolbar">
+    <div class="sheet-title">
+        <div class="sheet-icon">田</div>
+        <span>waybetterboxd</span>
+    </div>
+    <div class="button-group">
+        <button class="primary-btn" onclick="addRow()">+ Add Movie</button>
+        <button class="secondary-btn action-btn" onclick="copyTableToClipboard()">Copy Table</button>
+        <button class="secondary-btn action-btn" onclick="exportToCSV()">CSV</button>
+        <button class="secondary-btn action-btn" onclick="generateShareLink()">Shareable Link</button>
+    </div>
+</div>
+
+<div class="control-bar">
+    <div class="control-group">
+        <label for="sortSelect">Sort by:</label>
+        <select id="sortSelect" class="sort-select" onchange="handleSortChange()">
+            <option value="custom">Custom</option>
+            <option value="prio">Priority, low to high</option>
+            <option value="date">Date, soonest to latest</option>
+            <option value="title">Title, alphabetical</option>
+        </select>
+    </div>
+    
+    <div class="control-group">
+        <label>Filter by genre:</label>
+        <div class="filter-dropdown-container">
+            <button class="filter-btn" onclick="toggleFilterMenu()">All Genres</button>
+            <div id="filterMenu" class="filter-menu">
+                <div class="filter-item">
+                    <input type="radio" name="genreFilter" id="filter-all" value="all" checked onchange="applyGenreFilter('all')">
+                    <label for="filter-all">All Genres</label>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="instruction-bar">
+    <span class="fx-icon">fx</span>
+    <span>
+        <strong>How to use:</strong> Type a title & press <strong>Enter</strong> to add a row. 
+        <strong>Priority</strong> is 1 (Top) to 5 (Low). Use <strong>Filter</strong> to see specific genres.
+    </span>
+</div>
+
+<div class="table-container">
+    <table id="movieTable">
+        <thead>
+            <tr>
+                <th class="col-title">Movie Title</th>
+                <th class="col-link">Letterboxd Link</th>
+                <th class="col-genre">Genre</th>
+                <th class="col-desc">Description</th>
+                <th class="col-prio">Priority</th>
+                <th class="col-date">Date</th>
+                <th class="col-loc">Whose House?</th>
+                <th class="col-act">Actions</th>
+            </tr>
+        </thead>
+        <tbody></tbody>
+    </table>
+</div>
+
+<div id="toast">Notification</div>
+
+<script>
+    window.onload = function() {
+        loadData();
+        // Close filter menu when clicking outside
+        document.addEventListener('click', function(e) {
+            const container = document.querySelector('.filter-dropdown-container');
+            if (!container.contains(e.target)) {
+                document.getElementById('filterMenu').classList.remove('show');
+            }
+        });
+    };
+
+    // --- FILTER LOGIC ---
+    let currentGenreFilter = 'all';
+
+    function toggleFilterMenu() {
+        document.getElementById('filterMenu').classList.toggle('show');
+    }
+
+    function populateGenreFilter(data) {
+        // Collect unique genres
+        const genres = new Set();
+        data.forEach(row => {
+            if (row.genre && row.genre.trim() !== "") {
+                // Normalize slightly (Title Case preferred, but we assume user input)
+                genres.add(row.genre.trim());
+            }
+        });
+        
+        const sortedGenres = Array.from(genres).sort();
+        const menu = document.getElementById('filterMenu');
+        
+        // Keep the "All" option
+        let html = `
+            <div class="filter-item">
+                <input type="radio" name="genreFilter" id="filter-all" value="all" 
+                    ${currentGenreFilter === 'all' ? 'checked' : ''} 
+                    onchange="applyGenreFilter('all')">
+                <label for="filter-all">All Genres</label>
+            </div>
+        `;
+        
+        sortedGenres.forEach(genre => {
+            // Simple ID generation
+            const id = 'filter-' + genre.replace(/\s+/g, '-').toLowerCase();
+            const isChecked = currentGenreFilter === genre ? 'checked' : '';
+            html += `
+                <div class="filter-item">
+                    <input type="radio" name="genreFilter" id="${id}" value="${genre}" 
+                        ${isChecked} 
+                        onchange="applyGenreFilter('${genre.replace(/'/g, "\\'")}')">
+                    <label for="${id}">${genre}</label>
+                </div>
+            `;
+        });
+        
+        menu.innerHTML = html;
+    }
+
+    function applyGenreFilter(genre) {
+        currentGenreFilter = genre;
+        document.querySelector('.filter-btn').textContent = (genre === 'all') ? "All Genres" : genre;
+        
+        // Hide/Show rows based on genre
+        const rows = document.querySelectorAll('#movieTable tbody tr');
+        rows.forEach(row => {
+            const rowGenreInput = row.querySelector('.input-genre');
+            const rowGenre = rowGenreInput ? rowGenreInput.value.trim() : "";
+            
+            if (genre === 'all' || rowGenre === genre) {
+                row.style.display = '';
+            } else {
+                row.style.display = 'none';
+            }
+        });
+        
+        document.getElementById('filterMenu').classList.remove('show');
+    }
+
+    // Refresh filter list whenever data changes
+    function updateFilterList() {
+        const data = scrapeTableData();
+        populateGenreFilter(data);
+    }
+
+
+    // --- SORTING LOGIC ---
+    function handleSortChange() {
+        const sortType = document.getElementById('sortSelect').value;
+        if (sortType === 'custom') return; 
+
+        let data = scrapeTableData();
+        
+        if (sortType === 'prio') {
+            data.sort((a, b) => a.prio - b.prio);
+        } else if (sortType === 'date') {
+            data.sort((a, b) => {
+                if (!a.date) return 1;
+                if (!b.date) return -1;
+                return new Date(a.date) - new Date(b.date);
+            });
+        } else if (sortType === 'title') {
+            data.sort((a, b) => a.title.localeCompare(b.title));
+        }
+
+        const tbody = document.querySelector('#movieTable tbody');
+        tbody.innerHTML = '';
+        data.forEach(movie => addRow(movie));
+        saveDataToLocal();
+        
+        // Re-apply current filter after sort
+        applyGenreFilter(currentGenreFilter);
+    }
+
+
+    // --- ARROWS ---
+    function updateArrowVisibility() {
+        const tbody = document.querySelector('#movieTable tbody');
+        // Only consider visible rows if we want arrows to work visually in filtered list?
+        // Standard Sheets behavior: moves actual row index. 
+        // We will stick to DOM order.
+        const rows = Array.from(tbody.rows).filter(r => r.style.display !== 'none');
+        
+        rows.forEach((row, index) => {
+            const upBtn = row.querySelector('.btn-up');
+            const downBtn = row.querySelector('.btn-down');
+            if (upBtn) upBtn.style.visibility = (index === 0) ? 'hidden' : 'visible';
+            if (downBtn) downBtn.style.visibility = (index === rows.length - 1) ? 'hidden' : 'visible';
+        });
+    }
+
+    function moveRowUp(btn) {
+        const row = btn.closest('tr');
+        // Find previous visible row if filtered
+        let prev = row.previousElementSibling;
+        while (prev && prev.style.display === 'none') {
+            prev = prev.previousElementSibling;
+        }
+
+        if (prev) {
+            row.parentNode.insertBefore(row, prev);
+            document.getElementById('sortSelect').value = 'custom';
+            saveDataToLocal();
+            updateArrowVisibility();
+        }
+    }
+
+    function moveRowDown(btn) {
+        const row = btn.closest('tr');
+        // Find next visible row
+        let next = row.nextElementSibling;
+        while (next && next.style.display === 'none') {
+            next = next.nextElementSibling;
+        }
+
+        if (next) {
+            row.parentNode.insertBefore(next, row);
+            document.getElementById('sortSelect').value = 'custom';
+            saveDataToLocal();
+            updateArrowVisibility();
+        }
+    }
+
+    // --- STANDARD ACTIONS ---
+    function updateButtonVisibility() {
+        const data = scrapeTableData();
+        const actionButtons = document.querySelectorAll('.action-btn');
+        if (data.length === 0) {
+            actionButtons.forEach(btn => btn.classList.add('hidden'));
+        } else {
+            actionButtons.forEach(btn => btn.classList.remove('hidden'));
+        }
+    }
+
+    function copyTableToClipboard() {
+        const data = scrapeTableData();
+        if (data.length === 0) return;
+
+        const headers = ["Title", "Link", "Genre", "Desc", "Priority", "Date", "Location"];
+        const rows = [headers.join("\t")];
+
+        for (const row of data) {
+            const values = [row.title, row.link, row.genre, row.desc, row.prio, row.date, row.loc];
+            const processCell = (val) => {
+                if (!val) return "";
+                let s = String(val);
+                if (s.includes("\t") || s.includes("\n") || s.includes('"')) {
+                    s = s.replace(/"/g, '""');
+                    return `"${s}"`;
+                }
+                return s;
+            };
+            rows.push(values.map(processCell).join("\t"));
+        }
+        
+        const tsvString = rows.join("\n");
+        if (navigator.clipboard && window.isSecureContext) {
+            navigator.clipboard.writeText(tsvString).then(() => {
+                showToast("Copied! Ready to paste.");
+            }).catch(err => fallbackCopyTextToClipboard(tsvString));
+        } else {
+            fallbackCopyTextToClipboard(tsvString);
+        }
+    }
+
+    function fallbackCopyTextToClipboard(text) {
+        var textArea = document.createElement("textarea");
+        textArea.value = text;
+        textArea.style.position = "fixed"; 
+        document.body.appendChild(textArea);
+        textArea.focus();
+        textArea.select();
+        try { document.execCommand('copy'); showToast("Copied! Ready to paste."); } 
+        catch (err) { showToast("Copy failed."); }
+        document.body.removeChild(textArea);
+    }
+
+    function exportToCSV() {
+        const data = scrapeTableData();
+        if (data.length === 0) return;
+
+        const headers = ["Title", "Link", "Genre", "Desc", "Priority", "Date", "Location"];
+        const csvRows = [];
+        csvRows.push(headers.join(",")); 
+
+        for (const row of data) {
+            const values = [row.title, row.link, row.genre, row.desc, row.prio, row.date, row.loc];
+            const escapedValues = values.map(val => {
+                if (!val) return '""';
+                const escaped = val.replace(/"/g, '""');
+                return `"${escaped}"`;
+            });
+            csvRows.push(escapedValues.join(","));
+        }
+
+        const csvString = csvRows.join("\n");
+        const blob = new Blob([csvString], { type: "text/csv" });
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = "waybetterboxd-export.csv";
+        a.click();
+        window.URL.revokeObjectURL(url);
+        showToast("CSV Downloaded!");
+    }
+
+    // --- DATA HANDLING ---
+    function encodeData(dataObj) {
+        const jsonStr = JSON.stringify(dataObj);
+        return btoa(unescape(encodeURIComponent(jsonStr)));
+    }
+
+    function decodeData(encodedStr) {
+        try {
+            return JSON.parse(decodeURIComponent(escape(atob(encodedStr))));
+        } catch (e) { return null; }
+    }
+
+    function loadData() {
+        const hash = window.location.hash.substring(1); 
+        if (hash) {
+            const sharedData = decodeData(hash);
+            if (sharedData && Array.isArray(sharedData)) {
+                document.querySelector('#movieTable tbody').innerHTML = '';
+                sharedData.forEach(movie => addRow(movie));
+                saveDataToLocal();
+                showToast("Loaded shared list!");
+                history.pushState("", document.title, window.location.pathname + window.location.search);
+                updateButtonVisibility();
+                return;
+            }
+        }
+
+        const storedData = localStorage.getItem('waybetterboxdData');
+        if (storedData) {
+            const movies = JSON.parse(storedData);
+            if (movies.length > 0) movies.forEach(movie => addRow(movie));
+            else addRow();
+        } else {
+            addRow();
+        }
+        updateButtonVisibility();
+        updateFilterList(); // Init filter list
+    }
+
+    function saveDataToLocal() {
+        const data = scrapeTableData();
+        localStorage.setItem('waybetterboxdData', JSON.stringify(data));
+        updateButtonVisibility();
+        updateFilterList();
+    }
+
+    function scrapeTableData() {
+        const tableBody = document.querySelector('#movieTable tbody');
+        const rows = tableBody.getElementsByTagName('tr');
+        const data = [];
+        for (let row of rows) {
+            const title = row.querySelector('.input-title').value;
+            const link = row.querySelector('.input-link').value;
+            const genre = row.querySelector('.input-genre').value;
+            const desc = row.querySelector('.input-desc').value;
+            const prio = row.querySelector('.input-prio').value;
+            const date = row.querySelector('.input-date').value;
+            const loc = row.querySelector('.input-loc').value;
+            
+            if(title || desc || date || loc || genre) {
+                data.push({ title, link, genre, desc, prio, date, loc });
+            }
+        }
+        return data;
+    }
+
+    function generateShareLink() {
+        const data = scrapeTableData();
+        if (data.length === 0) return;
+        
+        const encoded = encodeData(data);
+        window.location.hash = encoded;
+        const fullURL = window.location.href;
+        navigator.clipboard.writeText(fullURL).then(() => {
+            showToast("Link copied!");
+        });
+    }
+    
+    function showToast(message) {
+        const x = document.getElementById("toast");
+        x.innerText = message;
+        x.className = "show";
+        setTimeout(function(){ x.className = x.className.replace("show", ""); }, 3000);
+    }
+
+    function addRow(data = null) {
+        const tableBody = document.querySelector('#movieTable tbody');
+        const newRow = tableBody.insertRow();
+
+        function createTextarea(value, placeholder, className) {
+            const input = document.createElement("textarea");
+            input.value = value || '';
+            input.placeholder = placeholder || '';
+            input.className = className;
+            input.rows = 1;
+            input.addEventListener('input', function() {
+                this.style.height = 'auto';
+                this.style.height = (this.scrollHeight) + 'px';
+                saveDataToLocal();
+            });
+            if(value) {
+                setTimeout(() => {
+                    input.style.height = 'auto';
+                    input.style.height = (input.scrollHeight) + 'px';
+                }, 0);
+            }
+            return input;
+        }
+
+        function createInput(type, value, placeholder, className) {
+            const input = document.createElement("input");
+            input.type = type;
+            input.value = value || '';
+            input.placeholder = placeholder || '';
+            input.className = className;
+            input.addEventListener('input', saveDataToLocal);
+            input.addEventListener('change', saveDataToLocal);
+            return input;
+        }
+
+        // 1. Title
+        const titleCell = newRow.insertCell(0);
+        const titleInput = createTextarea(data ? data.title : "", "Enter title", "input-title");
+        titleInput.addEventListener('keydown', function(e) {
+            if (e.key === 'Enter') {
+                e.preventDefault(); 
+                addRow();
+            }
+        });
+        titleCell.appendChild(titleInput);
+
+        // 2. Link
+        const linkCell = newRow.insertCell(1);
+        const linkInput = document.createElement("input");
+        linkInput.type = "text";
+        linkInput.value = data ? data.link : "";
+        linkInput.placeholder = "Link...";
+        linkInput.className = "input-link link-field";
+        linkInput.readOnly = true;
+        linkInput.addEventListener('click', function() {
+            if (this.value && this.value.startsWith('http')) window.open(this.value, '_blank');
+        });
+        linkCell.appendChild(linkInput);
+
+        // Auto-link logic
+        titleInput.addEventListener('input', function() {
+            updateLink(this, linkInput);
+            saveDataToLocal();
+        });
+
+        // 3. Genre (New)
+        const genreCell = newRow.insertCell(2);
+        const genreInput = createInput("text", data ? data.genre : "", "Genre", "input-genre");
+        // Update filter list when genre changes
+        genreInput.addEventListener('change', updateFilterList);
+        genreCell.appendChild(genreInput);
+
+        // 4. Desc
+        const descCell = newRow.insertCell(3);
+        const descInput = createTextarea(data ? data.desc : "", "Notes...", "input-desc");
+        descCell.appendChild(descInput);
+
+        // 5. Priority (New)
+        const prioCell = newRow.insertCell(4);
+        const prioSelect = document.createElement("select");
+        prioSelect.className = "cell-select input-prio";
+        for (let i = 1; i <= 5; i++) {
+            const opt = document.createElement("option");
+            opt.value = i;
+            opt.text = i;
+            if (data && data.prio == i) opt.selected = true;
+            prioSelect.appendChild(opt);
+        }
+        prioSelect.addEventListener('change', saveDataToLocal);
+        prioCell.appendChild(prioSelect);
+
+        // 6. Date
+        const dateCell = newRow.insertCell(5);
+        const dateInput = createInput("date", data ? data.date : "", "", "input-date");
+        dateCell.appendChild(dateInput);
+
+        // 7. Location
+        const locCell = newRow.insertCell(6);
+        const locInput = createTextarea(data ? data.loc : "", "Name...", "input-loc");
+        locCell.appendChild(locInput);
+
+        // 8. Actions
+        const actionCell = newRow.insertCell(7);
+        const container = document.createElement("div");
+        container.className = "action-cell-content";
+
+        const upBtn = document.createElement("button");
+        upBtn.innerHTML = "▲";
+        upBtn.className = "icon-btn btn-up";
+        upBtn.title = "Move Up";
+        upBtn.onclick = function() { moveRowUp(this); };
+        
+        const deleteBtn = document.createElement("button");
+        deleteBtn.innerHTML = "×";
+        deleteBtn.className = "icon-btn delete-btn";
+        deleteBtn.title = "Delete Row";
+        deleteBtn.onclick = function() {
+            newRow.remove();
+            if (tableBody.rows.length === 0) addRow();
+            saveDataToLocal();
+            updateArrowVisibility();
+            updateFilterList(); // Re-scan genres on delete
+        };
+
+        const downBtn = document.createElement("button");
+        downBtn.innerHTML = "▼";
+        downBtn.className = "icon-btn btn-down";
+        downBtn.title = "Move Down";
+        downBtn.onclick = function() { moveRowDown(this); };
+
+        container.appendChild(upBtn);
+        container.appendChild(deleteBtn);
+        container.appendChild(downBtn);
+        actionCell.appendChild(container);
+
+        if (!data) {
+            titleInput.focus();
+            saveDataToLocal();
+        }
+        
+        updateArrowVisibility();
+        // Check if we are currently filtering; if so, new row might be hidden if it doesn't match
+        if (currentGenreFilter !== 'all') {
+           // Optionally reveal it or leave it hidden? 
+           // Usually better to show it so user sees what they added.
+           // For now, let's just re-apply filter logic (which hides it if empty genre doesn't match filter)
+           applyGenreFilter(currentGenreFilter);
+        }
+    }
+
+    function updateLink(titleInput, linkInput) {
+        const title = titleInput.value;
+        if (!title || title.trim() === "") {
+            linkInput.value = "";
+            return;
+        }
+        let formattedTitle = title.toLowerCase().trim()
+            .replace(/['":,.]/g, '')
+            .replace(/\s+/g, '-')
+            .replace(/&/g, 'and')
+            .replace(/[^a-z0-9-]/g, '')
+            .replace(/-+/g, '-');
+        if (formattedTitle.endsWith('-')) formattedTitle = formattedTitle.slice(0, -1);
+        linkInput.value = "https://letterboxd.com/film/" + formattedTitle;
+    }
+</script>
+
+</body>
+</html>
