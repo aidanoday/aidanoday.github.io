@@ -3,6 +3,15 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    
+    <meta property="og:title" content="waybetterboxd">
+    <meta property="og:site_name" content="waybetterboxd">
+    <meta property="og:description" content="A simple but smart spreadsheet for organizing and sharing movie night recommendations">
+    <meta property="og:image" content="https://placehold.co/1200x630/188038/ffffff?text=waybetterboxd">
+    <meta property="og:type" content="website">
+    
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%23188038'><path d='M18 4l2 4h-3l-2-4h-2l2 4h-3l-2-4H8l2 4H7L5 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V4h-4z'/></svg>">
+
     <title>waybetterboxd</title>
     <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
     <style>
@@ -44,6 +53,9 @@
             display: flex;
             align-items: baseline;
             gap: 10px;
+            flex: 1;
+            min-width: 0;
+            margin-right: 20px;
         }
 
         .sheet-icon { 
@@ -52,6 +64,7 @@
             top: 3px;
             color: var(--sheets-green);
             font-weight: 700;
+            flex-shrink: 0;
         }
 
         .logo-text {
@@ -59,6 +72,7 @@
             color: var(--sheets-green);
             font-weight: 500;
             white-space: nowrap;
+            flex-shrink: 0;
         }
 
         .toolbar .list-name-input {
@@ -70,9 +84,10 @@
             color: #3c4043;
             outline: none;
             padding: 0 8px;
-            min-width: 250px;
-            border-radius: 4px;
             line-height: 1;
+            flex: 1;
+            width: auto; 
+            min-width: 100px;
         }
         .toolbar .list-name-input:focus {
             background-color: #f1f3f4;
@@ -84,6 +99,7 @@
             display: flex;
             gap: 10px;
             align-items: center;
+            flex-shrink: 0;
         }
 
         /* Toolbar Buttons */
@@ -137,31 +153,14 @@
             display: flex; align-items: center; gap: 20px; font-size: 13px; color: #5f6368; position: relative;
         }
         .control-group { display: flex; align-items: center; gap: 8px; }
+        
+        /* Unified Select Styling */
         select.sort-select {
             padding: 4px 8px; border: 1px solid #dadce0; border-radius: 4px;
             font-family: 'Roboto', sans-serif; font-size: 13px; color: var(--text-color); cursor: pointer; outline: none;
+            background-color: #fff;
         }
         select.sort-select:hover { background-color: #f1f3f4; }
-
-        /* Filter Dropdown */
-        .filter-dropdown-container { position: relative; }
-        .filter-btn {
-            background: #fff; border: 1px solid #dadce0; padding: 4px 12px;
-            border-radius: 4px; cursor: pointer; font-size: 13px;
-            display: flex; align-items: center; gap: 6px;
-        }
-        .filter-btn:hover { background: #f1f3f4; }
-        .filter-btn::after { content: "▼"; font-size: 10px; margin-left: 4px; }
-        .filter-menu {
-            display: none; position: absolute; top: 100%; left: 0; margin-top: 4px;
-            background: #fff; border: 1px solid #ccc; box-shadow: 0 2px 10px rgba(0,0,0,0.2);
-            border-radius: 4px; min-width: 180px; z-index: 200; padding: 8px 0; max-height: 300px; overflow-y: auto;
-        }
-        .filter-menu.show { display: block; }
-        .filter-item { display: flex; align-items: center; padding: 6px 12px; cursor: pointer; font-size: 13px; }
-        .filter-item:hover { background: #f1f3f4; }
-        .filter-item input { margin: 0 8px 0 0; width: auto; min-height: auto; }
-        .filter-item label { cursor: pointer; flex: 1; }
 
         .instruction-bar {
             background-color: var(--instruction-bg); padding: 8px 20px;
@@ -186,7 +185,6 @@
             position: relative;
         }
         
-        /* Row Dragging Styles */
         tr[draggable="true"] { cursor: grab; }
         tr[draggable="true"]:active { cursor: grabbing; }
         tr.dragging { opacity: 0.5; background-color: #e8f0fe !important; }
@@ -194,7 +192,6 @@
 
         tr:hover td { background-color: var(--row-hover-bg); }
 
-        /* Watched Row Styles */
         tr.watched td { background-color: var(--watched-bg); }
         tr.watched textarea, 
         tr.watched input, 
@@ -204,7 +201,6 @@
         }
         tr.watched .link-field { color: var(--watched-text); }
 
-        /* Inputs */
         textarea, input[type="text"], select.cell-select {
             width: 100%; border: none; outline: none; padding: 0; margin: 0;
             font-family: 'Roboto', arial, sans-serif; font-size: 13px; color: var(--text-color);
@@ -218,44 +214,19 @@
 
         .link-field { color: #1155cc; text-decoration: underline; cursor: pointer !important; font-size: 12px; }
         
-        /* Unified Action Buttons in Cell */
         .unified-btn {
-            background: none; 
-            border: 1px solid #dadce0; 
-            border-radius: 4px;
-            padding: 4px 8px; 
-            font-size: 11px; 
-            color: #5f6368; 
-            cursor: pointer;
-            display: flex; 
-            align-items: center; 
-            justify-content: flex-start; /* Aligns text to left/start */
-            gap: 6px;
-            white-space: nowrap;
-            height: 24px;
-            width: 100%; /* Full width for stacking */
-            box-sizing: border-box;
+            background: none; border: 1px solid #dadce0; border-radius: 4px;
+            padding: 4px 8px; font-size: 11px; color: #5f6368; cursor: pointer;
+            display: flex; align-items: center; justify-content: flex-start;
+            gap: 6px; white-space: nowrap; height: 24px; width: 100%; box-sizing: border-box;
         }
-        .unified-btn:hover { 
-            background-color: #f1f3f4; 
-            color: var(--sheets-green); 
-            border-color: var(--sheets-green); 
-        }
+        .unified-btn:hover { background-color: #f1f3f4; color: var(--sheets-green); border-color: var(--sheets-green); }
         
         .unified-btn.btn-delete { margin-top: 24px; }
-        .unified-btn.btn-delete:hover {
-            color: #d93025; 
-            border-color: #d93025; 
-            background-color: #fce8e6;
-        }
+        .unified-btn.btn-delete:hover { color: #d93025; border-color: #d93025; background-color: #fce8e6; }
         
-        .unified-btn.btn-checked {
-            background-color: #e6f4ea;
-            border-color: var(--sheets-green);
-            color: var(--sheets-green);
-        }
+        .unified-btn.btn-checked { background-color: #e6f4ea; border-color: var(--sheets-green); color: var(--sheets-green); }
 
-        /* Column Config */
         .col-act { width: 100px; } 
         .col-title { width: 22%; }
         .col-link { width: 16%; }
@@ -264,32 +235,14 @@
         .col-prio { width: 6%; }
         .col-loc { width: 12%; }
 
-        /* Actions Column Layout */
-        .action-cell-content {
-            display: flex; 
-            flex-direction: column; 
-            align-items: stretch;
-            gap: 4px;
-        }
+        .action-cell-content { display: flex; flex-direction: column; align-items: stretch; gap: 4px; }
 
-        /* Responsive */
         @media (max-width: 800px) {
             .btn-text { display: none; }
             .col-act { width: 40px; }
             .unified-btn { justify-content: center; padding: 4px 2px; }
         }
 
-        /* Toast */
-        #toast {
-            visibility: hidden; min-width: 250px; background-color: #333; color: #fff;
-            text-align: center; border-radius: 4px; padding: 16px; position: fixed;
-            z-index: 1000; left: 50%; bottom: 30px; transform: translateX(-50%); font-size: 14px;
-        }
-        #toast.show { visibility: visible; animation: fadein 0.5s, fadeout 0.5s 2.5s; }
-        @keyframes fadein { from {bottom: 0; opacity: 0;} to {bottom: 30px; opacity: 1;} }
-        @keyframes fadeout { from {bottom: 30px; opacity: 1;} to {bottom: 0; opacity: 0;} }
-
-        /* NEW: Shared View Banner */
         .shared-banner {
             position: fixed; bottom: 0; left: 0; width: 100%;
             background-color: #e8f0fe; border-top: 1px solid #1a73e8;
@@ -301,7 +254,14 @@
         .shared-text { color: #1967d2; font-size: 14px; font-weight: 500; }
         .shared-actions { display: flex; gap: 10px; }
 
-        
+        #toast {
+            visibility: hidden; min-width: 250px; background-color: #333; color: #fff;
+            text-align: center; border-radius: 4px; padding: 16px; position: fixed;
+            z-index: 1000; left: 50%; bottom: 30px; transform: translateX(-50%); font-size: 14px;
+        }
+        #toast.show { visibility: visible; animation: fadein 0.5s, fadeout 0.5s 2.5s; }
+        @keyframes fadein { from {bottom: 0; opacity: 0;} to {bottom: 30px; opacity: 1;} }
+        @keyframes fadeout { from {bottom: 30px; opacity: 1;} to {bottom: 0; opacity: 0;} }
     </style>
 </head>
 <body>
@@ -331,16 +291,10 @@
     </div>
     
     <div class="control-group">
-        <label>Filter by genre:</label>
-        <div class="filter-dropdown-container">
-            <button class="filter-btn" onclick="toggleFilterMenu()">All Genres</button>
-            <div id="filterMenu" class="filter-menu">
-                <div class="filter-item">
-                    <input type="radio" name="genreFilter" id="filter-all" value="all" checked onchange="applyGenreFilter('all')">
-                    <label for="filter-all">All Genres</label>
-                </div>
-            </div>
-        </div>
+        <label for="genreSelect">Filter by genre:</label>
+        <select id="genreSelect" class="sort-select" onchange="applyGenreFilter(this.value)">
+            <option value="all">All Genres</option>
+        </select>
     </div>
 </div>
 
@@ -369,6 +323,16 @@
     </table>
 </div>
 
+<div id="sharedBanner" class="shared-banner">
+    <span class="shared-text">
+        <strong>Shared Mode:</strong> Viewing a shared list. Autosave is disabled.
+    </span>
+    <div class="shared-actions">
+        <button class="toolbar-btn secondary-btn" onclick="exitSharedMode()">Exit</button>
+        <button class="toolbar-btn primary-btn" onclick="mergeSharedList()">+ Add to My List</button>
+    </div>
+</div>
+
 <div id="toast">Notification</div>
 
 <div id="addModal" class="modal-overlay hidden">
@@ -383,32 +347,16 @@
     </div>
 </div>
 
-<div id="sharedBanner" class="shared-banner">
-    <span class="shared-text">
-        <strong>Shared Mode:</strong> Viewing a shared list. Autosave is disabled.
-    </span>
-    <div class="shared-actions">
-        <button class="toolbar-btn secondary-btn" onclick="exitSharedMode()">Exit</button>
-        <button class="toolbar-btn primary-btn" onclick="mergeSharedList()">+ Add to My List</button>
-    </div>
-</div>
-
 <script>
     let dragSrcEl = null;
     let masterData = []; 
     let lastSortMode = 'custom'; 
     let isSharedView = false; 
+    let currentGenreFilter = 'all';
 
     window.onload = function() {
         loadData();
         lastSortMode = document.getElementById('sortSelect').value;
-        
-        document.addEventListener('click', function(e) {
-            const container = document.querySelector('.filter-dropdown-container');
-            if (!container.contains(e.target)) {
-                document.getElementById('filterMenu').classList.remove('show');
-            }
-        });
     };
 
     function generateId() {
@@ -472,7 +420,6 @@
         
         const sharedItems = masterData.map(m => ({...m, id: generateId()}));
         
-        // DUPLICATE CHECK
         const existingTitles = new Set(localData.map(m => (m.title || "").toLowerCase().trim()));
         const newItems = sharedItems.filter(m => {
             const normalizedTitle = (m.title || "").toLowerCase().trim();
@@ -482,7 +429,6 @@
 
         masterData = [...localData, ...newItems];
 
-        // Restore User's List Name
         const savedName = localStorage.getItem('waybetterboxdListName') || "";
         document.getElementById('listName').value = savedName;
         updatePageTitle();
@@ -493,8 +439,7 @@
         
         localStorage.setItem('waybetterboxdData', JSON.stringify(masterData));
         
-        updateFilterList();
-        renderTable();
+        renderTable(); 
         
         const skipped = sharedItems.length - newItems.length;
         showToast(`Added ${newItems.length} movies! (${skipped} skipped)`);
@@ -519,7 +464,6 @@
         const row = btn.closest('tr');
         row.classList.toggle('watched');
         updateWatchedButton(btn, row.classList.contains('watched'));
-        
         saveDataBasedOnMode(lastSortMode);
         if (lastSortMode !== 'custom') renderTable();
     }
@@ -560,6 +504,8 @@
         const tbody = document.querySelector('#movieTable tbody');
         tbody.innerHTML = '';
         displayData.forEach(movie => addRow(movie));
+        
+        updateFilterList(); 
         applyGenreFilter(currentGenreFilter);
     }
 
@@ -601,7 +547,7 @@
         }
 
         localStorage.setItem('waybetterboxdData', JSON.stringify(masterData));
-        updateFilterList();
+        // We do NOT updateFilterList here to avoid rebuilding UI while typing
     }
     
     function saveDataToLocal() { saveDataBasedOnMode(lastSortMode); }
@@ -644,7 +590,12 @@
         titleInput.addEventListener('input', () => { updateLink(titleInput, linkInput); saveDataToLocal(); });
 
         const genreInput = createEl('input', 'input-genre', data?.genre, "Genre");
-        genreInput.addEventListener('change', updateFilterList); 
+        // FIX: Update filter list when genre input changes
+        genreInput.addEventListener('change', () => { 
+            saveDataToLocal(); 
+            // Only update dropdown if we aren't currently filtering, to avoid confusion
+            if(currentGenreFilter === 'all') updateFilterList();
+        });
         newRow.insertCell(2).appendChild(genreInput);
 
         newRow.insertCell(3).appendChild(createEl('textarea', 'input-desc', data?.desc, "paste from letterboxd"));
@@ -684,7 +635,6 @@
         actionCell.appendChild(div);
 
         if (!data) { titleInput.focus(); saveDataToLocal(); }
-        if (currentGenreFilter !== 'all') applyGenreFilter(currentGenreFilter);
     }
 
     function enableDrag(row) {
@@ -716,7 +666,10 @@
 
     function updatePageTitle() {
         const listName = document.getElementById('listName').value;
-        document.title = (listName && listName.trim() !== "") ? `${listName} | waybetterboxd` : "waybetterboxd";
+        const fullTitle = (listName && listName.trim() !== "") ? `${listName} | waybetterboxd` : "waybetterboxd";
+        document.title = fullTitle;
+        const ogTitle = document.querySelector('meta[property="og:title"]');
+        if (ogTitle) ogTitle.setAttribute('content', fullTitle);
     }
     
     function saveListName() { 
@@ -729,11 +682,8 @@
         if(masterData.length === 0) return;
         const packed = packData(masterData);
         const json = JSON.stringify(packed);
-        
-        // COMPRESS
         const encoded = await compress(json);
         
-        // GET LIST NAME & APPEND
         const listName = document.getElementById('listName').value.trim();
         let params = '?list=' + encoded;
         if(listName && listName !== "Shared List (View Only)" && !listName.startsWith("Shared List:")) {
@@ -748,7 +698,7 @@
     async function loadData() {
         const params = new URLSearchParams(window.location.search);
         let sharedStr = params.get('list');
-        let sharedName = params.get('name'); // GET NAME FROM URL
+        let sharedName = params.get('name'); 
 
         if (!sharedStr && window.location.hash) sharedStr = window.location.hash.substring(1);
 
@@ -763,7 +713,6 @@
                     isSharedView = true;
                     document.getElementById('sharedBanner').classList.add('visible');
                     
-                    // SET DISPLAY TITLE
                     let displayTitle = "Shared List (View Only)";
                     if(sharedName) {
                         displayTitle = `Shared List: ${decodeURIComponent(sharedName)} (View Only)`;
@@ -798,7 +747,6 @@
         let val = document.getElementById('shareLinkInput').value.trim();
         let code = val;
         
-        // Smart URL Parsing
         try {
             const url = new URL(val);
             if(url.searchParams.has('list')) {
@@ -869,29 +817,43 @@
         showToast("Copied to clipboard");
     }
 
-    let currentGenreFilter = 'all';
+    // --- REBUILT GENRE FILTER WITH NATIVE SELECT ---
     function updateFilterList() {
         const genres = new Set();
         masterData.forEach(d => { if(d.genre) genres.add(d.genre.trim()); });
-        const menu = document.getElementById('filterMenu');
-        menu.innerHTML = `<div class="filter-item"><input type="radio" name="genreFilter" id="filter-all" value="all" ${currentGenreFilter==='all'?'checked':''} onchange="applyGenreFilter('all')"><label for="filter-all">All Genres</label></div>`;
-        genres.forEach(g => {
-            const id = `filter-${g.replace(/\s+/g,'')}`;
-            const div = document.createElement('div'); div.className = 'filter-item';
-            div.innerHTML = `<input type="radio" name="genreFilter" id="${id}" value="${g}" ${currentGenreFilter===g?'checked':''} onchange="applyGenreFilter('${g}')"><label for="${id}">${g}</label>`;
-            menu.appendChild(div);
+        
+        const select = document.getElementById('genreSelect');
+        const currentVal = select.value;
+        
+        select.innerHTML = '<option value="all">All Genres</option>';
+        
+        Array.from(genres).sort().forEach(g => {
+            const opt = document.createElement('option');
+            opt.value = g;
+            opt.textContent = g;
+            select.appendChild(opt);
         });
+        
+        // Restore previous selection if valid
+        if(genres.has(currentVal)) {
+            select.value = currentVal;
+        } else {
+            select.value = 'all';
+            // Only update current filter if it actually changed
+            if (currentGenreFilter !== 'all') {
+                currentGenreFilter = 'all';
+                applyGenreFilter('all');
+            }
+        }
     }
 
     function applyGenreFilter(genre) {
         currentGenreFilter = genre;
-        document.querySelector('.filter-btn').firstChild.textContent = genre === 'all' ? "All Genres" : genre;
         const rows = document.querySelectorAll('#movieTable tbody tr');
         rows.forEach(row => {
             const val = row.querySelector('.input-genre').value.trim();
             if (genre === 'all' || val === genre) row.classList.remove('hidden'); else row.classList.add('hidden');
         });
-        document.getElementById('filterMenu').classList.remove('show');
     }
 
     function showToast(msg) { const x = document.getElementById("toast"); x.innerText = msg; x.className = "show"; setTimeout(() => x.classList.remove("show"), 3000); }
