@@ -262,6 +262,16 @@
         #toast.show { visibility: visible; animation: fadein 0.5s, fadeout 0.5s 2.5s; }
         @keyframes fadein { from {bottom: 0; opacity: 0;} to {bottom: 30px; opacity: 1;} }
         @keyframes fadeout { from {bottom: 30px; opacity: 1;} to {bottom: 0; opacity: 0;} }
+
+        /* HIDE ACTIONS IN SHARED VIEW */
+
+        body.shared-view .col-act,
+        body.shared-view .col-act-cell {
+        display: none;
+}
+
+/* ... existing styles ... */
+    
     </style>
 </head>
 <body>
@@ -357,6 +367,13 @@
     window.onload = function() {
         loadData();
         lastSortMode = document.getElementById('sortSelect').value;
+        
+        document.addEventListener('click', function(e) {
+            const container = document.querySelector('.filter-dropdown-container');
+            if (!container.contains(e.target)) {
+                document.getElementById('filterMenu').classList.remove('show');
+            }
+        });
     };
 
     function generateId() {
@@ -408,6 +425,7 @@
     function exitSharedMode() {
         window.history.replaceState({}, document.title, window.location.pathname);
         isSharedView = false;
+        document.body.classList.remove('shared-view'); // UNHIDE ACTIONS
         document.getElementById('sharedBanner').classList.remove('visible');
         loadData(); 
         showToast("Returned to your list");
@@ -434,6 +452,7 @@
         updatePageTitle();
 
         isSharedView = false;
+        document.body.classList.remove('shared-view'); // UNHIDE ACTIONS
         document.getElementById('sharedBanner').classList.remove('visible');
         window.history.replaceState({}, document.title, window.location.pathname);
         
@@ -547,7 +566,6 @@
         }
 
         localStorage.setItem('waybetterboxdData', JSON.stringify(masterData));
-        // We do NOT updateFilterList here to avoid rebuilding UI while typing
     }
     
     function saveDataToLocal() { saveDataBasedOnMode(lastSortMode); }
@@ -590,10 +608,8 @@
         titleInput.addEventListener('input', () => { updateLink(titleInput, linkInput); saveDataToLocal(); });
 
         const genreInput = createEl('input', 'input-genre', data?.genre, "Genre");
-        // FIX: Update filter list when genre input changes
         genreInput.addEventListener('change', () => { 
             saveDataToLocal(); 
-            // Only update dropdown if we aren't currently filtering, to avoid confusion
             if(currentGenreFilter === 'all') updateFilterList();
         });
         newRow.insertCell(2).appendChild(genreInput);
@@ -613,6 +629,7 @@
         newRow.insertCell(5).appendChild(createEl('textarea', 'input-loc', data?.loc, "Name..."));
 
         const actionCell = newRow.insertCell(6);
+        actionCell.className = "col-act-cell"; // ADDED CLASS FOR TARGETING
         const div = document.createElement("div"); div.className = "action-cell-content";
 
         const calBtn = document.createElement("button"); calBtn.className = "unified-btn";
@@ -711,6 +728,7 @@
                     masterData = masterData.map(m => ({...m, id: generateId()}));
                     
                     isSharedView = true;
+                    document.body.classList.add('shared-view'); // HIDE ACTIONS
                     document.getElementById('sharedBanner').classList.add('visible');
                     
                     let displayTitle = "Shared List (View Only)";
@@ -727,6 +745,7 @@
             }
         }
 
+        document.body.classList.remove('shared-view'); // ENSURE ACTIONS VISIBLE
         const listName = localStorage.getItem('waybetterboxdListName');
         if (listName) { document.getElementById('listName').value = listName; updatePageTitle(); }
         
@@ -834,12 +853,10 @@
             select.appendChild(opt);
         });
         
-        // Restore previous selection if valid
         if(genres.has(currentVal)) {
             select.value = currentVal;
         } else {
             select.value = 'all';
-            // Only update current filter if it actually changed
             if (currentGenreFilter !== 'all') {
                 currentGenreFilter = 'all';
                 applyGenreFilter('all');
