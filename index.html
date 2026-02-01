@@ -27,26 +27,20 @@
 
    <!--lottiefile player-->
    <script src="https://unpkg.com/@lottiefiles/lottie-player@latest/dist/lottie-player.js"></script>
-
-   <!--peekaboo navigation-->
-   <script src="js/peekabooNav.js"></script>
-
-   <!--loading state enabler-->
-   <script src="js/loadingState.js"></script>
+   
 
    <!--spline script-->
-   <script type="module" src="https://unpkg.com/@splinetool/viewer@1.12.13/build/spline-viewer.js"></script>
+   <script type="module" src="https://unpkg.com/@splinetool/viewer@1.12.13/build/spline-viewer.js" defer></script>
 
    <!--google tag-->
-   <script async src="https://www.googletagmanager.com/gtag/js?id=G-DYDCM8KNK6"></script>
-   <script>
+   <script async src="https://www.googletagmanager.com/gtag/js?id=G-DYDCM8KNK6" defer></script>
+   <script defer>
      window.dataLayer = window.dataLayer || [];
      function gtag(){dataLayer.push(arguments);}
      gtag('js', new Date());
    
      gtag('config', 'G-DYDCM8KNK6');
    </script>
-
 
   </head>
 
@@ -180,179 +174,30 @@
         
       </container>
 
-      
+      <h2>Featured Work:</h2>
       <container id="projects">
-        <h2>Featured Work:</h2>
-
-        <a class="card" href="optML_shipper.html">
-          <img class="card_cover" src="assets/optML_Ship.png">
-          <section class="text">
-            <h3>optML shippper</h3>
-            <!--p class="small"><em>Summer/Fall 2022</em></p-->
-            <p class="small"> AI-augmented Shipping Dashboard</p>
-            <p class="small"> Fall 2025 - How might a top 3 global athletics company leverage machine learning to optimize their downstream supplychain?</p>
-          </section>
-        
-        </a>
-
-         <a class="card" href="https://sites.google.com/uw.edu/dawgwalks/home" target="_blank">
-          <img class="card_cover" src="assets/dawgWalks.png">
-          <section class="text">
-            <h3>Dawg Walks</h3>
-            <!--p class="small"><em>Summer/Fall 2022</em></p-->
-            <p class="small"> Service design for UW</p>
-            <p class="small"> Autumn 2025 - How might we increase safety and connection for UW students traveling after dark?</p>
-          </section>
-        </a>
-
-        <a class="card" href="linkCC.html">
-            <img class="card_cover" src="assets/linkCover.png">
-            <section class="text">
-              <h3>Link™ Creative Connections 🖇📱</h3>
-              <!--p class="small"><em>Summer/Fall 2022</em></p-->
-              <p class="small"> Mobile UX Design for ILOVEWHATEVER.</p>
-              <p class="small"> Summer 2022 - How might we create an app for creative connection that is atomic, and so simple that anyone can use it?</p>
-            </section>
-          
-          </a>
-
-
+          <project-card slug="optml-shipper"></project-card>
+          <project-card slug="dawg-walks"></project-card>
+          <project-card slug="link-cc"></project-card>
       </container>
-
-      <container class="project_list">
-
-        <h2>More Projects:</h2>
-
-        <a class="card" onclick="showDialog()"><!--href="ai_pebble.html"></!-->
-          <img class="card_cover" src="assets/ai_pebble.png">
-          <section class="text">
-            <h3>Pebble AI </h3>
-            <!--p class="small"><em>Summer/Fall 2022</em></p-->
-            <p class="small"> In-context Academic Advising</p>
-            <p class="small"> Spring 2025 - How might we guide lost students at a critical junctures in their academic journeys using agentic adivsors trained on historic student data and advising materials?</p>
-          </section>
-        
-        </a>
-
-        <a class="card" href="twabler.html">
-          <img class="card_cover" src="assets/Twabler_Cover.png">
-          <section class="text">
-            <h3>Twabler 🐣 🏷</h3>
-            <!--p class="small"><em>Summer/Fall 2022</em></p-->
-            <p class="small"> Mobile UX for Code for San Francisco</p>
-            <p class="small"> Autumn 2019 - A labeling method for ML NLP training sets that improves on old methods by segmenting and batching tweet labeling tasks, so that labelers can spend less time thinking and more time labeling.</p>
-          </section>
-        </a>
-
-        <a class="card" href="knomee_app.html">
-          <img class="card_cover" src="assets/Knomee.png">
-          <section class="text">
-            <h3>Knomee Financial Identity Prototype📱💵🧘‍♀️</h3>
-            <!--p class="small"><em>Summer/Fall 2022</em></p-->
-            <p class="small"> Strategy and Prototyping for Knomee</p>
-            <p class="small"> Winter 2023 - How might we help the newly-affluent meaningfully and align their financial planning with their deeply-held personal values?</p>
-          </section>
-        
-        </a>
-
-        <a class="card" onclick="showDialog()">
-          <img class="card_cover" src="assets/InquirED.png">
-          <section class="text">
-            <h3>Better Curriculum Navigation and Accessibility📓👩‍🏫🗺️</h3>
-            <!--p class="small"><em>Summer/Fall 2022</em></p-->
-            <p class="small"> Improving the inquirED portal with accessibility and clear navigation</p>
-            <p class="small"> Summer 2024 - How might we use accessibility compliance requirements as an opportunity to improve the overall feel and clarity of our curriculum portal?</p>
-          </section>
-        
-        </a>
-        
-        
-        <a class="card" href="synq.html">
-          <img class="card_cover" src="assets/Synq_Cover.png">
-          <section class="text">
-            <h3>Synq Logo and Animation ⚜️🎞</h3>
-            <!--p class="small"><em>Summer/Fall 2022</em></p-->
-            <p class="small"> Logo and Motion Design for Synq</p>
-            <p class="small"> Autumn 2022 - A monolithic “S” revealed as just a part of the larger whole: a composite isometric cube - which, reminiscent of the molecular structure of sugar, carbon fiber and crystalline diamond, evokes the strength and sweetness of "synqing" swiftly with others to join in spontaneous shenanigans.</p>
-          </section>
-        </a>
-
-        <a class="card" href="jordache.html">
-          <img class="card_cover" src="assets/Jordache_Cover.png">
-          <section class="text">
-            <h3>JORDACHE Shopify Home Page 🐴👖</h3>
-            <p class="small"> Responsive Landing Page for JORDACHE</p>
-            <p class="small"> Winter 2023 - How might we revamp JORDACHE's 2019 online storefront to communicate "Sexy, Bold, and Timeless?"</p>
-          </section>
-        
-        </a>
-
-        <a class="card" href="stayHome.html">
-          <img class="card_cover" src="assets/StayHome_Cover.png">
-          <section class="text">
-            <h3>Stay Home 🏠 🦠</h3>
-            <!--p class="small"><em>Summer/Fall 2022</em></p-->
-            <p class="small"> Mobile App Hack </p>
-            <p class="small"> Summer 2020 - How might we transform staying home into a fun, safe, and rewarding communnal experience?</p>
-          </section>
-        </a>
-
-        <a class="card" href="tactTiles.html">
-          <img class="card_cover" src="assets/TactileCubeCover.png">
-          <section class="text">
-            <h3>TactTiles 🟦 🧤 🟨 🟥</h3>
-            <!--p class="small"><em>Spring 2019</em></p-->
-            <p class="small">Interaction Design for DALI Lab.</p>
-            <p class="small"> Winter 2018 to Spring 2019 - A customizable sensory therapeutic toy for people with Autism with heightened sensory input. TactTiles is a box with magnetic, detachable tile sides, each with a different texture or dynamic interactive component. Users can choose which textures to attach to the sides based on their preferences, and store the others inside the box.</p>
-          </section>
-        </a>
-
-        <a class="card" href="rentCap.html">
-          <img class="card_cover" src="assets/RentCap_Cover.png">
-          <section class="text">
-            <h3>Rent Cap 🌇</h3>
-            <!--p class="small"><em>Summer/Fall 2022</em></p-->
-            <p class="small"> Logo and Web Design for Code for San Francisco</p>
-            <p class="small"> Autumn 2019 - An informational portal for helping tenants determine new rent protection status by answering a few simple questions and referring them to resources based on where they live.</p>
-          </section>
-        </a>
-
-        <a class="card" href="cheaters.html">
-          <img class="card_cover" src="assets/ivyLeagueCheaters_cover.png">
-          <section class="text">
-            <h3>Better Honor Code Adherance 🤥</h3>
-            <!--p class="small"><em>Spring 2019</em></p-->
-            <p class="small"> Culminating Systems Design Case for <em>Design Thinking</em></p>
-            <p class="small"> Fall 2018 - Do students cheat at Dartmouth?  Who?  How?  Why?  If so, what can faculty and administrators do to curb this undesirable behavior?</p>
-          </section>
-        </a>
-
-        <a class="card" href="tote.html">
-          <img class="card_cover" src="assets/toteCover.png">
-          <section class="text">
-            <h3>Totes Wide Open 👜</h3>
-            <!--p class="small"><em>Spring 2019</em></p-->
-            <p class="small"> Product Design for <em>Design Thinking</em></p>
-            <p class="small"> Fall 2018 - An over-the-shoulder tote that opens wider than any other bag, and shuts in an instant to get students on the move after a sprawling study session.</p>
-          </section>
-        </a>
-
-        <a class="card" href="animations/index.html">
-          <img class="card_cover" src="assets/laptop_spin.gif">
-          <section class="text">
-            <h3>Animation 🎞</h3>
-            <!--p class="small"><em>Ongoing</em></p-->
-            <p class="small"> A Gallery of Motion Graphics.</p>
-            <p class="small"> I create animations and motion graphics using a mix of procreate, Adobe Animate, and After Effects.  Hours of illustration become seconds of animation, if you're lucky.</p>
-          </section>
-        </a>
-         
-
-        </container>
+      
+      <h2>More Projects:</h2>
+      <container class="projects_list">
+        <project-card slug="pebble-ai"></project-card>
+        <project-card slug="twabler"></project-card>
+        <project-card slug="knomee"></project-card>
+        <project-card slug="inquired"></project-card>
+        <project-card slug="synq"></project-card>
+        <project-card slug="jordache"></project-card>
+        <project-card slug="stay-home"></project-card>
+        <project-card slug="tact-tiles"></project-card>
+        <project-card slug="rent-cap"></project-card>
+        <project-card slug="honor-code"></project-card>
+        <project-card slug="tote"></project-card>
+        <project-card slug="animations"></project-card>
+      </container>
     </wrapper>
-    
-    <!--container class="flex_stacker" id:"guestbook">
-        <iframe src="https://docs.google.com/forms/d/e/1FAIpQLSfDaDuM_GMCI9sk65-zsvR-si4vzUo91OGY-ehv68TuvP-bBQ/viewform?embedded=true" width="100%" height="400px" frameborder="1" marginheight="0" marginwidth="0">Loading…</iframe>
-    </container-->
+    <!--unified js-->
+   <script src="js/unified.js"></script>
   </body>
 </html>

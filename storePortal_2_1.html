@@ -152,11 +152,13 @@
                 <p>UX Audit, User Research, and Desing Systems integration for the Store Shipping Portal</p>
             </container>
             
-            <!--Claude Prototype-->
             <container class="flex_stacker">
                 <h2>Redesigned Figma Prototype</h2>
             </container>
-            <iframe></iframe>
+            <container class="full-height-and-width">
+                <iframe style="border: 1px solid rgba(0, 0, 0, 0.1);" width="100%" height="100%" src="https://embed.figma.com/proto/hxi3I75FdmvpV7dO9NpN0W/luluRoute-2.0?page-id=0%3A1&node-id=5210-4252&viewport=-631%2C158%2C0.07&scaling=min-zoom&content-scaling=fixed&starting-point-node-id=5210%3A4252&embed-host=share" allowfullscreen></iframe>
+            </container>
+
             <container class="project_summary">
                 <container id="introduction" class="flex_stacker">
                     <p><b>Problem:</b> A large soft goods company is looking to improve the shipment tracking experience for its store employees.</p>
@@ -188,9 +190,9 @@
                     <li>Design System Implementation</li>
                 </ul>
                 <p>In my designs for Store Portal 2.1, I've added a navigation sidebar and breadcrumbs. The service title now lives in the application bar, which makes room for informative page titles that orient users. Clearer button labels make actions clear at a glance. And behind the consistent, professional interface is a design system that draws from lulu's consumer branding patterns.</p>
-                <img src='assets/Placeholder.jpg'>
-                <img src='assets/Placeholder.jpg'>
-                <img src='assets/Placeholder.jpg'>
+                <img class="full-width" src='assets/Placeholder.jpg'>
+                <img class="full-width" src='assets/Placeholder.jpg'>
+                <img class="full-width" src='assets/Placeholder.jpg'>
 
                 <h2>Step 2: Contextual Inquiry at the University Village Store</h2>
                 <p>I mocked up some initial changes and organized a contextual inquiry session with an in-store team to understand how well the current Store Portal was serving it's core users. I spent an hour with a store Educator™ who has experience with the Store Portal and asked her to wlak me through the shipment receiving process.</p>
@@ -202,7 +204,7 @@
                     <li>What's missing?</li>
                 </ul>
                 <p>Here's what we found:</p>
-                <img src="assets/Placeholder.jpg">
+                <img class="full-width" src="assets/Placeholder.jpg">
                 <p><b>First, we highlight the wrong number in our calendar.</b> The three defining factors in inventory staffing are total units to be processed, number of Educators, and the skill and experience of each Educator. Logistics leads look at total arriving units to understand staffing requirements, with guidance that suggests that a typical educator can process 80 units per hour. Total arriving cartons, highlighted in luluroute2.0, is not a good predictor of workload because a single carton can have anywhere from 1 to 60+ units inside.</p>
                 <p><b>Second, we can improve support for tracking down missing items.</b> Sometimes, a package or item is missing after inventory. The Point On Logistics takes the carton ID from Power BI, and uses it to find the Tracking Number. Once you have the carton ID from PowerBI, it takes 7 steps to track down a missing package.  Adding a "Carton Lookup" feature with clickable tracking numbers could reduce that process to 2 steps. </p>
 

@@ -1,3 +1,5 @@
+
+//loading-state
 document.onreadystatechange = function() {
     if (document.readyState !== "complete") {
         document.querySelector("body").style.visibility = "hidden";
@@ -9,3 +11,5 @@ document.onreadystatechange = function() {
           "body").style.visibility = "visible";
     }
 };
+
+//peekaboo-navigation

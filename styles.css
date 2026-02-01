@@ -1,8 +1,9 @@
 :root {
     --Fill: hsl(30, 100%, 95%);
     --Text: hsl(240, 1%, 15%);
-    --Surface: hsl(0, 0%, 98%);
+    --Surface:hsl(30, 100%, 97%);
     --onSurface:hsl(0, 1%, 15%);
+    --outline:#626262;
     --FillAlt: hsl(30, 100%, 95%);
     --TextAlt: hsl(240, 1%, 15%);
     --Shadow: 4px 4px 4px 0px #00000020;
@@ -77,6 +78,7 @@ body {
     position: relative;
     width: 100vw;
     margin: 0;
+    padding:0;
 }
 
 a{
@@ -191,28 +193,36 @@ p.small {
 
 }
 
-#projects{
-    padding: top 24px;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 24px;
+#projects, .projects_list {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+    gap: 32px;
+    padding: 24px;
+    align-items: stretch; /* Ensures cards in a row are same height */
+    width: 100%;
+    max-width: 1200px;
+    margin: 0 auto;
 }
 
-.project_list{
-    padding: top 24px;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 24px;
+.window-height{
+    height: 100dvh;
 }
-
 
 .full-width{
     width: 100%;
     max-width: 1000px;
     border-radius: 8px;
     margin-bottom: 12px;
+}
+.ful-height-and-width{
+    width: 100%;
+    border-radius: 8px;
+    margin-bottom: 12px;
+    border-style: inset;
+    border-width: 1px;
+    border-color: #191919;
+    height: 90svh;
+    overflow:hidden;
 }
 
 .card {
@@ -460,6 +470,7 @@ nav{
 
     color:  var(--onSurface);
     background-color: var(--Surface);
+    border: solid 1px var(--outline);
     border-radius: 8px;
     z-index: 10;
 }
