@@ -5,11 +5,18 @@ console.log("1. Script loaded successfully!");
 const PROJECT_DATA = {
 
    "optml-shipper": {
-    title: "optML shippper",
+    title: "optML shipper",
     image: "assets/optML_Ship.png",
     link: "optML_shipper.html",
     subtitle: "AI-augmented Shipping Dashboard",
     desc: "Fall 2025 - How might a top 3 global athletics company leverage machine learning to optimize their downstream supplychain?"
+  },
+  "store-portal": {
+    title: "Store Portal 2.1",
+    image: "assets/store_portal_cover.png",
+    link: "storePortal_2_1.html",
+    subtitle: "User research, Interface design",
+    desc: "Summer/Fall 2025 - How can UX best practices and insights from contextual inquiry elevate lululemon's internally-built Store Shipping Portal from minimum viable product to most valuable portal?"
   },
   "dawg-walks": {
     title: "Dawg Walks",
@@ -108,7 +115,8 @@ const PROJECT_DATA = {
     image: "assets/laptop_spin.gif",
     link: "animations/index.html",
     subtitle: "A Gallery of Motion Graphics.",
-    desc: "I create animations and motion graphics using a mix of Procreate and Adobe Animate."
+    desc: "I create animations and motion graphics using a mix of Procreate and Adobe Animate.",
+    status:"pending"
   }
   // ... (Keep the rest of your data here)
 };
@@ -138,19 +146,24 @@ class ProjectCard extends HTMLElement {
         const data = PROJECT_DATA[slug];
         if (!data) return;
 
-        const isExternal = data.external ? 'target="_blank"' : '';
-        const wrapperOpen = data.action 
-            ? `<div class="card" onclick="${data.action}">` 
-            : `<a class="card" href="${data.link}" ${isExternal}>`;
-        
-        // Closing tag depends on if it's a div (action) or a (link)
-        const wrapperClose = data.action ? `</div>` : `</a>`;
+        // 1. Determine the Wrapper Behavior
+        let wrapperOpen;
+        let wrapperClose;
+
+        if (data.action === "showDialog()") {
+            // Use the new global function we built
+            wrapperOpen = `<div class="card" onclick="showConstructionDialog()">`;
+            wrapperClose = `</div>`;
+        } else {
+            const isExternal = data.external ? 'target="_blank"' : '';
+            wrapperOpen = `<a class="card" href="${data.link || '#'}" ${isExternal}>`;
+            wrapperClose = `</a>`;
+        }
 
         this.shadowRoot.innerHTML = `
         <style>
             :host { 
                 display: block; 
-                /* Width Constraints */
                 min-width: 320px;
                 max-width: 480px;
                 width: 100%; 
@@ -158,11 +171,11 @@ class ProjectCard extends HTMLElement {
             
             .card { 
                 display: flex; 
-                flex-direction: column; /* Vertical Stack */
+                flex-direction: column; 
                 text-decoration: none; 
                 color: #1a1a1a; 
                 background: var(--Surface, #FFF7F0);
-                border-radius: 12px; /* 12px round corners */
+                border-radius: 12px; 
                 border:solid 1px #626262;
                 overflow: hidden; 
                 box-shadow: 0 2px 8px rgba(0, 43, 128, 0.08);
@@ -173,19 +186,21 @@ class ProjectCard extends HTMLElement {
                 cursor: pointer;
             }
 
+            /* Visual feedback for "Under Construction" items */
+            .card[onclick*="showConstructionDialog"] {
+                cursor: help;
+            }
+
             .card:hover { 
                 transform: translateY(-4px);
                 box-shadow: 0 8px 16px rgba(82, 114, 255, 0.5); 
             }
 
-            /* Image Logic */
             .img-container {
-                /* "The margin on the image should be 8px" */
                 margin: 8px 8px 0 8px;
                 width: calc(100% - 16px);
-                height: 240px; /* Fixed height for consistency */
+                height: 240px; 
                 overflow: hidden;
-                /* "4px rounding on the cover image corners" */
                 border-radius: 4px; 
                 border:solid 1px #626262; 
             }
@@ -204,17 +219,16 @@ class ProjectCard extends HTMLElement {
                 gap: 6px; 
             }
 
-            /* Typography Specs */
             h3 { 
                 margin: 0 0 4px 0; 
-                font-size: 24px; /* "24px bold" */
+                font-size: 24px; 
                 font-weight: 700; 
                 line-height: 1.2;
                 color: #000;
             }
 
             .subtitle { 
-                font-size: 12px; /* "12px bold" */
+                font-size: 12px; 
                 font-weight: 700; 
                 color: #000;
                 margin-bottom: 4px;
@@ -223,40 +237,64 @@ class ProjectCard extends HTMLElement {
 
             .desc { 
                 margin: 0; 
-                font-size: 12px; /* "12px regular" */
+                font-size: 12px; 
                 font-weight: 400;
                 line-height: 1.5; 
                 color: #333;
-                
-                /* Truncation Logic */
                 display: -webkit-box; 
                 -webkit-box-orient: vertical;
                 -webkit-line-clamp: ${this.expanded ? 'unset' : '3'}; 
                 overflow: hidden;
             }
 
-            /* "See More" Button Styling */
             .toggle-btn {
                 background: none; 
                 border: none; 
                 padding: 0;
                 margin-top: 8px; 
                 cursor: pointer; 
-                
                 font-family: 'Work Sans', sans-serif;
                 font-size: 12px;
                 font-weight: 600; 
-                color: #888; /* "Lighter shade of gray" */
+                color: #888; 
                 text-decoration: underline;
                 text-underline-offset: 2px;
-                
                 align-self: flex-start;
                 transition: color 0.2s;
             }
 
-            .toggle-btn:hover { 
-                color: #555; 
+            .toggle-btn:hover { color: #555; }
+
+            /* 1. Create the container for the hover label */
+            .card[onclick*="showConstructionDialog"] {
+                position: relative;
+                cursor: help;
             }
+
+            /* 2. The Label itself (Hidden by default) */
+            .card[onclick*="showConstructionDialog"]::after {
+                content: "Coming Soon 🚧";
+                position: absolute;
+                top: 16px;
+                right: 16px;
+                background: rgba(0, 0, 0, 0.8);
+                color: white;
+                padding: 4px 12px;
+                border-radius: 20px;
+                font-size: 10px;
+                font-weight: 700;
+                text-transform: uppercase;
+                letter-spacing: 0.5px;
+                opacity: 0;
+                transition: opacity 0.2s ease;
+                pointer-events: none; /* Prevents the label from blocking clicks */
+                z-index: 10;
+            }
+
+            /* 3. Show on Hover */
+            .card[onclick*="showConstructionDialog"]:hover::after {
+                opacity: 1;
+}
         </style>
 
         ${wrapperOpen}
@@ -320,3 +358,88 @@ window.onscroll = function() {
   prevScrollpos = currentScrollPos;
 }
 
+
+// Under Construction Dialog
+/* --- Construction Dialog Logic --- */
+
+// 1. Create the functions FIRST so they exist in memory
+window.showConstructionDialog = function() {
+    const dialog = document.getElementById('constructionDialog');
+    if (dialog) {
+        dialog.removeAttribute('inert');
+        dialog.showModal();
+    } else {
+        // If the element hasn't been created yet, try to create it now
+        createConstructionDialog();
+        document.getElementById('constructionDialog').showModal();
+    }
+};
+
+window.closeConstructionDialog = function() {
+    const dialog = document.getElementById('constructionDialog');
+    if (dialog) {
+        dialog.close();
+        dialog.setAttribute('inert', '');
+    }
+};
+
+// 2. Function to build the UI
+function createConstructionDialog() {
+    if (document.getElementById('constructionDialog')) return; // Don't duplicate
+
+    const style = document.createElement('style');
+    style.textContent = `
+        #constructionDialog {
+            position: fixed;
+            top: 50% !important;
+            left: 50% !important;
+            transform: translate(-50%, -50%) !important;
+            margin: 0;
+            z-index: 10001;
+            border: none;
+            border-radius: 12px;
+            padding: 0;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.4);
+            max-width: 400px;
+            width: 85%;
+            background: white;
+        }
+        #constructionDialog::backdrop {
+            background: rgba(0, 0, 0, 0.7);
+            backdrop-filter: blur(4px);
+        }
+        .dialog-content { padding: 30px; text-align: center; font-family: sans-serif; }
+        .dialog-content h2 { margin-top: 0; font-size: 22px; }
+        .close-button {
+            margin-top: 20px;
+            padding: 12px 24px;
+            background: #222;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: bold;
+        }
+        .close-button:hover { background: paleturquoise; color: black; }
+    `;
+    document.head.appendChild(style);
+
+    const dialog = document.createElement('dialog');
+    dialog.id = 'constructionDialog';
+    dialog.setAttribute('inert', '');
+    dialog.innerHTML = `
+        <div class="dialog-content">
+            <h2>🚧 Page In Progress 🚧</h2>
+            <p>So sorry! This project is done but the writeup is still in progress. Check back soon!</p>
+            <button class="close-button" onclick="closeConstructionDialog()">Done (esc)</button>
+        </div>
+    `;
+    document.body.appendChild(dialog);
+
+    dialog.addEventListener('click', (e) => {
+        if (e.target === dialog) closeConstructionDialog();
+    });
+}
+
+// 3. Initialize as soon as the script loads
+createConstructionDialog();

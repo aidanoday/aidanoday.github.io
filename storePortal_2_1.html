@@ -22,12 +22,6 @@
         <!--lottiefile player-->
         <script src="https://unpkg.com/@lottiefiles/lottie-player@latest/dist/lottie-player.js"></script>
 
-        <!--navigation bar show/hide-->
-        <script src="js/peekabooNav.js"></script>
-
-        <!--loading state enabler-->
-        <script src="js/loadingState.js"></script>
-
         <!--google fonts-->
         <script async src="https://www.googletagmanager.com/gtag/js?id=G-DYDCM8KNK6"></script>
         <script>
@@ -65,98 +59,17 @@
             <a class="onSurface" href="index.html">Back to Home</a>
         </nav>
 
-        <dialogContainer>
-            <dialog id="constructionDialog" inert>
-                <div class="dialog-content">
-                    <h2>🚧 Page In Progress 📑✍🏻 🚧</h2>
-                    <p> So sorry! This project is done but the writeup is still in progress. Rather than give you a premature peek behind the curtain, I've put up this barrier. Check back soon!</p>
-                    <button class="close-button" onclick="closeDialog()">Done (esc)</button>
-                </div>
-            </dialog>
-            <style>
-                dialog {
-                    border: none;
-                    border-radius: 8px;
-                    padding-bottom: 16px;
-                    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-                    max-width: 400px;
-                }
-
-                dialog::backdrop {
-                    background: rgba(0, 0, 0, 0.5);
-                }
-
-                .dialog-content {
-                    padding: 0px;
-                    text-align: center;
-                }
-
-                .dialog-content h2 {
-                    margin: bottom 0px;
-                    color: #333;
-                    font-size: 24px;
-                }
-
-                .dialog-content p {
-                    margin: bottom 16px;;
-                    color: #666;
-                    line-height: 1.5;
-                }
-
-                .close-button {
-                    padding: 8px 16px;
-                    background: var(--surface);
-                    color:var(--onSurface);
-                    border: none;
-                    border-radius: 4px;
-                    cursor: pointer;
-                    font-size: 14px;
-                    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-                    outline: 1px #333;
-                }
-
-                .close-button:hover {
-                    padding: 8px 16px;
-                    background:paleturquoise;
-                    color:black;
-                    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-                    
-                }
-            </style>
-            <script>
-                const dialog = document.getElementById('constructionDialog');
-
-                function showDialog() {
-                    dialog.removeAttribute('inert');
-                    dialog.showModal();
-                }
-
-                function closeDialog() {
-                    dialog.close();
-                    dialog.setAttribute('inert', '');
-                }
-
-                // Allow closing with Escape key (built-in) or clicking backdrop
-                dialog.addEventListener('click', (e) => {
-                    if (e.target === dialog) {
-                        closeDialog();
-                    }
-                });
-                </script>
-         </dialogContainer>
-
-
         <wrapper>
             <container class="above_the_fold">
                 <h1>Store Shipping Portal 2.1 📦🛍️🗓️</h1>
-                <p>UX Audit, User Research, and Desing Systems integration for the Store Shipping Portal</p>
+                <p>UX Audit, User Research, and Design Systems integration for the Store Shipping Portal</p>
             </container>
             
             <container class="flex_stacker">
                 <h2>Redesigned Figma Prototype</h2>
             </container>
-            <container class="full-height-and-width">
-                <iframe style="border: 1px solid rgba(0, 0, 0, 0.1);" width="100%" height="100%" src="https://embed.figma.com/proto/hxi3I75FdmvpV7dO9NpN0W/luluRoute-2.0?page-id=0%3A1&node-id=5210-4252&viewport=-631%2C158%2C0.07&scaling=min-zoom&content-scaling=fixed&starting-point-node-id=5210%3A4252&embed-host=share" allowfullscreen></iframe>
+            <container class="fhaw">
+                <iframe style="border: 1px solid rgba(0, 0, 0, 0.1);" width="100%" height="100%" src="https://embed.figma.com/proto/cTXhKer4QIcVKI11vyAmKa/luluRoute-2.0-1-29-25?page-id=0%3A1&node-id=5210-4252&viewport=-1200%2C-105%2C0.1&scaling=scale-down&content-scaling=fixed&starting-point-node-id=5210%3A4252&show-proto-sidebar=1&embed-host=share" allowfullscreen></iframe>
             </container>
 
             <container class="project_summary">
@@ -189,13 +102,14 @@
                     <li>Button labeling</li>
                     <li>Design System Implementation</li>
                 </ul>
-                <p>In my designs for Store Portal 2.1, I've added a navigation sidebar and breadcrumbs. The service title now lives in the application bar, which makes room for informative page titles that orient users. Clearer button labels make actions clear at a glance. And behind the consistent, professional interface is a design system that draws from lulu's consumer branding patterns.</p>
-                <img class="full-width" src='assets/Placeholder.jpg'>
-                <img class="full-width" src='assets/Placeholder.jpg'>
-                <img class="full-width" src='assets/Placeholder.jpg'>
+                <p>In my designs for Store Portal 2.1, I've added a navigation sidebar and breadcrumbs. The service title now lives in the application bar, which makes room for informative page titles that orient users. Clearer button labels make actions clear at a glance. And behind the consistent, professional interface is a design system that draws from lulu's consumer branding patterns. Here's what the new item page looks like:</p>
+
+                <img class="full-width" src='assets/Store Portal - Details Page.png'>
+
+                <p>The side menu, breadcrumbs, informative titles, and labeled buttons give users important context about every page and every element they see. But the redesign also includes many features that were inpsired directly by user feedback.</p>
 
                 <h2>Step 2: Contextual Inquiry at the University Village Store</h2>
-                <p>I mocked up some initial changes and organized a contextual inquiry session with an in-store team to understand how well the current Store Portal was serving it's core users. I spent an hour with a store Educator™ who has experience with the Store Portal and asked her to wlak me through the shipment receiving process.</p>
+                <p>I mocked up some initial changes and organized a contextual inquiry session with an in-store team to understand how well the current Store Portal was serving it's core users. I spent an hour with a store Educator™ who has experience with the Store Portal and asked her to walk me through the shipment receiving process.</p>
                 <p>I asked questions like:</p>
                 <ul>
                     <li>What works well for you?</li>
@@ -204,15 +118,20 @@
                     <li>What's missing?</li>
                 </ul>
                 <p>Here's what we found:</p>
-                <img class="full-width" src="assets/Placeholder.jpg">
+                <img class="full-width" src="assets/StorePortalCartonsMockup.png">
                 <p><b>First, we highlight the wrong number in our calendar.</b> The three defining factors in inventory staffing are total units to be processed, number of Educators, and the skill and experience of each Educator. Logistics leads look at total arriving units to understand staffing requirements, with guidance that suggests that a typical educator can process 80 units per hour. Total arriving cartons, highlighted in luluroute2.0, is not a good predictor of workload because a single carton can have anywhere from 1 to 60+ units inside.</p>
-                <p><b>Second, we can improve support for tracking down missing items.</b> Sometimes, a package or item is missing after inventory. The Point On Logistics takes the carton ID from Power BI, and uses it to find the Tracking Number. Once you have the carton ID from PowerBI, it takes 7 steps to track down a missing package.  Adding a "Carton Lookup" feature with clickable tracking numbers could reduce that process to 2 steps. </p>
+                <p><b>Second, we can improve support for tracking down missing items.</b> Sometimes, a package or item is missing after inventory. The Point On Logistics takes the carton ID from Power BI, and uses it to find the Tracking Number. Once you have the carton ID from PowerBI, it takes 7 steps to track down a missing package.  Adding a "Carton Lookup" feature with clickable tracking numbers could reduce that process to 2 steps. What would that look like? </p>
+
+                <img class="full-width" src='assets/Store Portal - Dashboard.png'>
+                <p>The Dashboard serves as a homepage for each store, unifying announcements, upcoming shipments, and the new Carton Lookup Tool at a glance.</p>
+                <img class="full-width" src='assets/Store Portal - Inbound Deliveries Calendar.png'>
+                <p>The new calendar view highlights unit deliveries, reduces unnecessary information, and helps Educators track missing items. Without contextual inquiry, we may have identified some of the key changes, and the styling would have still improved because of the design system we implemented, but we would have missed out on key opportunities to make efficiency gains for our primary users!</p>
 
             </container>
             <container class="project_list">
                 <h2>Related Projects</h2>
                 
-               <a class="card" onclick="showDialog()"><!--href="ai_pebble.html"></!-->
+               <a class="card" onclick="showConstructionDialog()"><!--href="ai_pebble.html"></!-->
                     <img class="card_cover" src="assets/InquirED.png">
                     <section class="text">
                         <h3>Redesigning InquirED's Curriculum Portal</h3>
@@ -221,7 +140,7 @@
                     </section>
                 </a>
 
-                <a class="card" onclick="showDialog()"><!--href="ai_pebble.html"></!-->
+                <a class="card" onclick="showConstructionDialog()"><!--href="ai_pebble.html"></!-->
                     <img class="card_cover" src="assets/ai_pebble.png">
                     <section class="text">
                         <h3>Pebble AI </h3>
@@ -234,5 +153,7 @@
             
 
         </wrapper>
+        <!--unified javascript for menu, loading state, and cards-->
+        <script src="js/unified.js"></script>
     </body>
 </html>
