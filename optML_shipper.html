@@ -156,7 +156,9 @@
             <container class="flex_stacker">
                 <h2>Proof of Concept:</h2>
             </container>
-            <iframe src="https://claude.site/public/artifacts/0452e2ed-5d3b-4427-ab10-327dad6c618b/embed" title="Claude Artifact" width="100%" height="600" frameborder="0" allow="clipboard-write" allowfullscreen></iframe>
+            <container class="fhaw">
+             <iframe src="https://claude.site/public/artifacts/0452e2ed-5d3b-4427-ab10-327dad6c618b/embed" title="Claude Artifact" width="100%" height="100%" frameborder="0" allow="clipboard-write" allowfullscreen></iframe>
+            </container>
             <container class="project_summary">
                 <container id="introduction" class="flex_stacker">
                     <p><b>Problem:</b> A large soft goods company is looking to optimize their shipping service selection. Manual optimization relies on teams of business analysts and manually-configured routing software.</p>
@@ -183,30 +185,15 @@
                     </ul>
                 </p>
             </container>
-            <container class="project_list">
-                <h2>Other Projects</h2>
-                
-                <a class="card" href="https://sites.google.com/uw.edu/dawgwalks/home" target="_blank">
-                    <img class="card_cover" src="assets/dawgWalks.png">
-                    <section class="text">
-                        <h3>Dawg Walks</h3>
-                        <p class="small"> Service design for UW</p>
-                        <p class="small"> Autumn 2025 - How might we increase safety and connection for UW students traveling after dark?</p>
-                    </section>
-                </a>
-
-                <a class="card" onclick="showDialog()"><!--href="ai_pebble.html"></!-->
-                    <img class="card_cover" src="assets/ai_pebble.png">
-                    <section class="text">
-                        <h3>Pebble AI </h3>
-                        <p class="small"> In-context Academic Advising</p>
-                        <p class="small"> Spring 2025 - How might we guide lost students at a critical junctures in their academic journeys using agentic adivsors trained on historic student data and advising materials?</p>
-                    </section>
-                </a>
-
-            </container>
+            <h2>Similar Projects</h2>
+                <container class="projects_list">
+                    <project-card slug="dawg-walks"></project-card>
+                    <project-card slug="pebble-ai"></project-card>
+                </container>
             
 
         </wrapper>
+        <!--unified javascript for menu, loading state, and cards-->
+        <script src="js/unified.js"></script>
     </body>
 </html>
