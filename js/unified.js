@@ -516,6 +516,7 @@ createConstructionDialog();
       display: flex;
       flex-direction: column;
       align-items: center;
+      position: relative;
     }
     .tw-paper-wrap {
       width: calc(100% - 72px);
@@ -929,7 +930,7 @@ createConstructionDialog();
               <input type="email" id="twEmail" name="email" placeholder="your@email.com" required autocomplete="email">
             </div>
             <label class="tw-message-label">Message:</label>
-            <textarea class="tw-message-area" id="twMessage" name="message" placeholder="Write your message here. Maybe it begins, 'Dear Aidan...'" required></textarea>
+            <textarea class="tw-message-area" id="twMessage" name="message" placeholder="Write your message here. Maybe it begins, &#34;Dear Aidan...&#34;" required></textarea>
           </div>
         </div>
       </div>
@@ -997,10 +998,23 @@ createConstructionDialog();
     const modal        = document.getElementById('twModal');
     const modalClose   = document.getElementById('twModalClose');
 
-    // Auto-expand
+    // Auto-expand — paper grows upward, typewriter stays put
+    const twBody = container.querySelector('.tw-body');
+
     function autoExpand() {
+      const bodyRect = twBody.getBoundingClientRect();
+      const bodyViewportTop = bodyRect.top;
+
       messageInput.style.height = 'auto';
       messageInput.style.height = messageInput.scrollHeight + 'px';
+
+      requestAnimationFrame(() => {
+        const newBodyRect = twBody.getBoundingClientRect();
+        const drift = newBodyRect.top - bodyViewportTop;
+        if (Math.abs(drift) > 1) {
+          window.scrollBy({ top: drift, behavior: 'instant' });
+        }
+      });
     }
     messageInput.addEventListener('input', autoExpand);
     autoExpand();
