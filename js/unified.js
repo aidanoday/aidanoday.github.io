@@ -465,6 +465,7 @@ createConstructionDialog();
   const EMAILJS_SERVICE_ID  = scriptEl?.getAttribute('data-service-id')  || 'YOUR_SERVICE_ID';
   const EMAILJS_TEMPLATE_ID = scriptEl?.getAttribute('data-template-id') || 'YOUR_TEMPLATE_ID';
   const CONTAINER_ID        = scriptEl?.getAttribute('data-container')   || 'typewriter-contact';
+  const BACKUP_URL          = scriptEl?.getAttribute('data-backup-url')  || null;
 
   // Load Google Fonts
   const fontLink = document.createElement('link');
@@ -928,7 +929,7 @@ createConstructionDialog();
               <input type="email" id="twEmail" name="email" placeholder="your@email.com" required autocomplete="email">
             </div>
             <label class="tw-message-label">Message:</label>
-            <textarea class="tw-message-area" id="twMessage" name="message" placeholder="Start typing your message..." required></textarea>
+            <textarea class="tw-message-area" id="twMessage" name="message" placeholder="Write your message here. Maybe it begins, 'Dear Aidan...'" required></textarea>
           </div>
         </div>
       </div>
@@ -1010,6 +1011,21 @@ createConstructionDialog();
     modalClose.addEventListener('click', hideModal);
     modal.addEventListener('click', (e) => { if (e.target === modal) hideModal(); });
 
+    // Backup POST helper (Google Apps Script compatible)
+    async function backupMessage(data) {
+      if (!BACKUP_URL) return;
+      try {
+        await fetch(BACKUP_URL, {
+          method: 'POST',
+          mode: 'no-cors',
+          headers: { 'Content-Type': 'text/plain' },
+          body: JSON.stringify(data)
+        });
+      } catch (backupErr) {
+        console.warn('Backup save also failed:', backupErr);
+      }
+    }
+
     // Send
     async function handleSend() {
       const email   = emailInput.value.trim();
@@ -1026,17 +1042,23 @@ createConstructionDialog();
         return;
       }
 
+      const payload = {
+        from_email: email,
+        message: message,
+        date: dateStr,
+        timestamp: new Date().toISOString()
+      };
+
       sendBtn.disabled = true;
       sendBtn.classList.add('pressed');
       statusEl.textContent = 'Sending...';
       statusEl.className = 'tw-status sending';
 
       try {
-        await window.emailjs.send(EMAILJS_SERVICE_ID, EMAILJS_TEMPLATE_ID, {
-          from_email: email,
-          message: message,
-          date: dateStr
-        });
+        await window.emailjs.send(EMAILJS_SERVICE_ID, EMAILJS_TEMPLATE_ID, payload);
+
+        // Also save backup on success
+        backupMessage(payload);
 
         statusEl.textContent = '';
         showModal();
@@ -1048,8 +1070,24 @@ createConstructionDialog();
 
       } catch (err) {
         console.error('EmailJS error:', err);
-        statusEl.textContent = 'Failed to send. Try again.';
-        statusEl.className = 'tw-status error';
+
+        // Attempt backup save
+        const backupSaved = await backupMessage(payload)
+          .then(() => !!BACKUP_URL)
+          .catch(() => false);
+
+        if (backupSaved) {
+          // Backup succeeded — still show success to the user
+          statusEl.textContent = '';
+          showModal();
+          emailInput.value = '';
+          messageInput.value = '';
+          autoExpand();
+        } else {
+          statusEl.textContent = 'Failed to send. Try again.';
+          statusEl.className = 'tw-status error';
+        }
+
         sendBtn.disabled = false;
         sendBtn.classList.remove('pressed');
       }
