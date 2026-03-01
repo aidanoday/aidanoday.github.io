@@ -194,14 +194,15 @@ p.small {
 }
 
 #projects, .projects_list {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
-    gap: 32px;
-    padding: 24px;
-    align-items: stretch; /* Ensures cards in a row are same height */
+    columns: 270px;
+    column-gap: 24px;
     width: 100%;
-    max-width: 1200px;
-    margin: 0 auto;
+}
+
+#projects project-card,
+.projects_list project-card {
+    break-inside: avoid;
+    margin-bottom: 24px;
 }
 
 .window-height{

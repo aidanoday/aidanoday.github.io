@@ -9,7 +9,7 @@ const PROJECT_DATA = {
     image: "assets/optML_Ship.png",
     link: "optML_shipper.html",
     subtitle: "AI-augmented Shipping Dashboard",
-    desc: "Fall 2025 - How might a top 3 global athletics company leverage machine learning to optimize their downstream supplychain?"
+    desc: "Fall 2025 - How might a top 3 global athletics company leverage machine learning to optimize their downstream supply chain?"
   },
   "store-portal": {
     title: "Store Portal 2.1",
@@ -164,8 +164,7 @@ class ProjectCard extends HTMLElement {
         <style>
             :host { 
                 display: block; 
-                min-width: 320px;
-                max-width: 480px;
+                min-width: 270px;
                 width: 100%; 
             }
             
@@ -197,9 +196,9 @@ class ProjectCard extends HTMLElement {
             }
 
             .img-container {
-                margin: 8px 8px 0 8px;
-                width: calc(100% - 16px);
-                height: 240px; 
+                width: calc(100%-18px);
+                margin: 8px;
+                height: auto; 
                 overflow: hidden;
                 border-radius: 4px; 
                 border:solid 1px #626262; 
@@ -207,8 +206,7 @@ class ProjectCard extends HTMLElement {
 
             img { 
                 width: 100%; 
-                height: 100%; 
-                object-fit: cover; 
+                height: auto; 
                 display: block;
             }
 
@@ -314,7 +312,7 @@ class ProjectCard extends HTMLElement {
 }
 customElements.define('project-card', ProjectCard);
 
-//peekaboo navigation bar
+//============peekaboo navigation bar====================
 // Make SVG accessible but not keyboard-focusable
 document.addEventListener('DOMContentLoaded', function() {
   var nav = document.getElementById("peekaboo");

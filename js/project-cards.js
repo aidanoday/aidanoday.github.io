@@ -149,7 +149,7 @@ class ProjectCard extends HTMLElement {
           transition: 0.2s;
         }
         .card-link:hover { border-color: #ccc; }
-        img { width: 100%; height: 200px; object-fit: cover; }
+        img { width: 100%; height: auto; }
         .text-content { padding: 15px; }
         h3 { margin: 0 0 5px 0; font-size: 1.2rem; }
         .subtitle { font-style: italic; color: #666; margin-bottom: 8px; display: block; }
