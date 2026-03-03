@@ -118,6 +118,14 @@ const PROJECT_DATA = {
     desc: "I create animations and motion graphics using a mix of Procreate and Adobe Animate.",
     status:"pending"
   }
+  "waybetterboxd": {
+    title: "WayBetterBoxd 🎬",
+    image: "assets/waybetterboxd_cover.png",
+    link: "waybetterboxd.html",
+    external: true,
+    subtitle: "Serverless Peer-to-Peer Movie Listing and Recommendation App",
+    desc: "Spring 2025 - A friend sent me a link to a sprawling spreadsheet asking for movie recommendations. I asked why she didn't just use Letterboxd. For her, letterboxd had too many features, and didn't allow for convenient list sharing. I made this app using google gemini as a tongue-in-cheek solution that actually supported her use case."
+  }
   // ... (Keep the rest of your data here)
 };
 
