@@ -93,22 +93,22 @@ const PROJECT_DATA = {
     title: "Rent Cap 🌇",
     image: "assets/RentCap_Cover.png",
     link: "rentCap.html",
-    subtitle: "Logo and Web Design for Code for San Francisco",
-    desc: "An informational portal for helping tenants determine new rent protection status."
+    subtitle: "Web App and Logo Design for Code for San Francisco",
+    desc: "Fall 2019 - An informational portal for helping tenants determine new rent protection status.  Volunteer "
   },
   "honor-code": {
     title: "Honor Code Study 🤥",
     image: "assets/ivyLeagueCheaters_cover.png",
     link: "cheaters.html",
-    subtitle: "Culminating Systems Design Case",
+    subtitle: "Culminating Systems Design Case for Engs 12 course",
     desc: "Fall 2018 - Do students cheat at Dartmouth? What drives this behavior? What can faculty do to curb this behavior?"
   },
   "tote": {
     title: "Totes Wide Open 👜",
     image: "assets/toteCover.png",
     link: "tote.html",
-    subtitle: "Product Design for Design Thinking",
-    desc: "Fall 2018 - An over-the-shoulder tote that opens wider than any other bag."
+    subtitle: "Product Design for Engs 12 course",
+    desc: "Fall 2018 - An over-the-shoulder tote that opens wider than any other bag"
   },
   "animations": {
     title: "Animation 🎞",
@@ -123,8 +123,8 @@ const PROJECT_DATA = {
     image: "assets/waybetterboxd_cover.png",
     link: "https://www.aidanoday.me/waybetterboxd.html?list=H4sIAAAAAAAAE4VVy27cRhD8lcJecuGubCXIIZdAVmwoiI0YkhAhMHxoDpucgYbTxPRwafqkf8gpQPJz-pKkh5LtOAddJK22px9VXdXv3u1uQkqBUTzjrYjfNTtfyqQ_nJxELoVzKx-6g5PxpA9xPFlq9L543k9b9CsaQ1x3ze6nOYc0gBIkdyFRXtHRipBwMacuc4czlxk3Il2Dr6pCuShkLiiCPqQOKiPDS-L1gDdBQyqcp8yllkCSwuizjDj3OWiRyXPGpbQhNfh1iXCSjiE51pq-wXUYBs4NLqltQ2nwNgyRS4NfKA3U4FKkAaUOL3mVbH1RseZCxipzGtDnwKmDJ0XLnOBoKrPN1K4guMxkH5Fo_Pd_93d_vSB3q5Lu7_6uaYvn1WZ8HDGzupnhw3jYNbvnu2Z3FjpK3-iuef6-ebe7lhVXRfKK0ycIKbLu1SL3p1-ScZa6FZ6pU0jfW8lzWVpZcU7j1CAyHQ1JHxRFVvvxMK4sCR0fg2M94NqHNCjUh74gpCLwYfAYmDIWz6mS3SqrhiNbIjiJkV2R_ADFWcQbd-MN_dRYcs6QHmfx_u5PhY35gnLCbegSTVqXYz3Auq8BtbdR5lRA6Kgu2AN2Y1ANkhq8mD9-xOsw-LJaXyPbKtlgIxXnK_w1bSWvCDp2oWPrPzM81wAL90y5oOQ5rmg5Shoeufld5qw_7ppnRs3NXDzXRi7YiipOn51-_5RsHh_t_fZo__DoUkZKjrciaYDkyVPCBVPxLoa-R1BQJ1PZds0EszDF4le8pJzU04K-sl4HGeXIulG18claqHCD_7V9wJUYfJYx8WKwho5TQU8xKnrJFRUn40QVaTLJiRbO0GC_GpxT8autCaMsAvWUGYTMI-VbaiOjlbr9VKDMo2JObWbavptTCXHL0aBnjtadtTNlVjU5SQ8VF2jTM6dSCdd5qhFsnOXHl7rNTzkHVrzsBsp4bUCkBoTRNrXHyJQUixe03IeyJTCE5syHL1E_ylKXZQmpxrTkbm0dvvtSqnUfLjg_Qb6vEVcu4FXYNbuf04a5FKigC1rIUJ-th8awlE7sL0KUxHHFkkNFe5qz82RjkzEWVxMqR5m4g0ycqZqjrlp4RMcahsSdDWGSqDVn5Vx1xUfOKxJzd8C1fCpav9M5Tzlo7SDbepbgkDmSoa8-TI9lzQrLYm7ow_hJRl93Ul3EiP9MIUVEOTKqb6GNnDqFusDJMfrgLKbmy5s67IYQdKljUHywZ_4wRcmsG5qb_0q_ZX7wXCxk3lbNnJ1PEmVYEVQiFd4WxklK7IpiVlCMxvG3xtYUbvkTx69Fzf9wnSnpBsQTnEfRsg9pX_7z4rParxeBxUBljopj0FAxu5bbVXB_90dtv96eBokHM1XusIS-DkmYvBQZMtXDZ4MQFlLP3X6ezAWCwUsZ6kUejub1b6bmkXNVlNWol9aU0dnBjeQ25CZO1dD7zNzJaCvUMjJTNBCYnIeYm9R1qQaR1ga00Lrd5M15YtisCGcj5-DIoLUbdSV9oA3a9_8AsroBsIAIAAA&name=Aidan's%20Demo%20List",
     external: true,
-    subtitle: "Serverless Peer-to-Peer Movie Listing and Recommendation App",
-    desc: "Spring 2025 - A friend sent me a link to a sprawling spreadsheet asking for movie recommendations. I asked why she didn't just use Letterboxd. For her, letterboxd had too many features, and didn't allow for convenient list sharing. I made this app using google gemini as a tongue-in-cheek solution that more specifically generalizes her use case for others."
+    subtitle: "Build: Serverless Peer-to-Peer Movie Listing and Recommendation App",
+    desc: "Spring 2025 - A friend sent me a link to a sprawling spreadsheet asking for movie recommendations. I asked why she didn't just use Letterboxd. For her, Letterboxd had too many features, and didn't allow for convenient list sharing. I made this app using google gemini as a tongue-in-cheek solution that more specifically generalizes her use case for others."
   }
   // ... (Keep the rest of your data here)
 };

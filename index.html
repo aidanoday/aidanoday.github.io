@@ -32,15 +32,15 @@
    <!--spline script-->
    <script type="module" src="https://unpkg.com/@splinetool/viewer@1.12.13/build/spline-viewer.js" defer></script>
 
-   <!--google tag-->
-   <script async src="https://www.googletagmanager.com/gtag/js?id=G-DYDCM8KNK6" defer></script>
-   <script defer>
-     window.dataLayer = window.dataLayer || [];
-     function gtag(){dataLayer.push(arguments);}
-     gtag('js', new Date());
-   
-     gtag('config', 'G-DYDCM8KNK6');
-   </script>
+   <!-- Google tag (gtag.js) -->
+    <script async src="https://www.googletagmanager.com/gtag/js?id=G-DYDCM8KNK6"></script>
+    <script>
+      window.dataLayer = window.dataLayer || [];
+      function gtag(){dataLayer.push(arguments);}
+      gtag('js', new Date());
+
+      gtag('config', 'G-DYDCM8KNK6');
+    </script>
 
   </head>
 
@@ -177,11 +177,19 @@
       <h2>Featured Work:</h2>
       <container id="projects">
           <project-card slug="store-portal"></project-card>
-          <project-card slug="optml-shipper"></project-card>
           <project-card slug="dawg-walks"></project-card>
           <project-card slug="link-cc"></project-card>
       </container>
-      
+
+      <h2>Built with AI</h2>
+      <container class="projects_list">
+        <project-card slug="waybetterboxd"></project-card>
+        <project-card slug="optml-shipper"></project-card>
+      </container>
+      <h2>Write to me:</h2>
+      <container class="full-width">
+        <div id="typewriter-contact"></div>
+      </container>
       <h2>More Projects:</h2>
       <container class="projects_list">
         <project-card slug="pebble-ai"></project-card>
@@ -192,16 +200,12 @@
         <project-card slug="synq"></project-card>
         <project-card slug="jordache"></project-card>
         <project-card slug="stay-home"></project-card>
-        <project-card slug="tact-tiles"></project-card>
         <project-card slug="rent-cap"></project-card>
-        <project-card slug="honor-code"></project-card>
+        <project-card slug="tact-tiles"></project-card>
         <project-card slug="tote"></project-card>
         <project-card slug="animations"></project-card>
       </container>
-      <h2>Write to me:</h2>
-      <container class="full-width">
-        <div id="typewriter-contact"></div>
-      </container>
+
     </wrapper>
     <!--unified js-->
    <script src="js/unified.js" 
