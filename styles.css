@@ -499,11 +499,9 @@ wrapper {
     padding-top:0px;
     padding-left:5%;
     padding-right:5%;
-    padding-bottom: 20vh;
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap:5vw;
     background: var(--Fill);
     color: var(--Text);
 
@@ -528,6 +526,25 @@ container.flex_wrapper {
     width:100%;
 }
 
+section {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+
+    padding: 5vw 5%;
+    gap: 1vh;
+    width: 100vw;
+    box-sizing: border-box;
+}
+
+section.bg-red { background: #f8d0d0; }
+section.bg-orange { background: #f8e0c8; }
+section.bg-yellow { background: #f8f0c0; }
+section.bg-green { background: #c8f0d0; }
+section.bg-blue { background: #c8d8f8; }
+section.bg-indigo { background: #d0c8f0; }
+section.bg-violet { background: #e8c8f0; }
+
 container.flex_stacker {
     display: flex;
     flex-direction: column;
@@ -546,6 +563,92 @@ container.flex_stacker {
 img.spinner{
     height:150px;
     width:150px;
+}
+
+/* Footer */
+site-footer {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 32px;
+    padding: 24px 5%;
+    width: 100vw;
+    box-sizing: border-box;
+    background: var(--Surface);
+    font-family: 'Work Sans', sans-serif;
+    font-size: 14px;
+    padding-bottom: 20vh;
+}
+
+site-footer a {
+    color: var(--onSurface, #fff);
+    text-decoration: none;
+    font-weight: 600;
+    transition: opacity 0.2s;
+}
+
+site-footer a:hover {
+    opacity: 0.6;
+}
+
+/* Contact Modal Overlay */
+.contact-modal-backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.6);
+    backdrop-filter: blur(4px);
+    z-index: 9999;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: flex-end;
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 0.3s ease, visibility 0.3s ease;
+    overflow: hidden;
+    padding: 0 24px;
+}
+
+.contact-modal-backdrop.show {
+    opacity: 1;
+    visibility: visible;
+}
+
+.contact-modal-inner {
+    max-width: 700px;
+    width: 100%;
+    position: relative;
+    flex-shrink: 0;
+}
+
+/* Paper scrolls upward above the base */
+.contact-modal-inner .tw-paper-wrap {
+    overflow-y: auto;
+    max-height: 45vh;
+}
+
+/* Plinth: invisible block that holds the typewriter at center */
+.contact-modal-plinth {
+    flex-shrink: 0;
+    height: 35vh;
+    width: 100%;
+}
+
+.contact-modal-close {
+    position: fixed;
+    top: 16px;
+    right: 16px;
+    background: rgba(0, 0, 0, 0.5);
+    border: none;
+    color: #fff;
+    font-size: 28px;
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    cursor: pointer;
+    font-family: 'Work Sans', sans-serif;
+    line-height: 1;
+    z-index: 10001;
 }
 
 .project_summary{

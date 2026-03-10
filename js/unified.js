@@ -515,7 +515,7 @@ createConstructionDialog();
       --tw-ink-faded: #5c544a;
       --tw-red: #c0392b;
       font-family: 'Courier Prime', 'Courier New', monospace;
-      max-width: 1200px;
+      max-width: 800px;
       width: 100%;
       margin: 0 auto;
       user-select: none;
@@ -532,7 +532,7 @@ createConstructionDialog();
     .tw-paper {
       background: var(--tw-paper);
       padding: 36px 44px 16px;
-      min-height: 280px;
+      min-height: 110px;
       position: relative;
       border-radius: 3px 3px 0 0;
       box-shadow:
@@ -727,9 +727,48 @@ createConstructionDialog();
     .tw-controls {
       margin: 16px 28px 0;
       display: flex;
+      flex-direction: row;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 12px;
+    }
+    .tw-from-row {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+    .tw-from-row label {
+      font-family: 'Special Elite', 'Courier New', monospace;
+      font-size: 12px;
+      color: #9a9185;
+      white-space: nowrap;
+    }
+    .tw-from-row input {
+      font-family: 'Special Elite', 'Courier New', monospace;
+      font-size: 13px;
+      color: #9a9185;
+      background: transparent;
+      border: none;
+      border-bottom: 1.5px solid rgba(154, 145, 133, 0.3);
+      outline: none;
+      padding: 0 4px 4px;
+      line-height: 24px;
+    }
+    .tw-from-row input:focus {
+      border-bottom-color: rgba(154, 145, 133, 0.7);
+      color: #d4cec6;
+    }
+    .tw-from-row input::placeholder {
+      color: rgba(154, 145, 133, 0.4);
+      font-style: italic;
+    }
+    .tw-send-col {
+      display: flex;
       flex-direction: column;
       align-items: flex-end;
       gap: 8px;
+      flex-shrink: 0;
     }
     .tw-enter-key {
       width: 160px;
@@ -931,12 +970,8 @@ createConstructionDialog();
         <div class="tw-paper">
           <div class="tw-date">${dateStr}</div>
           <div class="tw-form">
-            <div class="tw-form-row">
-              <label for="twEmail">From:</label>
-              <input type="email" id="twEmail" name="email" placeholder="your@email.com" required autocomplete="email">
-            </div>
             <label class="tw-message-label">Message:</label>
-            <textarea class="tw-message-area" id="twMessage" name="message" placeholder="Write your message here. Maybe it begins, &#34;Dear Aidan...&#34;" required></textarea>
+            <textarea class="tw-message-area" id="twMessage" name="message" rows="1" placeholder="Write your message here. Maybe it begins, &#34;Dear Aidan...&#34;" required></textarea>
           </div>
         </div>
       </div>
@@ -947,11 +982,17 @@ createConstructionDialog();
           <div class="tw-platen-knob"></div>
         </div>
         <div class="tw-controls">
-          <button class="tw-enter-key" id="twSend" type="button">
-            <span>Send</span>
-            <span class="tw-enter-arrow">✉</span>
-          </button>
-          <div class="tw-status" id="twStatus"></div>
+          <div class="tw-from-row">
+            <label for="twEmail">From:</label>
+            <input type="email" id="twEmail" name="email" placeholder="your@email.com" required autocomplete="email">
+          </div>
+          <div class="tw-send-col">
+            <button class="tw-enter-key" id="twSend" type="button">
+              <span>Send</span>
+              <span class="tw-enter-arrow">✉</span>
+            </button>
+            <div class="tw-status" id="twStatus"></div>
+          </div>
         </div>
         <div class="tw-brand">
           <span class="tw-brand-name">Contact</span>
@@ -1015,6 +1056,13 @@ createConstructionDialog();
       messageInput.style.height = messageInput.scrollHeight + 'px';
 
       requestAnimationFrame(() => {
+        // If inside the contact modal, scroll paper to bottom
+        const modalPaperWrap = document.querySelector('.contact-modal-inner .tw-paper-wrap');
+        if (modalPaperWrap) {
+          modalPaperWrap.scrollTop = modalPaperWrap.scrollHeight;
+          return;
+        }
+
         const newBodyRect = twBody.getBoundingClientRect();
         const drift = newBodyRect.top - bodyViewportTop;
         if (Math.abs(drift) > 1) {
@@ -1138,3 +1186,80 @@ createConstructionDialog();
   });
 
 })();
+
+// ============ Site Footer Component ============
+
+class SiteFooter extends HTMLElement {
+    connectedCallback() {
+        const linkedinUrl = this.getAttribute('linkedin') || 'https://www.linkedin.com/in/aidanoday/';
+
+        this.innerHTML = `
+            <a href="index.html">Home</a>
+            <a href="#" class="footer-contact-link">Contact</a>
+            <a href="${linkedinUrl}" target="_blank" rel="noopener noreferrer">LinkedIn</a>
+        `;
+
+        // Create modal backdrop (once, on body)
+        if (!document.getElementById('contactModalBackdrop')) {
+            const backdrop = document.createElement('div');
+            backdrop.className = 'contact-modal-backdrop';
+            backdrop.id = 'contactModalBackdrop';
+            backdrop.innerHTML = `
+                <div class="contact-modal-inner">
+                    <button class="contact-modal-close" aria-label="Close">&times;</button>
+                    <div id="typewriter-contact-modal"></div>
+                </div>
+                <div class="contact-modal-plinth"></div>
+            `;
+            document.body.appendChild(backdrop);
+
+            // Close handlers
+            backdrop.querySelector('.contact-modal-close').addEventListener('click', () => closeContactModal());
+            backdrop.addEventListener('click', (e) => {
+                if (e.target === backdrop) closeContactModal();
+            });
+            document.addEventListener('keydown', (e) => {
+                if (e.key === 'Escape' && backdrop.classList.contains('show')) {
+                    closeContactModal();
+                }
+            });
+        }
+
+        // Contact link opens modal
+        this.querySelector('.footer-contact-link').addEventListener('click', (e) => {
+            e.preventDefault();
+            openContactModal();
+        });
+    }
+}
+
+function openContactModal() {
+    const backdrop = document.getElementById('contactModalBackdrop');
+    const modalTarget = document.getElementById('typewriter-contact-modal');
+    const widget = document.querySelector('.tw-widget');
+
+    if (widget && modalTarget && !modalTarget.hasChildNodes()) {
+        // Store original parent so we can move it back
+        widget._originalParent = widget.parentElement;
+        modalTarget.appendChild(widget);
+    }
+
+    backdrop.classList.add('show');
+    document.body.style.overflow = 'hidden';
+}
+
+function closeContactModal() {
+    const backdrop = document.getElementById('contactModalBackdrop');
+    const widget = document.querySelector('.tw-widget');
+
+    // Move widget back to its original location
+    if (widget && widget._originalParent) {
+        widget._originalParent.appendChild(widget);
+        delete widget._originalParent;
+    }
+
+    backdrop.classList.remove('show');
+    document.body.style.overflow = '';
+}
+
+customElements.define('site-footer', SiteFooter);
