@@ -1,0 +1,2757 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Spider Web Weaving</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            background: #f5f5dc;
+            font-family: Arial, sans-serif;
+        }
+        
+        canvas {
+            display: block;
+            width: 100%;
+            height: 100vh;
+        }
+        
+        .controls {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            background: rgba(60, 60, 60, 0.9);
+            padding: 15px;
+            border-radius: 8px;
+            color: #f5f5dc;
+            max-width: 300px;
+        }
+        
+        button {
+            background: #3c3c3c;
+            color: #f5f5dc;
+            border: 2px solid #2a2a2a;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 14px;
+            margin-top: 10px;
+        }
+        
+        button:hover {
+            background: #2a2a2a;
+        }
+        
+        .instructions {
+            font-size: 12px;
+            margin-top: 10px;
+            opacity: 0.8;
+        }
+    </style>
+</head>
+<body>
+    <div class="controls">
+        <div>Spider Web Simulator</div>
+        <button onclick="regenerate()">Regenerate Branches</button>
+        <button onclick="startWeaving()">Start Web</button>
+        <div class="instructions">Click "Start Web" to begin</div>
+        <div style="margin-top: 15px;">
+            <label>
+                <input type="checkbox" id="windToggle" checked>
+                Wind: <span id="windStatus">On</span>
+            </label>
+        </div>
+        <div id="debugInfo" style="margin-top: 15px; font-size: 11px; opacity: 0.9; border-top: 1px solid #555; padding-top: 10px;">
+            Debug info will appear here...
+        </div>
+    </div>
+    <canvas id="canvas"></canvas>
+    
+    <script>
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
+        
+        let width, height;
+        let branches = [];
+        let spider;
+        let silkStrands = [];
+        let windEnabled = true;
+        let windLevel = 1;
+        let windForce = { x: 0.1, y: 0.01 };
+        let webNodes = [];
+        
+        function updateWindForce() {
+            windForce.x = (windLevel / 10) * 0.125;
+            windForce.y = (windLevel / 10) * 0.0125;
+        }
+        
+        function resizeCanvas() {
+            width = canvas.width = window.innerWidth;
+            height = canvas.height = window.innerHeight;
+        }
+        
+        class WebNode {
+            constructor(segment1, strand1, segmentIndex1, segment2, strand2, segmentIndex2) {
+                this.segment1 = segment1;
+                this.strand1 = strand1;
+                this.segmentIndex1 = segmentIndex1;
+                this.segment2 = segment2;
+                this.strand2 = strand2;
+                this.segmentIndex2 = segmentIndex2;
+                this.active = true;
+                
+                segment1.connectedNodes.push(this);
+                segment2.connectedNodes.push(this);
+            }
+            
+            update() {
+                if (!this.active) return;
+                
+                if (!this.segment1 || !this.segment2) {
+                    this.active = false;
+                    return;
+                }
+                
+                const avgX = (this.segment1.x + this.segment2.x) / 2;
+                const avgY = (this.segment1.y + this.segment2.y) / 2;
+                
+                if (!this.segment1.fixed && !this.segment2.fixed) {
+                    this.segment1.x = avgX;
+                    this.segment1.y = avgY;
+                    this.segment2.x = avgX;
+                    this.segment2.y = avgY;
+                } else if (!this.segment1.fixed) {
+                    this.segment1.x = this.segment2.x;
+                    this.segment1.y = this.segment2.y;
+                } else if (!this.segment2.fixed) {
+                    this.segment2.x = this.segment1.x;
+                    this.segment2.y = this.segment1.y;
+                }
+            }
+            
+            draw() {
+                if (!this.active || !this.segment1 || !this.segment2) return;
+                
+                ctx.fillStyle = '#8B4513';
+                ctx.beginPath();
+                ctx.arc(this.segment1.x, this.segment1.y, 3, 0, Math.PI * 2);
+                ctx.fill();
+            }
+        }
+
+        // ==================== WalkableGraph ====================
+        // Graph abstraction over all walkable surfaces (silk strands + branches)
+        // Used for pathfinding so the spider can walk to anchor points
+
+        class WalkableGraph {
+            constructor() {
+                this.nodes = []; // [{id, x, y, type, ref}]
+                this.edges = []; // [{from, to, distance, walkable: {type, ref, startIdx, endIdx}}]
+                this.adjacency = new Map(); // nodeId -> [{toId, edgeIdx}]
+            }
+
+            addNode(x, y, type, ref = null) {
+                const id = this.nodes.length;
+                this.nodes.push({ id, x, y, type, ref });
+                this.adjacency.set(id, []);
+                return id;
+            }
+
+            addEdge(fromId, toId, distance, walkable) {
+                const idx = this.edges.length;
+                this.edges.push({ from: fromId, to: toId, distance, walkable });
+                this.adjacency.get(fromId).push({ toId, edgeIdx: idx });
+                this.adjacency.get(toId).push({ toId: fromId, edgeIdx: idx });
+            }
+
+            findNearestNode(x, y, maxDist = 30) {
+                let best = -1;
+                let bestDist = maxDist;
+                for (const node of this.nodes) {
+                    const dx = node.x - x;
+                    const dy = node.y - y;
+                    const d = Math.sqrt(dx * dx + dy * dy);
+                    if (d < bestDist) {
+                        bestDist = d;
+                        best = node.id;
+                    }
+                }
+                return best;
+            }
+
+            findShortestPath(fromId, toId, excludeNodes = null) {
+                if (fromId < 0 || toId < 0) return null;
+
+                const dist = new Array(this.nodes.length).fill(Infinity);
+                const prev = new Array(this.nodes.length).fill(-1);
+                const prevEdge = new Array(this.nodes.length).fill(-1);
+                const visited = new Set();
+                // Pre-mark excluded nodes as visited so they're never expanded
+                if (excludeNodes) {
+                    for (const id of excludeNodes) {
+                        if (id !== fromId && id !== toId) visited.add(id);
+                    }
+                }
+
+                dist[fromId] = 0;
+
+                // Simple priority queue via sorted array (graph is small)
+                const pq = [{ id: fromId, d: 0 }];
+
+                while (pq.length > 0) {
+                    pq.sort((a, b) => a.d - b.d);
+                    const { id: u } = pq.shift();
+
+                    if (visited.has(u)) continue;
+                    visited.add(u);
+
+                    if (u === toId) break;
+
+                    for (const { toId: v, edgeIdx } of this.adjacency.get(u)) {
+                        if (visited.has(v)) continue;
+                        const edge = this.edges[edgeIdx];
+                        const newDist = dist[u] + edge.distance;
+                        if (newDist < dist[v]) {
+                            dist[v] = newDist;
+                            prev[v] = u;
+                            prevEdge[v] = edgeIdx;
+                            pq.push({ id: v, d: newDist });
+                        }
+                    }
+                }
+
+                if (dist[toId] === Infinity) return null;
+
+                // Reconstruct path as WalkSteps
+                const path = [];
+                let cur = toId;
+                while (cur !== fromId) {
+                    const edge = this.edges[prevEdge[cur]];
+                    const fromNode = this.nodes[prev[cur]];
+                    const toNode = this.nodes[cur];
+                    path.unshift({
+                        walkable: edge.walkable,
+                        fromNode: fromNode,
+                        toNode: toNode,
+                        distance: edge.distance
+                    });
+                    cur = prev[cur];
+                }
+
+                return path;
+            }
+
+            build(allStrands, allBranches, convergencePoint) {
+                this.nodes = [];
+                this.edges = [];
+                this.adjacency = new Map();
+
+                const nodeMap = new Map(); // "x,y" -> nodeId (for deduplication)
+                const SNAP = 8; // snap distance for merging nearby points
+
+                const getOrCreateNode = (x, y, type, ref) => {
+                    // Check for existing nearby node
+                    for (const node of this.nodes) {
+                        const dx = node.x - x;
+                        const dy = node.y - y;
+                        if (Math.sqrt(dx * dx + dy * dy) < SNAP) {
+                            return node.id;
+                        }
+                    }
+                    return this.addNode(x, y, type, ref);
+                };
+
+                // Add convergence point
+                const centerNodeId = getOrCreateNode(
+                    convergencePoint.x, convergencePoint.y, 'center', null
+                );
+
+                // Add strand endpoints and compute strand edge distances
+                for (const strand of allStrands) {
+                    if (!strand.segments || strand.segments.length < 2) continue;
+                    if (strand instanceof FloatedSilk && !strand.attached) continue;
+                    if (strand instanceof DraggedSilk && !strand.attached) continue;
+                    if (strand instanceof RappelSilk && !strand.attached) continue;
+
+                    const startSeg = strand.segments[0];
+                    const endSeg = strand.segments[strand.segments.length - 1];
+
+                    const startId = getOrCreateNode(startSeg.x, startSeg.y, 'strand_endpoint', strand);
+                    const endId = getOrCreateNode(endSeg.x, endSeg.y, 'strand_endpoint', strand);
+
+                    // Compute total walking distance along strand
+                    let totalDist = 0;
+                    for (let i = 0; i < strand.segments.length - 1; i++) {
+                        const s1 = strand.segments[i];
+                        const s2 = strand.segments[i + 1];
+                        const dx = s2.x - s1.x;
+                        const dy = s2.y - s1.y;
+                        totalDist += Math.sqrt(dx * dx + dy * dy);
+                    }
+
+                    if (startId !== endId) {
+                        this.addEdge(startId, endId, totalDist, {
+                            type: 'strand',
+                            ref: strand,
+                            startIdx: 0,
+                            endIdx: strand.segments.length - 1
+                        });
+                    }
+                }
+
+                // Add branch edges (recursive)
+                const addBranchEdges = (branch) => {
+                    const startId = getOrCreateNode(branch.x1, branch.y1, 'branch_point', branch);
+                    const endId = getOrCreateNode(branch.x2, branch.y2, 'branch_point', branch);
+
+                    const dx = branch.x2 - branch.x1;
+                    const dy = branch.y2 - branch.y1;
+                    const dist = Math.sqrt(dx * dx + dy * dy);
+
+                    if (startId !== endId && dist > 0) {
+                        this.addEdge(startId, endId, dist, {
+                            type: 'branch',
+                            ref: branch,
+                            startIdx: 0,
+                            endIdx: 1
+                        });
+                    }
+
+                    for (const child of branch.children) {
+                        addBranchEdges(child);
+                    }
+                };
+
+                for (const branch of allBranches) {
+                    addBranchEdges(branch);
+                }
+
+                // Connect strand endpoints to the branches they sit on.
+                // A strand endpoint at (px, py) may land in the middle of a branch
+                // segment, not at a branch node. Project it onto every branch edge
+                // and insert it into the branch path if close enough.
+                const projectOnBranch = (px, py, branch) => {
+                    const dx = branch.x2 - branch.x1;
+                    const dy = branch.y2 - branch.y1;
+                    const len2 = dx * dx + dy * dy;
+                    if (len2 === 0) return null;
+                    let t = ((px - branch.x1) * dx + (py - branch.y1) * dy) / len2;
+                    t = Math.max(0, Math.min(1, t));
+                    const projX = branch.x1 + dx * t;
+                    const projY = branch.y1 + dy * t;
+                    const dist = Math.hypot(px - projX, py - projY);
+                    return { dist, t, branch, projX, projY };
+                };
+
+                const allBranchSegments = [];
+                const collectBranches = (branch) => {
+                    const dx = branch.x2 - branch.x1;
+                    const dy = branch.y2 - branch.y1;
+                    if (dx * dx + dy * dy > 1) allBranchSegments.push(branch);
+                    for (const child of branch.children) collectBranches(child);
+                };
+                for (const b of allBranches) collectBranches(b);
+
+                for (const node of this.nodes) {
+                    if (node.type !== 'strand_endpoint' && node.type !== 'center') continue;
+
+                    for (const branch of allBranchSegments) {
+                        const proj = projectOnBranch(node.x, node.y, branch);
+                        if (!proj || proj.dist > 15) continue;
+
+                        // Find the graph nodes for this branch's endpoints
+                        const bStartId = this.findNearestNode(branch.x1, branch.y1, SNAP + 1);
+                        const bEndId = this.findNearestNode(branch.x2, branch.y2, SNAP + 1);
+
+                        if (bStartId >= 0 && bStartId !== node.id) {
+                            const d = Math.hypot(node.x - this.nodes[bStartId].x, node.y - this.nodes[bStartId].y);
+                            const alreadyConnected = this.adjacency.get(node.id).some(e => e.toId === bStartId);
+                            if (!alreadyConnected) {
+                                this.addEdge(node.id, bStartId, d, {
+                                    type: 'branch', ref: branch, startIdx: 0, endIdx: 1
+                                });
+                            }
+                        }
+                        if (bEndId >= 0 && bEndId !== node.id) {
+                            const d = Math.hypot(node.x - this.nodes[bEndId].x, node.y - this.nodes[bEndId].y);
+                            const alreadyConnected = this.adjacency.get(node.id).some(e => e.toId === bEndId);
+                            if (!alreadyConnected) {
+                                this.addEdge(node.id, bEndId, d, {
+                                    type: 'branch', ref: branch, startIdx: 0, endIdx: 1
+                                });
+                            }
+                        }
+                    }
+                }
+
+                // Also add general proximity edges for very close nodes
+                const PROXIMITY = 15;
+                for (let i = 0; i < this.nodes.length; i++) {
+                    for (let j = i + 1; j < this.nodes.length; j++) {
+                        const ni = this.nodes[i];
+                        const nj = this.nodes[j];
+                        const d = Math.hypot(ni.x - nj.x, ni.y - nj.y);
+                        if (d < PROXIMITY) {
+                            const alreadyConnected = this.adjacency.get(i).some(e => e.toId === j);
+                            if (!alreadyConnected) {
+                                this.addEdge(i, j, d, {
+                                    type: 'proximity',
+                                    ref: null,
+                                    startIdx: 0,
+                                    endIdx: 0
+                                });
+                            }
+                        }
+                    }
+                }
+
+                return centerNodeId;
+            }
+        }
+
+        // ==================== AnchorFinder ====================
+        // Find anchor points on branches or strands by ray-casting from center
+
+        function findAnchorOnBranchOrStrand(centerX, centerY, angle, allBranches, allStrands) {
+            const rayDx = Math.cos(angle);
+            const rayDy = Math.sin(angle);
+            const RAY_LENGTH = 2000;
+
+            let bestHit = null;
+            let bestDist = Infinity;
+
+            // Helper: test ray against a line segment (x1,y1)-(x2,y2)
+            const testSegment = (x1, y1, x2, y2, sourceRef, sourceType) => {
+                const bdx = x2 - x1;
+                const bdy = y2 - y1;
+
+                const denom = rayDx * bdy - rayDy * bdx;
+                if (Math.abs(denom) < 0.001) return; // parallel
+
+                const t = ((x1 - centerX) * bdy - (y1 - centerY) * bdx) / denom;
+                const u = ((x1 - centerX) * rayDy - (y1 - centerY) * rayDx) / denom;
+
+                if (t > 20 && t < RAY_LENGTH && u >= 0 && u <= 1) {
+                    if (t < bestDist) {
+                        bestDist = t;
+                        const hitX = centerX + rayDx * t;
+                        const hitY = centerY + rayDy * t;
+                        bestHit = { x: hitX, y: hitY, source: sourceRef, sourceType: sourceType, u: u };
+                    }
+                }
+            };
+
+            // Check all branch segments (recursive)
+            const checkBranch = (branch) => {
+                testSegment(branch.x1, branch.y1, branch.x2, branch.y2, branch, 'branch');
+                for (const child of branch.children) checkBranch(child);
+            };
+            for (const branch of allBranches) {
+                checkBranch(branch);
+            }
+
+            // Check all attached strands — test each actual segment pair so we hit
+            // the real (sagging) strand geometry, not a straight line between endpoints
+            for (const strand of allStrands) {
+                if (!strand.segments || strand.segments.length < 2) continue;
+                if (strand instanceof FloatedSilk && !strand.attached) continue;
+                if (strand instanceof DraggedSilk && !strand.attached) continue;
+                if (strand instanceof RappelSilk && !strand.attached) continue;
+
+                for (let i = 0; i < strand.segments.length - 1; i++) {
+                    const s1 = strand.segments[i];
+                    const s2 = strand.segments[i + 1];
+                    testSegment(s1.x, s1.y, s2.x, s2.y, strand, 'strand');
+                }
+            }
+
+            // For strand hits, snap to the nearest actual segment point
+            if (bestHit && bestHit.sourceType === 'strand') {
+                const strand = bestHit.source;
+                let closestDist = Infinity;
+                let closestIdx = 0;
+                for (let i = 0; i < strand.segments.length; i++) {
+                    const seg = strand.segments[i];
+                    const dx = seg.x - bestHit.x;
+                    const dy = seg.y - bestHit.y;
+                    const d = dx * dx + dy * dy;
+                    if (d < closestDist) {
+                        closestDist = d;
+                        closestIdx = i;
+                    }
+                }
+                bestHit.x = strand.segments[closestIdx].x;
+                bestHit.y = strand.segments[closestIdx].y;
+                bestHit.segmentIndex = closestIdx;
+            }
+
+            return bestHit;
+        }
+
+        // Find largest angular gap between existing spokes and return bisection angle
+        function findLargestSpokeGap(spokes) {
+            if (spokes.length < 2) return 0;
+
+            const angles = spokes.map(s => s.angle).sort((a, b) => a - b);
+
+            let maxGap = 0;
+            let bisectAngle = 0;
+
+            for (let i = 0; i < angles.length; i++) {
+                const next = (i + 1) % angles.length;
+                let gap;
+                if (next === 0) {
+                    // Wrap-around gap
+                    gap = (2 * Math.PI) - angles[angles.length - 1] + angles[0];
+                } else {
+                    gap = angles[next] - angles[i];
+                }
+
+                if (gap > maxGap) {
+                    maxGap = gap;
+                    if (next === 0) {
+                        bisectAngle = angles[angles.length - 1] + gap / 2;
+                        if (bisectAngle > Math.PI) bisectAngle -= 2 * Math.PI;
+                    } else {
+                        bisectAngle = angles[i] + gap / 2;
+                    }
+                }
+            }
+
+            return bisectAngle;
+        }
+
+        function findIntersections(strand1, strand2) {
+            const nodes = [];
+            const threshold = 8;
+            
+            const strand1CanStick = strand1.canStick !== false;
+            const strand2CanStick = strand2.canStick !== false;
+            
+            for (let i = 0; i < strand1.segments.length; i++) {
+                const seg1 = strand1.segments[i];
+                
+                const seg1Allowed = strand1CanStick || 
+                                   (strand1.explicitConnections && strand1.explicitConnections.has(i));
+                
+                if (!seg1Allowed) continue;
+                
+                if (strand1 instanceof DraggedSilk && !strand1.attached) continue;
+                
+                for (let j = 0; j < strand2.segments.length; j++) {
+                    const seg2 = strand2.segments[j];
+                    
+                    const seg2Allowed = strand2CanStick || 
+                                       (strand2.explicitConnections && strand2.explicitConnections.has(j));
+                    
+                    if (!seg2Allowed) continue;
+                    
+                    if (strand2 instanceof DraggedSilk && !strand2.attached) continue;
+                    
+                    if (strand1.canStick && strand1 instanceof FloatedSilk && !strand1.attached) {
+                        if (i !== strand1.segments.length - 1) continue;
+                    }
+                    if (strand2.canStick && strand2 instanceof FloatedSilk && !strand2.attached) {
+                        if (j !== strand2.segments.length - 1) continue;
+                    }
+                    
+                    const dx = seg2.x - seg1.x;
+                    const dy = seg2.y - seg1.y;
+                    const dist = Math.sqrt(dx * dx + dy * dy);
+                    
+                    if (dist < threshold) {
+                        const alreadyExists = webNodes.some(node => 
+                            (node.segment1 === seg1 && node.segment2 === seg2) ||
+                            (node.segment1 === seg2 && node.segment2 === seg1)
+                        );
+                        
+                        if (!alreadyExists) {
+                            const node = new WebNode(seg1, strand1, i, seg2, strand2, j);
+                            nodes.push(node);
+                        }
+                    }
+                }
+            }
+            
+            return nodes;
+        }
+        
+        function updateWebConnections() {
+            webNodes = webNodes.filter(node => node.active);
+            
+            for (let i = 0; i < silkStrands.length; i++) {
+                for (let j = i + 1; j < silkStrands.length; j++) {
+                    const newNodes = findIntersections(silkStrands[i], silkStrands[j]);
+                    webNodes.push(...newNodes);
+                }
+            }
+            
+            for (let node of webNodes) {
+                node.update();
+            }
+        }
+        
+        class SilkSegment {
+            constructor(x, y, hasInitialVelocity = false) {
+                this.x = x;
+                this.y = y;
+                this.vx = hasInitialVelocity ? 2 : 0;
+                this.vy = hasInitialVelocity ? 0 : 0;
+                this.fixed = false;
+                this.connectedNodes = [];
+            }
+            
+            update(applyWind = false) {
+                if (this.fixed) return;
+                
+                if (applyWind && windEnabled) {
+                    this.vx += windForce.x;
+                    this.vy += windForce.y;
+                }
+                this.vx *= 0.98;
+                this.vy *= 0.98;
+                this.x += this.vx;
+                this.y += this.vy;
+            }
+        }
+        
+        class FloatedSilk {
+            constructor(startX, startY) {
+                this.segments = [new SilkSegment(startX, startY, true)];
+                this.segments[0].fixed = true;
+                this.maxSegments = 80;
+                this.segmentLength = 10;
+                this.attached = false;
+                this.tightening = false;
+                this.targetLength = null;
+                this.canStick = true;
+            }
+            
+            addSegment() {
+                if (this.segments.length >= this.maxSegments) return false;
+                const last = this.segments[this.segments.length - 1];
+                const newSeg = new SilkSegment(last.x + 5, last.y, false);
+                this.segments.push(newSeg);
+                return true;
+            }
+            
+            getTip() {
+                return this.segments[this.segments.length - 1];
+            }
+            
+            attach(x, y) {
+                const tip = this.getTip();
+                tip.x = x;
+                tip.y = y;
+                tip.fixed = true;
+                this.attached = true;
+                
+                let totalDist = 0;
+                for (let i = 0; i < this.segments.length - 1; i++) {
+                    const s1 = this.segments[i];
+                    const s2 = this.segments[i + 1];
+                    const dx = s2.x - s1.x;
+                    const dy = s2.y - s1.y;
+                    totalDist += Math.sqrt(dx * dx + dy * dy);
+                }
+                this.targetLength = totalDist * 0.8;
+                this.tightening = true;
+            }
+            
+            update() {
+                if (this.attached) {
+                    for (let seg of this.segments) {
+                        if (!seg.fixed) {
+                            seg.vy += 0.02;
+                        }
+                    }
+                }
+                
+                for (let seg of this.segments) {
+                    seg.update(!this.attached);
+                }
+                
+                for (let iter = 0; iter < 15; iter++) {
+                    for (let i = 0; i < this.segments.length - 1; i++) {
+                        const s1 = this.segments[i];
+                        const s2 = this.segments[i + 1];
+                        const dx = s2.x - s1.x;
+                        const dy = s2.y - s1.y;
+                        const dist = Math.sqrt(dx * dx + dy * dy);
+                        if (dist === 0) continue;
+                        
+                        const diff = (this.segmentLength - dist) / dist;
+                        const offsetX = dx * diff * 0.9;
+                        const offsetY = dy * diff * 0.9;
+                        
+                        if (!s1.fixed) {
+                            s1.x -= offsetX;
+                            s1.y -= offsetY;
+                        }
+                        if (!s2.fixed) {
+                            s2.x += offsetX;
+                            s2.y += offsetY;
+                        }
+                    }
+                }
+                
+                if (this.tightening && this.attached) {
+                    const start = this.segments[0];
+                    const end = this.segments[this.segments.length - 1];
+                    const dx = end.x - start.x;
+                    const dy = end.y - start.y;
+                    const currentDist = Math.sqrt(dx * dx + dy * dy);
+                    
+                    if (currentDist > this.targetLength) {
+                        for (let i = 1; i < this.segments.length - 1; i++) {
+                            const t = i / (this.segments.length - 1);
+                            const targetX = start.x + dx * t;
+                            const targetY = start.y + dy * t;
+                            const seg = this.segments[i];
+                            seg.x += (targetX - seg.x) * 0.05;
+                            seg.y += (targetY - seg.y) * 0.05;
+                        }
+                    } else {
+                        this.tightening = false;
+                    }
+                }
+            }
+            
+            draw() {
+                ctx.strokeStyle = '#3c3c3c';
+                ctx.lineWidth = 1;
+                ctx.beginPath();
+                ctx.moveTo(this.segments[0].x, this.segments[0].y);
+                for (let i = 1; i < this.segments.length; i++) {
+                    ctx.lineTo(this.segments[i].x, this.segments[i].y);
+                }
+                ctx.stroke();
+                
+                ctx.fillStyle = '#FF0000';
+                for (let i = 0; i < this.segments.length; i++) {
+                    ctx.beginPath();
+                    ctx.arc(this.segments[i].x, this.segments[i].y, 2, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+                
+                if (!this.attached) {
+                    const tip = this.getTip();
+                    ctx.fillStyle = '#3c3c3c';
+                    ctx.beginPath();
+                    ctx.arc(tip.x, tip.y, 3, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+                
+                ctx.fillStyle = '#3c3c3c';
+                ctx.beginPath();
+                ctx.arc(this.segments[0].x, this.segments[0].y, 3, 0, Math.PI * 2);
+                ctx.fill();
+                
+                if (this.attached) {
+                    const tip = this.getTip();
+                    ctx.beginPath();
+                    ctx.arc(tip.x, tip.y, 3, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+            }
+        }
+        
+        class DraggedSilk {
+            constructor(startX, startY) {
+                this.segments = [new SilkSegment(startX, startY, false)];
+                this.segments[0].fixed = true;
+                this.maxSegments = 100;
+                this.segmentLength = 10;
+                this.attached = false;
+                this.spiderAttached = true;
+                this.spiderSegmentIndex = -1;
+                this.canStick = false;
+                this.explicitConnections = new Set();
+                this.thread0EndpointSegment = null;
+            }
+            
+            addSegment() {
+                if (this.segments.length >= this.maxSegments) return false;
+                const last = this.segments[this.segments.length - 1];
+                const newSeg = new SilkSegment(last.x, last.y, false);
+                this.segments.push(newSeg);
+                return true;
+            }
+            
+            getTip() {
+                return this.segments[this.segments.length - 1];
+            }
+            
+            updateTipPosition(x, y) {
+                if (this.spiderAttached && !this.attached) {
+                    const tip = this.getTip();
+                    tip.x = x;
+                    tip.y = y;
+                    tip.fixed = false;
+                }
+            }
+            
+            setSpiderPosition(progress) {
+                const idx = Math.floor(progress * (this.segments.length - 1));
+                this.spiderSegmentIndex = idx;
+            }
+            
+            attach(x, y) {
+                const tip = this.getTip();
+                tip.x = x;
+                tip.y = y;
+                tip.fixed = true;
+                this.attached = true;
+                this.spiderAttached = false;
+                
+                this.explicitConnections.add(0);
+                this.explicitConnections.add(this.segments.length - 1);
+            }
+            
+            update(spiderX, spiderY, spiderWeight = 0) {
+                for (let i = 0; i < this.segments.length; i++) {
+                    const seg = this.segments[i];
+                    if (!seg.fixed) {
+                        seg.vy += 0.02;
+                    }
+                }
+                
+                if (this.spiderAttached && !this.attached) {
+                    const tip = this.getTip();
+                    tip.x = spiderX;
+                    tip.y = spiderY;
+                    tip.vx = 0;
+                    tip.vy = 0;
+                }
+                
+                if (this.attached && this.thread0EndpointSegment) {
+                    const tip = this.getTip();
+                    tip.x = this.thread0EndpointSegment.x;
+                    tip.y = this.thread0EndpointSegment.y;
+                    tip.vx = 0;
+                    tip.vy = 0;
+                }
+                
+                for (let seg of this.segments) {
+                    seg.update(false);
+                }
+                
+                if (this.spiderSegmentIndex >= 0 && this.spiderSegmentIndex < this.segments.length) {
+                    const spiderSeg = this.segments[this.spiderSegmentIndex];
+                    if (!spiderSeg.fixed) {
+                        spiderSeg.vy += spiderWeight;
+                    }
+                }
+                
+                for (let iter = 0; iter < 15; iter++) {
+                    for (let i = 0; i < this.segments.length - 1; i++) {
+                        const s1 = this.segments[i];
+                        const s2 = this.segments[i + 1];
+                        const dx = s2.x - s1.x;
+                        const dy = s2.y - s1.y;
+                        const dist = Math.sqrt(dx * dx + dy * dy);
+                        if (dist === 0) continue;
+                        
+                        const diff = (this.segmentLength - dist) / dist;
+                        const offsetX = dx * diff * 0.9;
+                        const offsetY = dy * diff * 0.9;
+                        
+                        if (!s1.fixed) {
+                            s1.x -= offsetX;
+                            s1.y -= offsetY;
+                        }
+                        if (!s2.fixed) {
+                            s2.x += offsetX;
+                            s2.y += offsetY;
+                        }
+                    }
+                    
+                    for (let seg of this.segments) {
+                        if (seg.fixed) {
+                            seg.vx = 0;
+                            seg.vy = 0;
+                        }
+                    }
+                }
+                
+                if (this.spiderAttached && !this.attached) {
+                    const tip = this.getTip();
+                    tip.x = spiderX;
+                    tip.y = spiderY;
+                }
+                
+                if (this.attached && this.thread0EndpointSegment) {
+                    const tip = this.getTip();
+                    tip.x = this.thread0EndpointSegment.x;
+                    tip.y = this.thread0EndpointSegment.y;
+                }
+            }
+            
+            draw() {
+                ctx.strokeStyle = '#3c3c3c';
+                ctx.lineWidth = 1;
+                ctx.beginPath();
+                ctx.moveTo(this.segments[0].x, this.segments[0].y);
+                for (let i = 1; i < this.segments.length; i++) {
+                    ctx.lineTo(this.segments[i].x, this.segments[i].y);
+                }
+                ctx.stroke();
+                
+                ctx.fillStyle = '#FF0000';
+                for (let i = 0; i < this.segments.length; i++) {
+                    ctx.beginPath();
+                    ctx.arc(this.segments[i].x, this.segments[i].y, 2, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+                
+                ctx.fillStyle = '#3c3c3c';
+                ctx.beginPath();
+                ctx.arc(this.segments[0].x, this.segments[0].y, 3, 0, Math.PI * 2);
+                ctx.fill();
+                
+                if (this.attached) {
+                    const tip = this.getTip();
+                    ctx.beginPath();
+                    ctx.arc(tip.x, tip.y, 3, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+            }
+        }
+        
+        class RappelSilk {
+            constructor(startX, startY, attachedStrand = null, attachProgress = 0) {
+                this.segments = [new SilkSegment(startX, startY, false)];
+                this.maxSegments = 200;
+                this.segmentLength = 10;
+                this.attached = false;
+                this.spiderHanging = true;
+                this.canStick = false;
+                this.explicitConnections = new Set();
+            }
+            
+            addSegment() {
+                if (this.segments.length >= this.maxSegments) return false;
+                const last = this.segments[this.segments.length - 1];
+                const newSeg = new SilkSegment(last.x, last.y + 2, false);
+                newSeg.vx = 0;
+                newSeg.vy = 0;
+                this.segments.push(newSeg);
+                return true;
+            }
+            
+            getTip() {
+                return this.segments[this.segments.length - 1];
+            }
+            
+            getSpiderPosition() {
+                const tip = this.getTip();
+                return { x: tip.x, y: tip.y };
+            }
+            
+            attach(x, y) {
+                const tip = this.getTip();
+                tip.x = x;
+                tip.y = y;
+                tip.fixed = true;
+                this.attached = true;
+                this.spiderHanging = false;
+                
+                this.explicitConnections.add(0);
+                this.explicitConnections.add(this.segments.length - 1);
+            }
+            
+            update(spiderWeight = 0) {
+                for (let seg of this.segments) {
+                    if (!seg.fixed) {
+                        seg.vy += 0.02;
+                    }
+                    seg.update(false);
+                }
+                
+                if (this.spiderHanging) {
+                    const tip = this.getTip();
+                    if (!tip.fixed) {
+                        tip.vy += spiderWeight;
+                    }
+                }
+                
+                for (let iter = 0; iter < 15; iter++) {
+                    for (let i = 0; i < this.segments.length - 1; i++) {
+                        const s1 = this.segments[i];
+                        const s2 = this.segments[i + 1];
+                        const dx = s2.x - s1.x;
+                        const dy = s2.y - s1.y;
+                        const dist = Math.sqrt(dx * dx + dy * dy);
+                        if (dist === 0) continue;
+                        
+                        const diff = (this.segmentLength - dist) / dist;
+                        const offsetX = dx * diff * 0.9;
+                        const offsetY = dy * diff * 0.9;
+                        
+                        if (!s1.fixed) {
+                            s1.x -= offsetX;
+                            s1.y -= offsetY;
+                        }
+                        if (!s2.fixed) {
+                            s2.x += offsetX;
+                            s2.y += offsetY;
+                        }
+                    }
+                }
+            }
+            
+            draw() {
+                ctx.strokeStyle = '#3c3c3c';
+                ctx.lineWidth = 1;
+                ctx.beginPath();
+                ctx.moveTo(this.segments[0].x, this.segments[0].y);
+                for (let i = 1; i < this.segments.length; i++) {
+                    ctx.lineTo(this.segments[i].x, this.segments[i].y);
+                }
+                ctx.stroke();
+                
+                ctx.fillStyle = '#FF0000';
+                for (let i = 0; i < this.segments.length; i++) {
+                    ctx.beginPath();
+                    ctx.arc(this.segments[i].x, this.segments[i].y, 2, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+                
+                ctx.fillStyle = '#3c3c3c';
+                ctx.beginPath();
+                ctx.arc(this.segments[0].x, this.segments[0].y, 3, 0, Math.PI * 2);
+                ctx.fill();
+                
+                if (this.attached) {
+                    const tip = this.getTip();
+                    ctx.beginPath();
+                    ctx.arc(tip.x, tip.y, 3, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+            }
+        }
+        
+        class Branch {
+            constructor(x1, y1, x2, y2, thickness, generation = 0) {
+                this.x1 = x1;
+                this.y1 = y1;
+                this.x2 = x2;
+                this.y2 = y2;
+                this.thickness = thickness;
+                this.generation = generation;
+                this.children = [];
+            }
+            
+            draw() {
+                ctx.strokeStyle = '#3c3c3c';
+                ctx.lineWidth = this.thickness;
+                ctx.lineCap = 'round';
+                ctx.beginPath();
+                ctx.moveTo(this.x1, this.y1);
+                ctx.lineTo(this.x2, this.y2);
+                ctx.stroke();
+                this.children.forEach(child => child.draw());
+            }
+            
+            addChild(branch) {
+                this.children.push(branch);
+            }
+            
+            checkCollision(px, py, radius = 5) {
+                const dx = this.x2 - this.x1;
+                const dy = this.y2 - this.y1;
+                const length = Math.sqrt(dx * dx + dy * dy);
+                const nx = dx / length;
+                const ny = dy / length;
+                const vx = px - this.x1;
+                const vy = py - this.y1;
+                const dot = vx * nx + vy * ny;
+                const t = Math.max(0, Math.min(length, dot));
+                const closestX = this.x1 + nx * t;
+                const closestY = this.y1 + ny * t;
+                const distX = px - closestX;
+                const distY = py - closestY;
+                const dist = Math.sqrt(distX * distX + distY * distY);
+                
+                if (dist < this.thickness / 2 + radius) {
+                    return { x: closestX, y: closestY };
+                }
+                
+                for (let child of this.children) {
+                    const collision = child.checkCollision(px, py, radius);
+                    if (collision) return collision;
+                }
+                return null;
+            }
+        }
+        
+        class Spider {
+            constructor(x, y) {
+                this.x = x;
+                this.y = y;
+                this.radius = 6;
+                this.weight = 0.15;
+                this.state = 'waiting_to_weave';
+                this.currentStrand = null;
+                this.bridgeStrand = null;
+                this.bridgeStrandFinalLength = 0;
+                this.secondStrand = null;
+                this.thirdStrand = null;
+                this.releaseTimer = 0;
+                this.crossProgress = 0;
+                this.thread1Progress = 1.0;
+                this.crossSpeed = 0.0025;
+                this.tying = false;
+                this.tyingTimer = 0;
+                this.legAnimation = 0;
+                this.thread1SpinCount = 0;
+                this.waitTimer = 0;
+                this.lastThread0SegmentIndex = undefined;
+                this.thread2InitialSegments = 0;
+                this.thread3InitialSegments = 0;
+                this.originalWeight = this.weight;
+                this.thread1a = null;
+                this.thread1b = null;
+                this.fourthStrand = null;
+                this.walkingThread = null;
+                this.walkProgress = 0;
+                this.lastWalkSegmentIndex = undefined;
+                this.radialTargets = [];
+                this.currentRadialIndex = 0;
+                this.currentRadialStrand = null;
+
+                // Spoke-building stage
+                this.spokes = []; // [{strand, angle, anchorPoint: {x,y}}]
+                this.maxSpokes = 16;
+                this.walkableGraph = null;
+                this.currentWalkPath = null; // array of WalkStep objects
+                this.currentWalkStepIndex = 0;
+                this.walkStepProgress = 0;
+                this.spokeStrand = null; // the DraggedSilk being laid as a spoke
+                this.spokeAnchorPoint = null; // {x, y} target anchor
+                this.spokeLastSegCount = 0;
+            }
+            
+            startWeaving() {
+                if (this.state === 'waiting_to_weave') {
+                    this.state = 'releasing_bridge';
+                }
+            }
+            
+            update() {
+                if (this.state === 'waiting_to_weave') {
+                    return;
+                } else if (this.state === 'releasing_bridge') {
+                    this.releaseTimer++;
+                    if (this.releaseTimer % 3 === 0) {
+                        if (!this.currentStrand) {
+                            this.currentStrand = new FloatedSilk(this.x, this.y);
+                            silkStrands.push(this.currentStrand);
+                        } else {
+                            const added = this.currentStrand.addSegment();
+                            if (!added) {
+                                this.state = 'waiting';
+                            }
+                        }
+                    }
+                    
+                    if (this.currentStrand) {
+                        const tip = this.currentStrand.getTip();
+                        const oppositeBranch = branches[1];
+                        const collision = oppositeBranch.checkCollision(tip.x, tip.y, 3);
+                        
+                        if (collision) {
+                            this.currentStrand.attach(collision.x, collision.y);
+                            this.bridgeStrand = this.currentStrand;
+                            this.currentStrand = null;
+                            this.state = 'pulling_bridge';
+                        }
+                    }
+                } else if (this.state === 'pulling_bridge') {
+                    this.tying = true;
+                    this.tyingTimer++;
+                    this.legAnimation = Math.sin(this.tyingTimer * 0.2) * 0.5 + 0.5;
+                    
+                    if (this.bridgeStrand) {
+                        const start = this.bridgeStrand.segments[0];
+                        start.x = this.x;
+                        start.y = this.y;
+                        
+                        const end = this.bridgeStrand.segments[this.bridgeStrand.segments.length - 1];
+                        const dx = end.x - start.x;
+                        const dy = end.y - start.y;
+                        const straightDist = Math.sqrt(dx * dx + dy * dy);
+                        
+                        let threadLength = 0;
+                        for (let i = 0; i < this.bridgeStrand.segments.length - 1; i++) {
+                            const s1 = this.bridgeStrand.segments[i];
+                            const s2 = this.bridgeStrand.segments[i + 1];
+                            const segDx = s2.x - s1.x;
+                            const segDy = s2.y - s1.y;
+                            threadLength += Math.sqrt(segDx * segDx + segDy * segDy);
+                        }
+                        
+                        const targetLength = straightDist + this.bridgeStrand.segmentLength;
+                        
+                        if (threadLength > targetLength && this.bridgeStrand.segments.length > 3) {
+                            const removeIdx = Math.floor(this.bridgeStrand.segments.length / 2);
+                            this.bridgeStrand.segments.splice(removeIdx, 1);
+                        } else {
+                            this.state = 'tying_start';
+                            this.tyingTimer = 0;
+                        }
+                    }
+                } else if (this.state === 'tying_start') {
+                    this.tyingTimer++;
+                    this.legAnimation = Math.sin(this.tyingTimer * 0.2) * 0.5 + 0.5;
+                    
+                    if (this.tyingTimer > 60) {
+                        this.tying = false;
+                        this.attachBridgeToStart();
+                        
+                        this.bridgeStrandFinalLength = this.bridgeStrand.segments.length;
+                        
+                        this.state = 'spinning_thread1';
+                        this.thread1SpinCount = 0;
+                    }
+                } else if (this.state === 'spinning_thread1') {
+                    this.releaseTimer++;
+                    
+                    if (this.thread1SpinCount === 0) {
+                        this.secondStrand = new DraggedSilk(this.x, this.y);
+                        silkStrands.push(this.secondStrand);
+                        this.thread1SpinCount++;
+                    } else if (this.releaseTimer % 3 === 0 && this.thread1SpinCount < 1) {
+                        this.secondStrand.addSegment();
+                        this.thread1SpinCount++;
+                    } else if (this.thread1SpinCount >= 1) {
+                        this.state = 'tying_thread1_start';
+                        this.tying = true;
+                        this.tyingTimer = 0;
+                    }
+                } else if (this.state === 'tying_thread1_start') {
+                    this.tyingTimer++;
+                    this.legAnimation = Math.sin(this.tyingTimer * 0.2) * 0.5 + 0.5;
+                    
+                    if (this.tyingTimer > 60) {
+                        this.tying = false;
+                        const thread0Start = this.bridgeStrand.segments[0];
+                        this.secondStrand.segments[0].x = thread0Start.x;
+                        this.secondStrand.segments[0].y = thread0Start.y;
+                        this.secondStrand.segments[0].fixed = true;
+                        
+                        this.secondStrand.explicitConnections.add(0);
+                        
+                        this.state = 'crossing_bridge';
+                        this.crossProgress = 0;
+                        this.releaseTimer = 0;
+                    }
+                } else if (this.state === 'crossing_bridge') {
+                    this.crossProgress += this.crossSpeed;
+                    
+                    const currentThread0SegmentIndex = Math.floor(this.crossProgress * (this.bridgeStrand.segments.length - 1));
+                    
+                    if (this.lastThread0SegmentIndex === undefined) {
+                        this.lastThread0SegmentIndex = -1;
+                    }
+                    
+                    if (currentThread0SegmentIndex > this.lastThread0SegmentIndex) {
+                        this.secondStrand.addSegment();
+                        this.lastThread0SegmentIndex = currentThread0SegmentIndex;
+                    }
+                    
+                    if (this.crossProgress >= 1) {
+                        this.crossProgress = 1;
+                        
+                        const thread0End = this.bridgeStrand.segments[this.bridgeStrand.segments.length - 1];
+                        this.x = thread0End.x;
+                        this.y = thread0End.y;
+                        
+                        this.lastThread0SegmentIndex = undefined;
+                        
+                        this.state = 'tying_thread1_end';
+                        this.tying = true;
+                        this.tyingTimer = 0;
+                    } else {
+                        const idx = Math.floor(this.crossProgress * (this.bridgeStrand.segments.length - 1));
+                        const nextIdx = Math.min(idx + 1, this.bridgeStrand.segments.length - 1);
+                        const t = (this.crossProgress * (this.bridgeStrand.segments.length - 1)) - idx;
+                        
+                        const s1 = this.bridgeStrand.segments[idx];
+                        const s2 = this.bridgeStrand.segments[nextIdx];
+                        
+                        this.x = s1.x + (s2.x - s1.x) * t;
+                        this.y = s1.y + (s2.y - s1.y) * t;
+                        
+                        if (!s1.fixed) {
+                            s1.vy += this.weight * (1 - t);
+                        }
+                        if (!s2.fixed) {
+                            s2.vy += this.weight * t;
+                        }
+                    }
+                    
+                    if (this.secondStrand && this.secondStrand.spiderAttached) {
+                        this.secondStrand.updateTipPosition(this.x, this.y);
+                    }
+                    
+                    this.releaseTimer++;
+                } else if (this.state === 'tying_thread1_end') {
+                    this.tyingTimer++;
+                    this.legAnimation = Math.sin(this.tyingTimer * 0.2) * 0.5 + 0.5;
+                    
+                    if (this.bridgeStrand) {
+                        const thread0End = this.bridgeStrand.segments[this.bridgeStrand.segments.length - 1];
+                        this.x = thread0End.x;
+                        this.y = thread0End.y;
+                    }
+                    
+                    if (this.secondStrand && this.secondStrand.spiderAttached) {
+                        this.secondStrand.updateTipPosition(this.x, this.y);
+                    }
+                    
+                    if (this.tyingTimer > 60) {
+                        this.tying = false;
+                        this.attachSecondStrand();
+                        
+                        if (this.secondStrand && this.secondStrand.attached) {
+                            this.state = 'moving_to_center';
+                        } else {
+                            this.tyingTimer = 50;
+                        }
+                    }
+                } else if (this.state === 'moving_to_center') {
+                    if (this.secondStrand) {
+                        const targetProgress = 0.5;
+                        
+                        if (Math.abs(this.thread1Progress - targetProgress) < 0.01) {
+                            this.thread1Progress = targetProgress;
+                            this.state = 'waiting';
+                        } else {
+                            if (this.thread1Progress > targetProgress) {
+                                this.thread1Progress -= 0.01;
+                                this.thread1Progress = Math.max(targetProgress, this.thread1Progress);
+                            } else {
+                                this.thread1Progress += 0.01;
+                                this.thread1Progress = Math.min(targetProgress, this.thread1Progress);
+                            }
+                        }
+                        
+                        this.secondStrand.setSpiderPosition(this.thread1Progress);
+                        
+                        const idx = Math.floor(this.thread1Progress * (this.secondStrand.segments.length - 1));
+                        const nextIdx = Math.min(idx + 1, this.secondStrand.segments.length - 1);
+                        const t = (this.thread1Progress * (this.secondStrand.segments.length - 1)) - idx;
+                        
+                        const s1 = this.secondStrand.segments[idx];
+                        const s2 = this.secondStrand.segments[nextIdx];
+                        
+                        this.x = s1.x + (s2.x - s1.x) * t;
+                        this.y = s1.y + (s2.y - s1.y) * t;
+                        
+                        if (!s1.fixed) {
+                            s1.vy += this.weight * (1 - t);
+                        }
+                        if (!s2.fixed) {
+                            s2.vy += this.weight * t;
+                        }
+                    }
+                } else if (this.state === 'waiting') {
+                    if (this.secondStrand && this.thread1Progress > 0) {
+                        this.secondStrand.setSpiderPosition(this.thread1Progress);
+                        
+                        const idx = Math.floor(this.thread1Progress * (this.secondStrand.segments.length - 1));
+                        const nextIdx = Math.min(idx + 1, this.secondStrand.segments.length - 1);
+                        const t = (this.thread1Progress * (this.secondStrand.segments.length - 1)) - idx;
+                        
+                        const s1 = this.secondStrand.segments[idx];
+                        const s2 = this.secondStrand.segments[nextIdx];
+                        
+                        this.x = s1.x + (s2.x - s1.x) * t;
+                        this.y = s1.y + (s2.y - s1.y) * t;
+                        
+                        if (!s1.fixed) {
+                            s1.vy += this.weight * (1 - t);
+                        }
+                        if (!s2.fixed) {
+                            s2.vy += this.weight * t;
+                        }
+                        
+                        this.waitTimer++;
+                        if (this.waitTimer > 120) {
+                            this.weight = 0;
+                            this.state = 'start_rappel';
+                            this.waitTimer = 0;
+                        }
+                    }
+                } else if (this.state === 'start_rappel') {
+                    const thread1SegIdx = Math.floor(this.thread1Progress * (this.secondStrand.segments.length - 1));
+                    const thread1Seg = this.secondStrand.segments[thread1SegIdx];
+                    
+                    // Reset velocities on all segments before split to prevent violent reaction
+                    for (let seg of this.secondStrand.segments) {
+                        seg.vx *= 0.1;
+                        seg.vy *= 0.1;
+                    }
+                    
+                    // Split thread1 into two parts at the connection point
+                    const thread1a_segments = this.secondStrand.segments.slice(0, thread1SegIdx + 1);
+                    const thread1b_segments = this.secondStrand.segments.slice(thread1SegIdx);
+                    
+                    // Create thread1a (start to connection point)
+                    const thread1a = new DraggedSilk(thread1a_segments[0].x, thread1a_segments[0].y);
+                    thread1a.segments = thread1a_segments;
+                    thread1a.attached = true;
+                    thread1a.spiderAttached = false;
+                    thread1a.explicitConnections = new Set([0, thread1a_segments.length - 1]);
+                    thread1a.thread0EndpointSegment = null;
+                    
+                    // Create thread1b (connection point to end)
+                    const thread1b = new DraggedSilk(thread1b_segments[0].x, thread1b_segments[0].y);
+                    thread1b.segments = thread1b_segments;
+                    thread1b.attached = true;
+                    thread1b.spiderAttached = false;
+                    thread1b.explicitConnections = new Set([0, thread1b_segments.length - 1]);
+                    thread1b.thread0EndpointSegment = this.secondStrand.thread0EndpointSegment;
+                    
+                    // Update webNodes to reference the new split threads
+                    for (let node of webNodes) {
+                        if (node.strand1 === this.secondStrand) {
+                            if (node.segmentIndex1 <= thread1SegIdx) {
+                                node.strand1 = thread1a;
+                            } else {
+                                node.strand1 = thread1b;
+                                node.segmentIndex1 = node.segmentIndex1 - thread1SegIdx;
+                            }
+                        }
+                        if (node.strand2 === this.secondStrand) {
+                            if (node.segmentIndex2 <= thread1SegIdx) {
+                                node.strand2 = thread1a;
+                            } else {
+                                node.strand2 = thread1b;
+                                node.segmentIndex2 = node.segmentIndex2 - thread1SegIdx;
+                            }
+                        }
+                    }
+                    
+                    // Remove old thread1 and add the two new threads
+                    const oldIndex = silkStrands.indexOf(this.secondStrand);
+                    if (oldIndex >= 0) {
+                        silkStrands.splice(oldIndex, 1);
+                    }
+                    silkStrands.push(thread1a);
+                    silkStrands.push(thread1b);
+                    
+                    // Store references to the split threads
+                    this.thread1a = thread1a;
+                    this.thread1b = thread1b;
+                    
+                    // Create thread2 (rappel line) attached to the shared segment
+                    this.thirdStrand = new RappelSilk(thread1Seg.x, thread1Seg.y, null, 0);
+                    this.thirdStrand.segments[0] = thread1Seg;
+                    this.thirdStrand.explicitConnections.add(0);
+                    silkStrands.push(this.thirdStrand);
+                    
+                    this.state = 'rappelling';
+                    this.releaseTimer = 0;
+                } else if (this.state === 'rappelling') {
+                    this.releaseTimer++;
+                    
+                    if (this.releaseTimer % 3 === 0) {
+                        this.thirdStrand.addSegment();
+                    }
+                    
+                    if (this.thirdStrand.segments.length >= 10 && this.weight === 0) {
+                        this.weight = this.originalWeight;
+                    }
+                    
+                    const spiderPos = this.thirdStrand.getSpiderPosition();
+                    this.x = spiderPos.x;
+                    this.y = spiderPos.y;
+                    
+                    for (let branch of branches) {
+                        const collision = branch.checkCollision(this.x, this.y, this.radius);
+                        if (collision) {
+                            this.thirdStrand.attach(collision.x, collision.y);
+                            this.state = 'rappel_complete';
+                            break;
+                        }
+                    }
+                    
+                    if (this.thirdStrand.segments.length > 100) {
+                        this.state = 'rappel_complete';
+                    }
+                } else if (this.state === 'rappel_complete') {
+                    if (this.weight === 0) {
+                        this.weight = this.originalWeight;
+                    }
+                    this.thread2InitialSegments = this.thirdStrand.segments.length;
+                    this.state = 'tensioning_thread2';
+                    this.tying = true;
+                    this.tyingTimer = 0;
+                } else if (this.state === 'tensioning_thread2') {
+                    this.tyingTimer++;
+                    this.legAnimation = Math.sin(this.tyingTimer * 0.2) * 0.5 + 0.5;
+                    
+                    if (this.thirdStrand) {
+                        const targetSegments = Math.ceil(this.thread2InitialSegments * 0.75);
+                        
+                        if (this.thirdStrand.segments.length > targetSegments && this.thirdStrand.segments.length > 3) {
+                            const removeIdx = Math.floor(this.thirdStrand.segments.length / 2);
+                            this.thirdStrand.segments.splice(removeIdx, 1);
+                        } else {
+                            this.tying = false;
+                            this.state = 'web_complete';
+                        }
+                    }
+                    
+                    const spiderPos = this.thirdStrand.getSpiderPosition();
+                    this.x = spiderPos.x;
+                    this.y = spiderPos.y;
+                } else if (this.state === 'web_complete') {
+                    if (this.thirdStrand) {
+                        const spiderPos = this.thirdStrand.getSpiderPosition();
+                        this.x = spiderPos.x;
+                        this.y = spiderPos.y;
+                    }
+                    
+                    this.waitTimer++;
+                    if (this.waitTimer > 60) {
+                        this.state = 'climbing_thread2';
+                        this.walkProgress = 1.0;
+                        this.waitTimer = 0;
+                    }
+                } else if (this.state === 'climbing_thread2') {
+                    this.walkProgress -= 0.01;
+                    
+                    if (this.walkProgress <= 0) {
+                        this.walkProgress = 0;
+                        const connectionSeg = this.thirdStrand.segments[0];
+                        this.x = connectionSeg.x;
+                        this.y = connectionSeg.y;
+                        this.state = 'start_thread3';
+                    } else {
+                        const idx = Math.floor(this.walkProgress * (this.thirdStrand.segments.length - 1));
+                        const nextIdx = Math.min(idx + 1, this.thirdStrand.segments.length - 1);
+                        const t = (this.walkProgress * (this.thirdStrand.segments.length - 1)) - idx;
+                        
+                        const s1 = this.thirdStrand.segments[idx];
+                        const s2 = this.thirdStrand.segments[nextIdx];
+                        
+                        this.x = s1.x + (s2.x - s1.x) * t;
+                        this.y = s1.y + (s2.y - s1.y) * t;
+                        
+                        if (!s1.fixed) {
+                            s1.vy += this.weight * (1 - t);
+                        }
+                        if (!s2.fixed) {
+                            s2.vy += this.weight * t;
+                        }
+                    }
+                } else if (this.state === 'start_thread3') {
+                    const connectionSeg = this.thirdStrand.segments[0];
+                    this.fourthStrand = new DraggedSilk(connectionSeg.x, connectionSeg.y);
+                    this.fourthStrand.segments[0] = connectionSeg;
+                    this.fourthStrand.spiderAttached = true;
+                    this.fourthStrand.explicitConnections.add(0);
+                    this.fourthStrand.addSegment();
+                    silkStrands.push(this.fourthStrand);
+                    
+                    // Choose thread1a to walk on (could also randomly choose)
+                    this.walkingThread = this.thread1a;
+                    this.walkProgress = 1.0;
+                    this.lastWalkSegmentIndex = undefined;
+                    this.state = 'walking_to_thread0';
+                } else if (this.state === 'walking_to_thread0') {
+                    if (this.fourthStrand) {
+                        this.fourthStrand.setSpiderPosition(0);
+                    }
+                    
+                    const currentWalkSegmentIndex = Math.floor(this.walkProgress * (this.walkingThread.segments.length - 1));
+                    
+                    if (this.lastWalkSegmentIndex === undefined) {
+                        this.lastWalkSegmentIndex = this.walkingThread.segments.length;
+                    }
+                    
+                    // Only add segments every 2 segment indices to reduce density
+                    if (currentWalkSegmentIndex < this.lastWalkSegmentIndex - 1) {
+                        this.fourthStrand.addSegment();
+                        this.lastWalkSegmentIndex = currentWalkSegmentIndex;
+                    }
+                    
+                    this.walkProgress -= 0.01;
+                    
+                    if (this.walkProgress <= 0.01) {
+                        this.walkProgress = 0.0;
+                        const seg = this.walkingThread.segments[0];
+                        this.x = seg.x;
+                        this.y = seg.y;
+                        this.lastWalkSegmentIndex = undefined;
+                        this.walkingThread = this.bridgeStrand;
+                        
+                        // Find where thread1a connects to thread0
+                        const thread1aStart = this.thread1a.segments[0];
+                        let closestIdx = 0;
+                        let closestDist = Infinity;
+                        for (let i = 0; i < this.bridgeStrand.segments.length; i++) {
+                            const seg = this.bridgeStrand.segments[i];
+                            const dx = seg.x - thread1aStart.x;
+                            const dy = seg.y - thread1aStart.y;
+                            const dist = Math.sqrt(dx * dx + dy * dy);
+                            if (dist < closestDist) {
+                                closestDist = dist;
+                                closestIdx = i;
+                            }
+                        }
+                        
+                        this.walkProgress = closestIdx / (this.bridgeStrand.segments.length - 1);
+                        this.state = 'walking_to_thread0_center';
+                    } else {
+                        const idx = Math.floor(this.walkProgress * (this.walkingThread.segments.length - 1));
+                        const nextIdx = Math.min(idx + 1, this.walkingThread.segments.length - 1);
+                        const t = (this.walkProgress * (this.walkingThread.segments.length - 1)) - idx;
+                        
+                        const s1 = this.walkingThread.segments[idx];
+                        const s2 = this.walkingThread.segments[nextIdx];
+                        
+                        this.x = s1.x + (s2.x - s1.x) * t;
+                        this.y = s1.y + (s2.y - s1.y) * t;
+                        
+                        if (!s1.fixed) {
+                            s1.vy += this.weight * (1 - t);
+                        }
+                        if (!s2.fixed) {
+                            s2.vy += this.weight * t;
+                        }
+                    }
+                    
+                    if (this.fourthStrand && this.fourthStrand.spiderAttached) {
+                        this.fourthStrand.updateTipPosition(this.x, this.y);
+                    }
+                } else if (this.state === 'walking_to_thread0_center') {
+                    if (this.fourthStrand) {
+                        this.fourthStrand.setSpiderPosition(0);
+                    }
+                    
+                    const currentWalkSegmentIndex = Math.floor(this.walkProgress * (this.walkingThread.segments.length - 1));
+                    
+                    if (this.lastWalkSegmentIndex === undefined) {
+                        this.lastWalkSegmentIndex = currentWalkSegmentIndex;
+                    }
+                    
+                    const targetProgress = 0.5;
+                    const direction = targetProgress > this.walkProgress ? 1 : -1;
+                    
+                    // Only add segments every 2 segment indices to reduce density
+                    if (direction > 0 && currentWalkSegmentIndex > this.lastWalkSegmentIndex + 1) {
+                        this.fourthStrand.addSegment();
+                        this.lastWalkSegmentIndex = currentWalkSegmentIndex;
+                    } else if (direction < 0 && currentWalkSegmentIndex < this.lastWalkSegmentIndex - 1) {
+                        this.fourthStrand.addSegment();
+                        this.lastWalkSegmentIndex = currentWalkSegmentIndex;
+                    }
+                    
+                    if (Math.abs(this.walkProgress - targetProgress) < 0.01) {
+                        this.walkProgress = targetProgress;
+                        this.lastWalkSegmentIndex = undefined;
+                        this.state = 'tying_thread3';
+                        this.tying = true;
+                        this.tyingTimer = 0;
+                    } else {
+                        this.walkProgress += direction * 0.01;
+                        
+                        const idx = Math.floor(this.walkProgress * (this.walkingThread.segments.length - 1));
+                        const nextIdx = Math.min(idx + 1, this.walkingThread.segments.length - 1);
+                        const t = (this.walkProgress * (this.walkingThread.segments.length - 1)) - idx;
+                        
+                        const s1 = this.walkingThread.segments[idx];
+                        const s2 = this.walkingThread.segments[nextIdx];
+                        
+                        this.x = s1.x + (s2.x - s1.x) * t;
+                        this.y = s1.y + (s2.y - s1.y) * t;
+                        
+                        if (!s1.fixed) {
+                            s1.vy += this.weight * (1 - t);
+                        }
+                        if (!s2.fixed) {
+                            s2.vy += this.weight * t;
+                        }
+                    }
+                    
+                    if (this.fourthStrand && this.fourthStrand.spiderAttached) {
+                        this.fourthStrand.updateTipPosition(this.x, this.y);
+                    }
+                } else if (this.state === 'tying_thread3') {
+                    this.tyingTimer++;
+                    this.legAnimation = Math.sin(this.tyingTimer * 0.2) * 0.5 + 0.5;
+                    
+                    const idx = Math.floor(0.5 * (this.bridgeStrand.segments.length - 1));
+                    const seg = this.bridgeStrand.segments[idx];
+                    this.x = seg.x;
+                    this.y = seg.y;
+                    
+                    if (this.fourthStrand && this.fourthStrand.spiderAttached) {
+                        this.fourthStrand.updateTipPosition(this.x, this.y);
+                    }
+                    
+                    if (this.tyingTimer > 60) {
+                        this.tying = false;
+                        this.attachFourthStrand();
+                        
+                        if (this.fourthStrand && this.fourthStrand.attached) {
+                            this.thread3InitialSegments = this.fourthStrand.segments.length;
+                            this.state = 'tensioning_thread3';
+                            this.tyingTimer = 0;
+                        }
+                    }
+                } else if (this.state === 'tensioning_thread3') {
+                    this.tyingTimer++;
+                    this.legAnimation = Math.sin(this.tyingTimer * 0.2) * 0.5 + 0.5;
+                    this.tying = true;
+                    
+                    if (this.fourthStrand) {
+                        const start = this.fourthStrand.segments[0];
+                        const end = this.fourthStrand.segments[this.fourthStrand.segments.length - 1];
+                        const dx = end.x - start.x;
+                        const dy = end.y - start.y;
+                        const straightDist = Math.sqrt(dx * dx + dy * dy);
+                        
+                        let threadLength = 0;
+                        for (let i = 0; i < this.fourthStrand.segments.length - 1; i++) {
+                            const s1 = this.fourthStrand.segments[i];
+                            const s2 = this.fourthStrand.segments[i + 1];
+                            const segDx = s2.x - s1.x;
+                            const segDy = s2.y - s1.y;
+                            threadLength += Math.sqrt(segDx * segDx + segDy * segDy);
+                        }
+                        
+                        const targetLength = straightDist + this.fourthStrand.segmentLength;
+                        
+                        if (threadLength > targetLength && this.fourthStrand.segments.length > 3) {
+                            const removeIdx = Math.floor(this.fourthStrand.segments.length / 2);
+                            this.fourthStrand.segments.splice(removeIdx, 1);
+                        } else {
+                            this.tying = false;
+                            this.state = 'final_complete';
+                        }
+                    }
+                    
+                    const idx = Math.floor(0.5 * (this.bridgeStrand.segments.length - 1));
+                    const seg = this.bridgeStrand.segments[idx];
+                    this.x = seg.x;
+                    this.y = seg.y;
+                } else if (this.state === 'final_complete') {
+                    const idx = Math.floor(0.5 * (this.bridgeStrand.segments.length - 1));
+                    const seg = this.bridgeStrand.segments[idx];
+                    this.x = seg.x;
+                    this.y = seg.y;
+                    
+                    this.waitTimer++;
+                    if (this.waitTimer > 60) {
+                        this.state = 'returning_to_radial';
+                        this.walkProgress = 1.0;
+                        this.walkingThread = this.fourthStrand;
+                        this.waitTimer = 0;
+                    }
+                } else if (this.state === 'returning_to_radial') {
+                    this.walkProgress -= 0.015;
+                    
+                    if (this.walkProgress <= 0) {
+                        this.walkProgress = 0;
+                        const connectionSeg = this.fourthStrand.segments[0];
+                        this.x = connectionSeg.x;
+                        this.y = connectionSeg.y;
+                        this.state = 'resting_at_convergence';
+                    } else {
+                        const idx = Math.floor(this.walkProgress * (this.fourthStrand.segments.length - 1));
+                        const nextIdx = Math.min(idx + 1, this.fourthStrand.segments.length - 1);
+                        const t = (this.walkProgress * (this.fourthStrand.segments.length - 1)) - idx;
+                        
+                        const s1 = this.fourthStrand.segments[idx];
+                        const s2 = this.fourthStrand.segments[nextIdx];
+                        
+                        this.x = s1.x + (s2.x - s1.x) * t;
+                        this.y = s1.y + (s2.y - s1.y) * t;
+                        
+                        if (!s1.fixed) {
+                            s1.vy += this.weight * (1 - t);
+                        }
+                        if (!s2.fixed) {
+                            s2.vy += this.weight * t;
+                        }
+                    }
+                } else if (this.state === 'resting_at_convergence') {
+                    const connectionSeg = this.thirdStrand.segments[0];
+                    this.x = connectionSeg.x;
+                    this.y = connectionSeg.y;
+
+                    this.waitTimer++;
+                    if (this.waitTimer > 60) {
+                        this.waitTimer = 0;
+                        this.initializeSpokes();
+                        this.state = 'plan_next_spoke';
+                    }
+                } else if (this.state === 'plan_next_spoke') {
+                    const connectionSeg = this.thirdStrand.segments[0];
+                    this.x = connectionSeg.x;
+                    this.y = connectionSeg.y;
+
+                    if (this.spokes.length >= this.maxSpokes) {
+                        this.state = 'all_spokes_complete';
+                        return;
+                    }
+
+                    const centerX = connectionSeg.x;
+                    const centerY = connectionSeg.y;
+
+                    // Try multiple gap bisections — skip angles where no anchor is found
+                    let anchor = null;
+                    let targetAngle = 0;
+                    const triedAngles = [];
+                    const MAX_TRIES = 5;
+
+                    for (let attempt = 0; attempt < MAX_TRIES; attempt++) {
+                        targetAngle = findLargestSpokeGap(this.spokes);
+                        console.log(`[spoke] Planning spoke ${this.spokes.length + 1}/${this.maxSpokes}, target angle: ${(targetAngle * 180 / Math.PI).toFixed(1)}° (attempt ${attempt + 1})`);
+
+                        anchor = findAnchorOnBranchOrStrand(centerX, centerY, targetAngle, branches, silkStrands);
+                        if (anchor) {
+                            console.log(`[spoke] Anchor found at (${anchor.x.toFixed(0)}, ${anchor.y.toFixed(0)}) on ${anchor.sourceType}`);
+                            break;
+                        }
+
+                        console.log('[spoke] No anchor found at this angle, marking and trying next gap');
+                        // Mark this angle as "used" so findLargestSpokeGap picks the next gap
+                        this.spokes.push({ strand: null, angle: targetAngle, anchorPoint: null });
+                        triedAngles.push(targetAngle);
+                    }
+
+                    if (!anchor) {
+                        console.log('[spoke] Exhausted all attempts, stopping spoke building');
+                        this.state = 'all_spokes_complete';
+                        return;
+                    }
+
+                    this.spokeAnchorPoint = { x: anchor.x, y: anchor.y };
+
+                    // Build the walk path directly:
+                    // Step 1: Walk outward along the existing spoke whose outer end
+                    //         is closest to the anchor point
+                    // Step 2: Walk along branches/frame from that spoke's end to the anchor
+
+                    // Find the best spoke to walk out along (closest outer end to anchor)
+                    let bestSpoke = null;
+                    let bestDist = Infinity;
+                    for (const spoke of this.spokes) {
+                        if (!spoke.strand || !spoke.anchorPoint) continue;
+                        const dx = spoke.anchorPoint.x - anchor.x;
+                        const dy = spoke.anchorPoint.y - anchor.y;
+                        const d = Math.sqrt(dx * dx + dy * dy);
+                        if (d < bestDist) {
+                            bestDist = d;
+                            bestSpoke = spoke;
+                        }
+                    }
+
+                    if (!bestSpoke || !bestSpoke.strand) {
+                        console.log('[spoke] No valid spoke to walk along');
+                        this.spokes.push({ strand: null, angle: targetAngle, anchorPoint: this.spokeAnchorPoint });
+                        return;
+                    }
+
+                    const path = [];
+
+                    // Step 1: Walk along the chosen spoke from center to its outer end
+                    const spokeStrand = bestSpoke.strand;
+                    const spokeStartSeg = spokeStrand.segments[0];
+                    const spokeEndSeg = spokeStrand.segments[spokeStrand.segments.length - 1];
+
+                    // Determine which end is near center
+                    const dStartToCenter = Math.hypot(spokeStartSeg.x - centerX, spokeStartSeg.y - centerY);
+                    const dEndToCenter = Math.hypot(spokeEndSeg.x - centerX, spokeEndSeg.y - centerY);
+
+                    let spokeOuterEnd, spokeFromNode, spokeToNode;
+                    if (dStartToCenter < dEndToCenter) {
+                        // segment 0 is near center, walk 0 → end
+                        spokeFromNode = { x: spokeStartSeg.x, y: spokeStartSeg.y };
+                        spokeToNode = { x: spokeEndSeg.x, y: spokeEndSeg.y };
+                        spokeOuterEnd = spokeEndSeg;
+                    } else {
+                        // last segment is near center, walk end → 0
+                        spokeFromNode = { x: spokeEndSeg.x, y: spokeEndSeg.y };
+                        spokeToNode = { x: spokeStartSeg.x, y: spokeStartSeg.y };
+                        spokeOuterEnd = spokeStartSeg;
+                    }
+
+                    path.push({
+                        walkable: { type: 'strand', ref: spokeStrand, startIdx: 0, endIdx: spokeStrand.segments.length - 1 },
+                        fromNode: spokeFromNode,
+                        toNode: spokeToNode,
+                        distance: bestDist
+                    });
+
+                    // Step 2: If the spoke outer end isn't already at the anchor,
+                    //         use the graph to find a path from the spoke end to the anchor
+                    const spokeToAnchorDist = Math.hypot(spokeOuterEnd.x - anchor.x, spokeOuterEnd.y - anchor.y);
+                    if (spokeToAnchorDist > 15) {
+                        this.walkableGraph = new WalkableGraph();
+                        this.walkableGraph.build(silkStrands, branches, { x: centerX, y: centerY });
+
+                        const anchorNodeId = this.walkableGraph.addNode(anchor.x, anchor.y, 'anchor', anchor.source);
+
+                        // Connect anchor to the specific branch/strand it sits on
+                        if (anchor.sourceType === 'branch') {
+                            // Find graph nodes for this branch's endpoints and connect anchor between them
+                            const bStartId = this.walkableGraph.findNearestNode(anchor.source.x1, anchor.source.y1, 20);
+                            const bEndId = this.walkableGraph.findNearestNode(anchor.source.x2, anchor.source.y2, 20);
+                            if (bStartId >= 0) {
+                                const d = Math.hypot(anchor.x - anchor.source.x1, anchor.y - anchor.source.y1);
+                                this.walkableGraph.addEdge(bStartId, anchorNodeId, d, {
+                                    type: 'branch', ref: anchor.source, startIdx: 0, endIdx: 1
+                                });
+                            }
+                            if (bEndId >= 0) {
+                                const d = Math.hypot(anchor.x - anchor.source.x2, anchor.y - anchor.source.y2);
+                                this.walkableGraph.addEdge(anchorNodeId, bEndId, d, {
+                                    type: 'branch', ref: anchor.source, startIdx: 0, endIdx: 1
+                                });
+                            }
+                        } else if (anchor.sourceType === 'strand') {
+                            const strand = anchor.source;
+                            const sStart = strand.segments[0];
+                            const sEnd = strand.segments[strand.segments.length - 1];
+                            const sStartId = this.walkableGraph.findNearestNode(sStart.x, sStart.y, 20);
+                            const sEndId = this.walkableGraph.findNearestNode(sEnd.x, sEnd.y, 20);
+                            if (sStartId >= 0) {
+                                const d = Math.hypot(anchor.x - sStart.x, anchor.y - sStart.y);
+                                this.walkableGraph.addEdge(sStartId, anchorNodeId, d, {
+                                    type: 'strand', ref: strand, startIdx: 0, endIdx: strand.segments.length - 1
+                                });
+                            }
+                            if (sEndId >= 0) {
+                                const d = Math.hypot(anchor.x - sEnd.x, anchor.y - sEnd.y);
+                                this.walkableGraph.addEdge(anchorNodeId, sEndId, d, {
+                                    type: 'strand', ref: strand, startIdx: 0, endIdx: strand.segments.length - 1
+                                });
+                            }
+                        }
+
+                        // Also add proximity edges for any close nodes (fallback)
+                        for (let i = 0; i < this.walkableGraph.nodes.length - 1; i++) {
+                            const node = this.walkableGraph.nodes[i];
+                            const d = Math.hypot(node.x - anchor.x, node.y - anchor.y);
+                            if (d < 40) {
+                                const alreadyConnected = this.walkableGraph.adjacency.get(i).some(e => e.toId === anchorNodeId);
+                                if (!alreadyConnected) {
+                                    this.walkableGraph.addEdge(i, anchorNodeId, d, {
+                                        type: 'proximity', ref: null, startIdx: 0, endIdx: 0
+                                    });
+                                }
+                            }
+                        }
+
+                        // Ensure the spoke outer end is in the graph and connected
+                        let spokeEndNodeId = this.walkableGraph.findNearestNode(spokeOuterEnd.x, spokeOuterEnd.y, 50);
+                        if (spokeEndNodeId < 0) {
+                            spokeEndNodeId = this.walkableGraph.addNode(spokeOuterEnd.x, spokeOuterEnd.y, 'spoke_end', null);
+                        }
+                        // Connect spoke end to all nearby nodes
+                        for (let i = 0; i < this.walkableGraph.nodes.length; i++) {
+                            if (i === spokeEndNodeId) continue;
+                            const node = this.walkableGraph.nodes[i];
+                            const d = Math.hypot(node.x - spokeOuterEnd.x, node.y - spokeOuterEnd.y);
+                            if (d < 40) {
+                                const alreadyConnected = this.walkableGraph.adjacency.get(spokeEndNodeId).some(e => e.toId === i);
+                                if (!alreadyConnected) {
+                                    this.walkableGraph.addEdge(spokeEndNodeId, i, d, {
+                                        type: 'proximity', ref: null, startIdx: 0, endIdx: 0
+                                    });
+                                }
+                            }
+                        }
+
+                        // If spoke end and anchor are both on the same strand (e.g. thread0),
+                        // directly connect them so the spider can walk along that strand
+                        if (anchor.sourceType === 'strand') {
+                            const strand = anchor.source;
+                            // Check if spoke end is also near this strand
+                            let spokeOnStrand = false;
+                            for (let i = 0; i < strand.segments.length; i++) {
+                                const seg = strand.segments[i];
+                                if (Math.hypot(seg.x - spokeOuterEnd.x, seg.y - spokeOuterEnd.y) < 20) {
+                                    spokeOnStrand = true;
+                                    break;
+                                }
+                            }
+                            if (spokeOnStrand) {
+                                const d = Math.hypot(spokeOuterEnd.x - anchor.x, spokeOuterEnd.y - anchor.y);
+                                this.walkableGraph.addEdge(spokeEndNodeId, anchorNodeId, d, {
+                                    type: 'strand', ref: strand, startIdx: 0, endIdx: strand.segments.length - 1
+                                });
+                            }
+                        }
+
+                        // Also directly connect spoke end to anchor if they're both on the same branch
+                        const projOnBranch = (px, py, br) => {
+                            const bdx = br.x2 - br.x1, bdy = br.y2 - br.y1;
+                            const len2 = bdx * bdx + bdy * bdy;
+                            if (len2 === 0) return null;
+                            const t = Math.max(0, Math.min(1, ((px - br.x1) * bdx + (py - br.y1) * bdy) / len2));
+                            return Math.hypot(px - (br.x1 + bdx * t), py - (br.y1 + bdy * t));
+                        };
+                        const checkBranches = (br) => {
+                            const dEnd = projOnBranch(spokeOuterEnd.x, spokeOuterEnd.y, br);
+                            const dAnc = projOnBranch(anchor.x, anchor.y, br);
+                            if (dEnd !== null && dEnd < 20 && dAnc !== null && dAnc < 20) {
+                                const d = Math.hypot(spokeOuterEnd.x - anchor.x, spokeOuterEnd.y - anchor.y);
+                                const alreadyConnected = this.walkableGraph.adjacency.get(spokeEndNodeId).some(e => e.toId === anchorNodeId);
+                                if (!alreadyConnected) {
+                                    this.walkableGraph.addEdge(spokeEndNodeId, anchorNodeId, d, {
+                                        type: 'branch', ref: br, startIdx: 0, endIdx: 1
+                                    });
+                                }
+                            }
+                            for (const child of br.children) checkBranches(child);
+                        };
+                        for (const br of branches) checkBranches(br);
+
+                        // Exclude the center node so the bridge path can't route back through the hub
+                        const centerNodeId2 = this.walkableGraph.findNearestNode(centerX, centerY, 15);
+                        const excludeSet = centerNodeId2 >= 0 ? [centerNodeId2] : [];
+                        if (spokeEndNodeId >= 0) {
+                            const bridgePath = this.walkableGraph.findShortestPath(spokeEndNodeId, anchorNodeId, excludeSet);
+                            if (bridgePath) {
+                                path.push(...bridgePath);
+                                console.log(`[spoke] Bridge path: ${bridgePath.length} steps from spoke end to anchor`);
+                            } else {
+                                console.log(`[spoke] WARNING: No bridge path found! Spoke end node ${spokeEndNodeId} → anchor node ${anchorNodeId}`);
+                                console.log(`[spoke] Spoke end at (${spokeOuterEnd.x.toFixed(0)}, ${spokeOuterEnd.y.toFixed(0)}), anchor at (${anchor.x.toFixed(0)}, ${anchor.y.toFixed(0)})`);
+                                console.log(`[spoke] Adjacency from spoke end:`, this.walkableGraph.adjacency.get(spokeEndNodeId));
+                                console.log(`[spoke] Adjacency from anchor:`, this.walkableGraph.adjacency.get(anchorNodeId));
+                            }
+                        } else {
+                            console.log(`[spoke] WARNING: Could not find spoke end node near (${spokeOuterEnd.x.toFixed(0)}, ${spokeOuterEnd.y.toFixed(0)})`);
+                        }
+                    }
+
+                    if (path.length === 0) {
+                        console.log('[spoke] No path constructed');
+                        this.spokes.push({ strand: null, angle: targetAngle, anchorPoint: this.spokeAnchorPoint });
+                        return;
+                    }
+                    console.log(`[spoke] Total path: ${path.length} steps, via spoke angle ${(bestSpoke.angle * 180 / Math.PI).toFixed(1)}°`);
+                    for (let pi = 0; pi < path.length; pi++) {
+                        const ps = path[pi];
+                        console.log(`[spoke]   step ${pi}: ${ps.walkable.type} from (${ps.fromNode.x.toFixed(0)},${ps.fromNode.y.toFixed(0)}) to (${ps.toNode.x.toFixed(0)},${ps.toNode.y.toFixed(0)})`);
+                    }
+
+                    this.currentWalkPath = path;
+                    this.currentWalkStepIndex = 0;
+                    this.walkStepProgress = 0;
+
+                    // Start the spoke silk from the center
+                    const spokeStart = this.thirdStrand.segments[0];
+                    this.spokeStrand = new DraggedSilk(spokeStart.x, spokeStart.y);
+                    this.spokeStrand.segments[0] = spokeStart;
+                    this.spokeStrand.spiderAttached = true;
+                    this.spokeStrand.explicitConnections.add(0);
+                    silkStrands.push(this.spokeStrand);
+                    this.spokeLastSegCount = 1;
+
+                    this.state = 'walking_to_anchor';
+
+                } else if (this.state === 'walking_to_anchor') {
+                    if (!this.currentWalkPath || this.currentWalkStepIndex >= this.currentWalkPath.length) {
+                        // Reached the anchor
+                        this.state = 'tying_spoke_anchor';
+                        this.tying = true;
+                        this.tyingTimer = 0;
+                        return;
+                    }
+
+                    const step = this.currentWalkPath[this.currentWalkStepIndex];
+                    this.walkStepProgress += 0.015;
+
+                    if (this.walkStepProgress >= 1.0) {
+                        this.walkStepProgress = 0;
+                        this.currentWalkStepIndex++;
+
+                        if (this.currentWalkStepIndex >= this.currentWalkPath.length) {
+                            // Arrived at anchor
+                            this.x = this.spokeAnchorPoint.x;
+                            this.y = this.spokeAnchorPoint.y;
+                            this.state = 'tying_spoke_anchor';
+                            this.tying = true;
+                            this.tyingTimer = 0;
+                        }
+                        return;
+                    }
+
+                    // Interpolate position along the current step
+                    const walkable = step.walkable;
+
+                    if (walkable.type === 'strand' && walkable.ref && walkable.ref.segments) {
+                        // Walk along actual strand segments (follows the real sag)
+                        const strand = walkable.ref;
+                        const segments = strand.segments;
+
+                        // Find the segment indices closest to fromNode and toNode
+                        // (using current positions, not stale graph-build positions)
+                        let fromIdx = 0, toIdx = segments.length - 1;
+                        let bestFromDist = Infinity, bestToDist = Infinity;
+                        for (let i = 0; i < segments.length; i++) {
+                            const seg = segments[i];
+                            const df = Math.hypot(step.fromNode.x - seg.x, step.fromNode.y - seg.y);
+                            const dt = Math.hypot(step.toNode.x - seg.x, step.toNode.y - seg.y);
+                            if (df < bestFromDist) { bestFromDist = df; fromIdx = i; }
+                            if (dt < bestToDist) { bestToDist = dt; toIdx = i; }
+                        }
+
+                        // Walk from fromIdx toward toIdx
+                        const dir = fromIdx < toIdx ? 1 : -1;
+                        const stepCount = Math.abs(toIdx - fromIdx);
+
+                        if (stepCount === 0) {
+                            // Same segment — just stay there
+                            this.x = segments[fromIdx].x;
+                            this.y = segments[fromIdx].y;
+                        } else {
+                            // Compute cumulative distances along the walk direction
+                            let totalWalkDist = 0;
+                            for (let i = fromIdx; i !== toIdx; i += dir) {
+                                const s1 = segments[i];
+                                const s2 = segments[i + dir];
+                                totalWalkDist += Math.hypot(s2.x - s1.x, s2.y - s1.y);
+                            }
+
+                            // Find position at walkStepProgress along the cumulative distance
+                            const targetDist = this.walkStepProgress * totalWalkDist;
+                            let accumulated = 0;
+                            let placed = false;
+                            for (let i = fromIdx; i !== toIdx; i += dir) {
+                                const s1 = segments[i];
+                                const s2 = segments[i + dir];
+                                const segDist = Math.hypot(s2.x - s1.x, s2.y - s1.y);
+                                if (accumulated + segDist >= targetDist) {
+                                    const t = segDist > 0 ? (targetDist - accumulated) / segDist : 0;
+                                    this.x = s1.x + (s2.x - s1.x) * t;
+                                    this.y = s1.y + (s2.y - s1.y) * t;
+                                    placed = true;
+                                    break;
+                                }
+                                accumulated += segDist;
+                            }
+                            if (!placed) {
+                                this.x = segments[toIdx].x;
+                                this.y = segments[toIdx].y;
+                            }
+                        }
+
+                        // Apply spider weight to nearest segment
+                        let closestIdx = fromIdx;
+                        let closestDist = Infinity;
+                        for (let i = Math.min(fromIdx, toIdx); i <= Math.max(fromIdx, toIdx); i++) {
+                            const d = Math.hypot(segments[i].x - this.x, segments[i].y - this.y);
+                            if (d < closestDist) { closestDist = d; closestIdx = i; }
+                        }
+                        if (!segments[closestIdx].fixed) {
+                            segments[closestIdx].vy += this.weight;
+                        }
+                    } else {
+                        // Branch or proximity: straight-line interpolation
+                        const fromX = step.fromNode.x;
+                        const fromY = step.fromNode.y;
+                        const toX = step.toNode.x;
+                        const toY = step.toNode.y;
+                        this.x = fromX + (toX - fromX) * this.walkStepProgress;
+                        this.y = fromY + (toY - fromY) * this.walkStepProgress;
+                    }
+
+                    // Add segments to the spoke silk as the spider walks
+                    if (this.spokeStrand && this.spokeStrand.spiderAttached) {
+                        const totalSteps = this.currentWalkPath.length;
+                        const overallProgress = (this.currentWalkStepIndex + this.walkStepProgress) / totalSteps;
+                        const desiredSegs = Math.floor(overallProgress * 40) + 1;
+                        while (this.spokeStrand.segments.length < desiredSegs) {
+                            this.spokeStrand.addSegment();
+                        }
+                        this.spokeStrand.updateTipPosition(this.x, this.y);
+                    }
+
+                } else if (this.state === 'tying_spoke_anchor') {
+                    this.tyingTimer++;
+                    this.legAnimation = Math.sin(this.tyingTimer * 0.2) * 0.5 + 0.5;
+                    this.x = this.spokeAnchorPoint.x;
+                    this.y = this.spokeAnchorPoint.y;
+
+                    if (this.spokeStrand && this.spokeStrand.spiderAttached) {
+                        this.spokeStrand.updateTipPosition(this.x, this.y);
+                    }
+
+                    if (this.tyingTimer > 60) {
+                        this.tying = false;
+
+                        // Attach the spoke at the anchor point
+                        if (this.spokeStrand) {
+                            const tip = this.spokeStrand.getTip();
+                            tip.x = this.spokeAnchorPoint.x;
+                            tip.y = this.spokeAnchorPoint.y;
+                            tip.fixed = true;
+                            this.spokeStrand.attached = true;
+                            this.spokeStrand.spiderAttached = false;
+                            this.spokeStrand.explicitConnections.add(this.spokeStrand.segments.length - 1);
+                        }
+
+                        this.state = 'tensioning_spoke';
+                        this.tyingTimer = 0;
+                        this.tying = true;
+                    }
+
+                } else if (this.state === 'tensioning_spoke') {
+                    this.tyingTimer++;
+                    this.legAnimation = Math.sin(this.tyingTimer * 0.2) * 0.5 + 0.5;
+
+                    this.x = this.spokeAnchorPoint.x;
+                    this.y = this.spokeAnchorPoint.y;
+
+                    if (this.spokeStrand) {
+                        const start = this.spokeStrand.segments[0];
+                        const end = this.spokeStrand.segments[this.spokeStrand.segments.length - 1];
+                        const dx = end.x - start.x;
+                        const dy = end.y - start.y;
+                        const straightDist = Math.sqrt(dx * dx + dy * dy);
+
+                        let threadLength = 0;
+                        for (let i = 0; i < this.spokeStrand.segments.length - 1; i++) {
+                            const s1 = this.spokeStrand.segments[i];
+                            const s2 = this.spokeStrand.segments[i + 1];
+                            const segDx = s2.x - s1.x;
+                            const segDy = s2.y - s1.y;
+                            threadLength += Math.sqrt(segDx * segDx + segDy * segDy);
+                        }
+
+                        const targetLength = straightDist + this.spokeStrand.segmentLength;
+
+                        if (threadLength > targetLength && this.spokeStrand.segments.length > 3) {
+                            const removeIdx = Math.floor(this.spokeStrand.segments.length / 2);
+                            this.spokeStrand.segments.splice(removeIdx, 1);
+                        } else {
+                            this.tying = false;
+                            this.state = 'walking_spoke_to_center';
+                            this.walkProgress = 1.0;
+                        }
+                    }
+
+                } else if (this.state === 'walking_spoke_to_center') {
+                    this.walkProgress -= 0.015;
+
+                    if (this.walkProgress <= 0) {
+                        this.walkProgress = 0;
+                        const connectionSeg = this.thirdStrand.segments[0];
+                        this.x = connectionSeg.x;
+                        this.y = connectionSeg.y;
+                        this.state = 'tying_spoke_center';
+                        this.tying = true;
+                        this.tyingTimer = 0;
+                    } else if (this.spokeStrand) {
+                        const idx = Math.floor(this.walkProgress * (this.spokeStrand.segments.length - 1));
+                        const nextIdx = Math.min(idx + 1, this.spokeStrand.segments.length - 1);
+                        const t = (this.walkProgress * (this.spokeStrand.segments.length - 1)) - idx;
+
+                        const s1 = this.spokeStrand.segments[idx];
+                        const s2 = this.spokeStrand.segments[nextIdx];
+
+                        this.x = s1.x + (s2.x - s1.x) * t;
+                        this.y = s1.y + (s2.y - s1.y) * t;
+
+                        if (!s1.fixed) {
+                            s1.vy += this.weight * (1 - t);
+                        }
+                        if (!s2.fixed) {
+                            s2.vy += this.weight * t;
+                        }
+                    }
+
+                } else if (this.state === 'tying_spoke_center') {
+                    this.tyingTimer++;
+                    this.legAnimation = Math.sin(this.tyingTimer * 0.2) * 0.5 + 0.5;
+
+                    const connectionSeg = this.thirdStrand.segments[0];
+                    this.x = connectionSeg.x;
+                    this.y = connectionSeg.y;
+
+                    if (this.tyingTimer > 60) {
+                        this.tying = false;
+
+                        // Register the new spoke
+                        const centerX = connectionSeg.x;
+                        const centerY = connectionSeg.y;
+                        const angle = Math.atan2(
+                            this.spokeAnchorPoint.y - centerY,
+                            this.spokeAnchorPoint.x - centerX
+                        );
+                        this.spokes.push({
+                            strand: this.spokeStrand,
+                            angle: angle,
+                            anchorPoint: { ...this.spokeAnchorPoint }
+                        });
+
+                        this.spokeStrand = null;
+                        this.spokeAnchorPoint = null;
+                        this.waitTimer = 0;
+                        this.state = 'spoke_pause';
+                    }
+
+                } else if (this.state === 'spoke_pause') {
+                    const connectionSeg = this.thirdStrand.segments[0];
+                    this.x = connectionSeg.x;
+                    this.y = connectionSeg.y;
+
+                    this.waitTimer++;
+                    if (this.waitTimer > 30) {
+                        this.waitTimer = 0;
+                        this.state = 'plan_next_spoke';
+                    }
+
+                } else if (this.state === 'all_spokes_complete') {
+                    const connectionSeg = this.thirdStrand.segments[0];
+                    this.x = connectionSeg.x;
+                    this.y = connectionSeg.y;
+                }
+            }
+            
+            attachBridgeToStart() {
+                if (this.bridgeStrand) {
+                    this.bridgeStrand.segments[0].x = this.x;
+                    this.bridgeStrand.segments[0].y = this.y;
+                    this.bridgeStrand.segments[0].fixed = true;
+                }
+            }
+            
+            attachSecondStrand() {
+                if (this.secondStrand && this.bridgeStrand) {
+                    const thread0End = this.bridgeStrand.segments[this.bridgeStrand.segments.length - 1];
+                    
+                    if (this.secondStrand.segments.length > 0) {
+                        const tip = this.secondStrand.getTip();
+                        tip.x = thread0End.x;
+                        tip.y = thread0End.y;
+                        tip.fixed = true;
+                        tip.vx = 0;
+                        tip.vy = 0;
+                        this.secondStrand.attached = true;
+                        this.secondStrand.spiderAttached = false;
+                        
+                        this.secondStrand.thread0EndpointSegment = thread0End;
+                        
+                        this.secondStrand.explicitConnections.add(this.secondStrand.segments.length - 1);
+                    }
+                }
+            }
+            
+            attachFourthStrand() {
+                if (this.fourthStrand && this.walkingThread && this.bridgeStrand) {
+                    const thread0CenterIdx = Math.floor(this.bridgeStrand.segments.length / 2);
+                    const thread0CenterSeg = this.bridgeStrand.segments[thread0CenterIdx];
+                    
+                    if (this.fourthStrand.segments.length > 0) {
+                        const tip = this.fourthStrand.getTip();
+                        tip.x = thread0CenterSeg.x;
+                        tip.y = thread0CenterSeg.y;
+                        tip.fixed = true;
+                        tip.vx = 0;
+                        tip.vy = 0;
+                        this.fourthStrand.attached = true;
+                        this.fourthStrand.spiderAttached = false;
+                        
+                        this.fourthStrand.explicitConnections.add(this.fourthStrand.segments.length - 1);
+                    }
+                }
+            }
+
+            initializeSpokes() {
+                // Register the 3 existing radial threads as spokes
+                const connectionSeg = this.thirdStrand.segments[0];
+                const centerX = connectionSeg.x;
+                const centerY = connectionSeg.y;
+
+                this.spokes = [];
+
+                // thread1a: from center toward bridge start
+                if (this.thread1a) {
+                    const endSeg = this.thread1a.segments[0];
+                    const angle = Math.atan2(endSeg.y - centerY, endSeg.x - centerX);
+                    this.spokes.push({ strand: this.thread1a, angle, anchorPoint: { x: endSeg.x, y: endSeg.y } });
+                }
+
+                // thread1b: from center toward bridge end
+                if (this.thread1b) {
+                    const endSeg = this.thread1b.segments[this.thread1b.segments.length - 1];
+                    const angle = Math.atan2(endSeg.y - centerY, endSeg.x - centerX);
+                    this.spokes.push({ strand: this.thread1b, angle, anchorPoint: { x: endSeg.x, y: endSeg.y } });
+                }
+
+                // thread2 (rappel): from center down to branch
+                if (this.thirdStrand) {
+                    const endSeg = this.thirdStrand.segments[this.thirdStrand.segments.length - 1];
+                    const angle = Math.atan2(endSeg.y - centerY, endSeg.x - centerX);
+                    this.spokes.push({ strand: this.thirdStrand, angle, anchorPoint: { x: endSeg.x, y: endSeg.y } });
+                }
+
+                // thread3 (fourthStrand): from center toward bridge center (runs alongside thread1a)
+                if (this.fourthStrand) {
+                    const endSeg = this.fourthStrand.segments[this.fourthStrand.segments.length - 1];
+                    const angle = Math.atan2(endSeg.y - centerY, endSeg.x - centerX);
+                    this.spokes.push({ strand: this.fourthStrand, angle, anchorPoint: { x: endSeg.x, y: endSeg.y } });
+                }
+            }
+
+            draw() {
+                if (this.tying) {
+                    ctx.strokeStyle = '#000000';
+                    ctx.lineWidth = 1;
+
+                    const leftAngle1 = -Math.PI / 4 + this.legAnimation * 0.5;
+                    const leftAngle2 = -Math.PI / 3 - this.legAnimation * 0.8;
+                    const leftJointX = this.x + Math.cos(leftAngle1) * 8;
+                    const leftJointY = this.y + Math.sin(leftAngle1) * 8;
+                    const leftEndX = leftJointX + Math.cos(leftAngle1 + leftAngle2) * 6;
+                    const leftEndY = leftJointY + Math.sin(leftAngle1 + leftAngle2) * 6;
+                    
+                    ctx.beginPath();
+                    ctx.moveTo(this.x, this.y);
+                    ctx.lineTo(leftJointX, leftJointY);
+                    ctx.lineTo(leftEndX, leftEndY);
+                    ctx.stroke();
+                    
+                    const rightAngle1 = -Math.PI / 4 - this.legAnimation * 0.5;
+                    const rightAngle2 = -Math.PI / 3 + this.legAnimation * 0.8;
+                    const rightJointX = this.x + Math.cos(rightAngle1) * 8;
+                    const rightJointY = this.y + Math.sin(rightAngle1) * 8;
+                    const rightEndX = rightJointX + Math.cos(rightAngle1 + rightAngle2) * 6;
+                    const rightEndY = rightJointY + Math.sin(rightAngle1 + rightAngle2) * 6;
+                    
+                    ctx.beginPath();
+                    ctx.moveTo(this.x, this.y);
+                    ctx.lineTo(rightJointX, rightJointY);
+                    ctx.lineTo(rightEndX, rightEndY);
+                    ctx.stroke();
+                }
+                
+                ctx.fillStyle = '#000000';
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+                ctx.fill();
+            }
+        }
+        
+        function generateBranches() {
+            branches = [];
+            const seedX = width * (0.25 + Math.random() * 0.5);
+            const seedY = height - 10;
+            const leftBranch = generateBranchSide(seedX, seedY, -1);
+            branches.push(leftBranch);
+            const rightBranch = generateBranchSide(seedX, seedY, 1);
+            branches.push(rightBranch);
+        }
+        
+        function generateBranchSide(startX, startY, direction) {
+            const segments = 6;
+            const baseThickness = 12;
+            let currentX = startX;
+            let currentY = startY;
+            let currentAngle = -45;
+            const mainBranch = new Branch(currentX, currentY, currentX, currentY, baseThickness, 0);
+            let currentBranch = mainBranch;
+            
+            for (let i = 0; i < segments; i++) {
+                const segmentLength = 90 + Math.random() * 50;
+                const thickness = baseThickness - (i * 1.5);
+                const zigzag = (Math.random() - 0.5) * 30;
+                currentAngle += zigzag;
+                currentAngle = Math.max(-85, Math.min(-15, currentAngle));
+                const angleRad = (currentAngle * Math.PI) / 180;
+                const newX = currentX + Math.cos(angleRad) * segmentLength * direction;
+                const newY = currentY + Math.sin(angleRad) * segmentLength;
+                const boundedX = Math.max(50, Math.min(width - 50, newX));
+                const boundedY = Math.max(50, newY);
+                const segment = new Branch(currentX, currentY, boundedX, boundedY, thickness, i + 1);
+                currentBranch.addChild(segment);
+                
+                if (i > 1 && i < segments - 1 && Math.random() > 0.5) {
+                    addTwig(currentX, currentY, currentAngle, thickness * 0.6, direction);
+                }
+                
+                currentX = boundedX;
+                currentY = boundedY;
+                currentBranch = segment;
+                if (currentY < 100) break;
+            }
+            
+            return mainBranch;
+            
+            function addTwig(x, y, baseAngle, thickness, dir) {
+                const twigAngle = baseAngle + (Math.random() > 0.5 ? 1 : -1) * (30 + Math.random() * 30);
+                const twigLength = 30 + Math.random() * 30;
+                const angleRad = (twigAngle * Math.PI) / 180;
+                const twigX = x + Math.cos(angleRad) * twigLength * dir;
+                const twigY = y + Math.sin(angleRad) * twigLength;
+                const twig = new Branch(x, y, twigX, twigY, thickness, 10);
+                currentBranch.addChild(twig);
+                
+                if (Math.random() > 0.7) {
+                    const subTwigAngle = twigAngle + (Math.random() - 0.5) * 40;
+                    const subTwigLength = 20 + Math.random() * 20;
+                    const subAngleRad = (subTwigAngle * Math.PI) / 180;
+                    const subTwigX = twigX + Math.cos(subAngleRad) * subTwigLength * dir;
+                    const subTwigY = twigY + Math.sin(subAngleRad) * subTwigLength;
+                    const subTwig = new Branch(twigX, twigY, subTwigX, subTwigY, thickness * 0.7, 11);
+                    twig.addChild(subTwig);
+                }
+            }
+        }
+        
+        function createSpider() {
+            if (branches.length > 0) {
+                const leftBranch = branches[0];
+                let segmentCount = 0;
+                let sixthSegment = null;
+                
+                function findSegment(branch) {
+                    if (branch.generation > 0) {
+                        segmentCount++;
+                        if (segmentCount === 6) {
+                            sixthSegment = branch;
+                            return true;
+                        }
+                    }
+                    for (let child of branch.children) {
+                        if (child.generation <= 6) {
+                            if (findSegment(child)) return true;
+                        }
+                    }
+                    return false;
+                }
+                
+                findSegment(leftBranch);
+                
+                if (sixthSegment) {
+                    const midX = (sixthSegment.x1 + sixthSegment.x2) / 2;
+                    const midY = (sixthSegment.y1 + sixthSegment.y2) / 2;
+                    spider = new Spider(midX, midY);
+                } else {
+                    const forkX = branches[0].x1;
+                    const forkY = branches[0].y1;
+                    spider = new Spider(forkX, forkY - 15);
+                }
+            }
+        }
+        
+        function startWeaving() {
+            if (spider) {
+                spider.startWeaving();
+            }
+        }
+        
+        function draw() {
+            ctx.fillStyle = '#f5f5dc';
+            ctx.fillRect(0, 0, width, height);
+            branches.forEach(branch => branch.draw());
+            silkStrands.forEach(strand => strand.draw());
+            
+            webNodes.forEach(node => node.draw());
+            
+            if (spider) {
+                spider.draw();
+            }
+        }
+        
+        function animate() {
+            updateWebConnections();
+            
+            // Update physics for all segments
+            silkStrands.forEach(strand => {
+                if (strand instanceof FloatedSilk) {
+                    if (strand.attached) {
+                        for (let seg of strand.segments) {
+                            if (!seg.fixed) {
+                                seg.vy += 0.02;
+                            }
+                        }
+                    }
+                    for (let seg of strand.segments) {
+                        seg.update(!strand.attached);
+                    }
+                } else if (strand instanceof DraggedSilk) {
+                    for (let seg of strand.segments) {
+                        if (!seg.fixed) {
+                            seg.vy += 0.02;
+                        }
+                    }
+                    for (let seg of strand.segments) {
+                        seg.update(false);
+                    }
+                    
+                    if (spider && strand.spiderSegmentIndex >= 0 && strand.spiderSegmentIndex < strand.segments.length) {
+                        const spiderSeg = strand.segments[strand.spiderSegmentIndex];
+                        if (!spiderSeg.fixed) {
+                            spiderSeg.vy += spider.weight;
+                        }
+                    }
+                } else if (strand instanceof RappelSilk) {
+                    for (let seg of strand.segments) {
+                        if (!seg.fixed) {
+                            seg.vy += 0.02;
+                        }
+                    }
+                    for (let seg of strand.segments) {
+                        seg.update(false);
+                    }
+                    
+                    if (spider && strand.spiderHanging) {
+                        const tip = strand.getTip();
+                        if (!tip.fixed) {
+                            tip.vy += spider.weight;
+                        }
+                    }
+                }
+            });
+            
+            // Global constraint solving for all threads
+            for (let iter = 0; iter < 30; iter++) {
+                for (let strand of silkStrands) {
+                    for (let i = 0; i < strand.segments.length - 1; i++) {
+                        const s1 = strand.segments[i];
+                        const s2 = strand.segments[i + 1];
+                        const dx = s2.x - s1.x;
+                        const dy = s2.y - s1.y;
+                        const dist = Math.sqrt(dx * dx + dy * dy);
+                        if (dist === 0) continue;
+                        
+                        const diff = (strand.segmentLength - dist) / dist;
+                        const offsetX = dx * diff * 0.7;
+                        const offsetY = dy * diff * 0.7;
+                        
+                        if (!s1.fixed) {
+                            s1.x -= offsetX;
+                            s1.y -= offsetY;
+                        }
+                        if (!s2.fixed) {
+                            s2.x += offsetX;
+                            s2.y += offsetY;
+                        }
+                    }
+                }
+                
+                // Zero velocities on fixed segments
+                for (let strand of silkStrands) {
+                    for (let seg of strand.segments) {
+                        if (seg.fixed) {
+                            seg.vx = 0;
+                            seg.vy = 0;
+                        }
+                    }
+                }
+            }
+            
+            // Update thread-specific positions after constraint solving
+            silkStrands.forEach(strand => {
+                if (strand instanceof DraggedSilk && spider) {
+                    if (strand.spiderAttached && !strand.attached) {
+                        const tip = strand.getTip();
+                        tip.x = spider.x;
+                        tip.y = spider.y;
+                    }
+                    
+                    if (strand.attached && strand.thread0EndpointSegment) {
+                        const tip = strand.getTip();
+                        tip.x = strand.thread0EndpointSegment.x;
+                        tip.y = strand.thread0EndpointSegment.y;
+                    }
+                } else if (strand instanceof FloatedSilk) {
+                    if (strand.tightening && strand.attached) {
+                        const start = strand.segments[0];
+                        const end = strand.segments[strand.segments.length - 1];
+                        const dx = end.x - start.x;
+                        const dy = end.y - start.y;
+                        const currentDist = Math.sqrt(dx * dx + dy * dy);
+                        
+                        if (currentDist > strand.targetLength) {
+                            for (let i = 1; i < strand.segments.length - 1; i++) {
+                                const t = i / (strand.segments.length - 1);
+                                const targetX = start.x + dx * t;
+                                const targetY = start.y + dy * t;
+                                const seg = strand.segments[i];
+                                seg.x += (targetX - seg.x) * 0.05;
+                                seg.y += (targetY - seg.y) * 0.05;
+                            }
+                        } else {
+                            strand.tightening = false;
+                        }
+                    }
+                }
+            });
+            
+            if (spider) {
+                spider.update();
+                
+                const debugDiv = document.getElementById('debugInfo');
+                if (debugDiv) {
+                    if (spider.state === 'crossing_bridge' && spider.bridgeStrandFinalLength > 0) {
+                        const currentThread0SegmentIndex = Math.floor(spider.crossProgress * (spider.bridgeStrand.segments.length - 1));
+                        
+                        debugDiv.innerHTML = `CROSSING<br>
+                            Progress: ${Math.floor(spider.crossProgress * 100)}%<br>
+                            Thread 1: ${spider.secondStrand.segments.length} segs<br>
+                            Current node: ${currentThread0SegmentIndex}<br>
+                            Last node: ${spider.lastThread0SegmentIndex}<br>
+                            Should add? ${currentThread0SegmentIndex > spider.lastThread0SegmentIndex}`;
+                    } else {
+                        const thread0Length = spider.bridgeStrand ? spider.bridgeStrand.segments.length : 0;
+                        const thread1Length = spider.secondStrand ? spider.secondStrand.segments.length : 0;
+                        const thread2Length = spider.thirdStrand ? spider.thirdStrand.segments.length : 0;
+                        
+                        const spokeCount = spider.spokes ? spider.spokes.length : 0;
+                        debugDiv.innerHTML = `State: ${spider.state}<br>
+                            Thread 0: ${thread0Length} segs<br>
+                            Thread 1: ${thread1Length} segs<br>
+                            Thread 2: ${thread2Length} segs<br>
+                            Spokes: ${spokeCount}/${spider.maxSpokes}`;
+                    }
+                }
+            }
+            draw();
+            requestAnimationFrame(animate);
+        }
+        
+        function regenerate() {
+            silkStrands = [];
+            webNodes = [];
+            generateBranches();
+            createSpider();
+        }
+        
+        const windToggle = document.getElementById('windToggle');
+        const windStatus = document.getElementById('windStatus');
+        
+        windToggle.addEventListener('change', (e) => {
+            windEnabled = e.target.checked;
+            windStatus.textContent = windEnabled ? 'On' : 'Off';
+        });
+        
+        window.addEventListener('resize', () => {
+            resizeCanvas();
+            regenerate();
+        });
+        
+        resizeCanvas();
+        updateWindForce();
+        generateBranches();
+        createSpider();
+        animate();
+    </script>
+</body>
+</html>

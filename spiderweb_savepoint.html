@@ -1,0 +1,1794 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Spider Web Weaving</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            background: #f5f5dc;
+            font-family: Arial, sans-serif;
+        }
+        
+        canvas {
+            display: block;
+            width: 100%;
+            height: 100vh;
+        }
+        
+        .controls {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            background: rgba(60, 60, 60, 0.9);
+            padding: 15px;
+            border-radius: 8px;
+            color: #f5f5dc;
+            max-width: 300px;
+        }
+        
+        button {
+            background: #3c3c3c;
+            color: #f5f5dc;
+            border: 2px solid #2a2a2a;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 14px;
+            margin-top: 10px;
+        }
+        
+        button:hover {
+            background: #2a2a2a;
+        }
+        
+        .instructions {
+            font-size: 12px;
+            margin-top: 10px;
+            opacity: 0.8;
+        }
+    </style>
+</head>
+<body>
+    <div class="controls">
+        <div>Spider Web Simulator</div>
+        <button onclick="regenerate()">Regenerate Branches</button>
+        <button onclick="startWeaving()">Start Web</button>
+        <div class="instructions">Click "Start Web" to begin</div>
+        <div style="margin-top: 15px;">
+            <label>
+                <input type="checkbox" id="windToggle" checked>
+                Wind: <span id="windStatus">On</span>
+            </label>
+        </div>
+        <div id="debugInfo" style="margin-top: 15px; font-size: 11px; opacity: 0.9; border-top: 1px solid #555; padding-top: 10px;">
+            Debug info will appear here...
+        </div>
+    </div>
+    <canvas id="canvas"></canvas>
+    
+    <script>
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
+        
+        let width, height;
+        let branches = [];
+        let spider;
+        let silkStrands = [];
+        let windEnabled = true;
+        let windLevel = 1;
+        let windForce = { x: 0.1, y: 0.01 };
+        let webNodes = [];
+        
+        function updateWindForce() {
+            windForce.x = (windLevel / 10) * 0.125;
+            windForce.y = (windLevel / 10) * 0.0125;
+        }
+        
+        function resizeCanvas() {
+            width = canvas.width = window.innerWidth;
+            height = canvas.height = window.innerHeight;
+        }
+        
+        class WebNode {
+            constructor(segment1, strand1, segmentIndex1, segment2, strand2, segmentIndex2) {
+                this.segment1 = segment1;
+                this.strand1 = strand1;
+                this.segmentIndex1 = segmentIndex1;
+                this.segment2 = segment2;
+                this.strand2 = strand2;
+                this.segmentIndex2 = segmentIndex2;
+                this.active = true;
+                
+                segment1.connectedNodes.push(this);
+                segment2.connectedNodes.push(this);
+            }
+            
+            update() {
+                if (!this.active) return;
+                
+                if (!this.segment1 || !this.segment2) {
+                    this.active = false;
+                    return;
+                }
+                
+                const avgX = (this.segment1.x + this.segment2.x) / 2;
+                const avgY = (this.segment1.y + this.segment2.y) / 2;
+                
+                if (!this.segment1.fixed && !this.segment2.fixed) {
+                    this.segment1.x = avgX;
+                    this.segment1.y = avgY;
+                    this.segment2.x = avgX;
+                    this.segment2.y = avgY;
+                } else if (!this.segment1.fixed) {
+                    this.segment1.x = this.segment2.x;
+                    this.segment1.y = this.segment2.y;
+                } else if (!this.segment2.fixed) {
+                    this.segment2.x = this.segment1.x;
+                    this.segment2.y = this.segment1.y;
+                }
+            }
+            
+            draw() {
+                if (!this.active || !this.segment1 || !this.segment2) return;
+                
+                ctx.fillStyle = '#8B4513';
+                ctx.beginPath();
+                ctx.arc(this.segment1.x, this.segment1.y, 3, 0, Math.PI * 2);
+                ctx.fill();
+            }
+        }
+        
+        function findIntersections(strand1, strand2) {
+            const nodes = [];
+            const threshold = 8;
+            
+            const strand1CanStick = strand1.canStick !== false;
+            const strand2CanStick = strand2.canStick !== false;
+            
+            for (let i = 0; i < strand1.segments.length; i++) {
+                const seg1 = strand1.segments[i];
+                
+                const seg1Allowed = strand1CanStick || 
+                                   (strand1.explicitConnections && strand1.explicitConnections.has(i));
+                
+                if (!seg1Allowed) continue;
+                
+                if (strand1 instanceof DraggedSilk && !strand1.attached) continue;
+                
+                for (let j = 0; j < strand2.segments.length; j++) {
+                    const seg2 = strand2.segments[j];
+                    
+                    const seg2Allowed = strand2CanStick || 
+                                       (strand2.explicitConnections && strand2.explicitConnections.has(j));
+                    
+                    if (!seg2Allowed) continue;
+                    
+                    if (strand2 instanceof DraggedSilk && !strand2.attached) continue;
+                    
+                    if (strand1.canStick && strand1 instanceof FloatedSilk && !strand1.attached) {
+                        if (i !== strand1.segments.length - 1) continue;
+                    }
+                    if (strand2.canStick && strand2 instanceof FloatedSilk && !strand2.attached) {
+                        if (j !== strand2.segments.length - 1) continue;
+                    }
+                    
+                    const dx = seg2.x - seg1.x;
+                    const dy = seg2.y - seg1.y;
+                    const dist = Math.sqrt(dx * dx + dy * dy);
+                    
+                    if (dist < threshold) {
+                        const alreadyExists = webNodes.some(node => 
+                            (node.segment1 === seg1 && node.segment2 === seg2) ||
+                            (node.segment1 === seg2 && node.segment2 === seg1)
+                        );
+                        
+                        if (!alreadyExists) {
+                            const node = new WebNode(seg1, strand1, i, seg2, strand2, j);
+                            nodes.push(node);
+                        }
+                    }
+                }
+            }
+            
+            return nodes;
+        }
+        
+        function updateWebConnections() {
+            webNodes = webNodes.filter(node => node.active);
+            
+            for (let i = 0; i < silkStrands.length; i++) {
+                for (let j = i + 1; j < silkStrands.length; j++) {
+                    const newNodes = findIntersections(silkStrands[i], silkStrands[j]);
+                    webNodes.push(...newNodes);
+                }
+            }
+            
+            for (let node of webNodes) {
+                node.update();
+            }
+        }
+        
+        class SilkSegment {
+            constructor(x, y, hasInitialVelocity = false) {
+                this.x = x;
+                this.y = y;
+                this.vx = hasInitialVelocity ? 2 : 0;
+                this.vy = hasInitialVelocity ? 0 : 0;
+                this.fixed = false;
+                this.connectedNodes = [];
+            }
+            
+            update(applyWind = false) {
+                if (this.fixed) return;
+                
+                if (applyWind && windEnabled) {
+                    this.vx += windForce.x;
+                    this.vy += windForce.y;
+                }
+                this.vx *= 0.98;
+                this.vy *= 0.98;
+                this.x += this.vx;
+                this.y += this.vy;
+            }
+        }
+        
+        class FloatedSilk {
+            constructor(startX, startY) {
+                this.segments = [new SilkSegment(startX, startY, true)];
+                this.segments[0].fixed = true;
+                this.maxSegments = 80;
+                this.segmentLength = 10;
+                this.attached = false;
+                this.tightening = false;
+                this.targetLength = null;
+                this.canStick = true;
+            }
+            
+            addSegment() {
+                if (this.segments.length >= this.maxSegments) return false;
+                const last = this.segments[this.segments.length - 1];
+                const newSeg = new SilkSegment(last.x + 5, last.y, false);
+                this.segments.push(newSeg);
+                return true;
+            }
+            
+            getTip() {
+                return this.segments[this.segments.length - 1];
+            }
+            
+            attach(x, y) {
+                const tip = this.getTip();
+                tip.x = x;
+                tip.y = y;
+                tip.fixed = true;
+                this.attached = true;
+                
+                let totalDist = 0;
+                for (let i = 0; i < this.segments.length - 1; i++) {
+                    const s1 = this.segments[i];
+                    const s2 = this.segments[i + 1];
+                    const dx = s2.x - s1.x;
+                    const dy = s2.y - s1.y;
+                    totalDist += Math.sqrt(dx * dx + dy * dy);
+                }
+                this.targetLength = totalDist * 0.8;
+                this.tightening = true;
+            }
+            
+            update() {
+                if (this.attached) {
+                    for (let seg of this.segments) {
+                        if (!seg.fixed) {
+                            seg.vy += 0.02;
+                        }
+                    }
+                }
+                
+                for (let seg of this.segments) {
+                    seg.update(!this.attached);
+                }
+                
+                for (let iter = 0; iter < 15; iter++) {
+                    for (let i = 0; i < this.segments.length - 1; i++) {
+                        const s1 = this.segments[i];
+                        const s2 = this.segments[i + 1];
+                        const dx = s2.x - s1.x;
+                        const dy = s2.y - s1.y;
+                        const dist = Math.sqrt(dx * dx + dy * dy);
+                        if (dist === 0) continue;
+                        
+                        const diff = (this.segmentLength - dist) / dist;
+                        const offsetX = dx * diff * 0.9;
+                        const offsetY = dy * diff * 0.9;
+                        
+                        if (!s1.fixed) {
+                            s1.x -= offsetX;
+                            s1.y -= offsetY;
+                        }
+                        if (!s2.fixed) {
+                            s2.x += offsetX;
+                            s2.y += offsetY;
+                        }
+                    }
+                }
+                
+                if (this.tightening && this.attached) {
+                    const start = this.segments[0];
+                    const end = this.segments[this.segments.length - 1];
+                    const dx = end.x - start.x;
+                    const dy = end.y - start.y;
+                    const currentDist = Math.sqrt(dx * dx + dy * dy);
+                    
+                    if (currentDist > this.targetLength) {
+                        for (let i = 1; i < this.segments.length - 1; i++) {
+                            const t = i / (this.segments.length - 1);
+                            const targetX = start.x + dx * t;
+                            const targetY = start.y + dy * t;
+                            const seg = this.segments[i];
+                            seg.x += (targetX - seg.x) * 0.05;
+                            seg.y += (targetY - seg.y) * 0.05;
+                        }
+                    } else {
+                        this.tightening = false;
+                    }
+                }
+            }
+            
+            draw() {
+                ctx.strokeStyle = '#3c3c3c';
+                ctx.lineWidth = 1;
+                ctx.beginPath();
+                ctx.moveTo(this.segments[0].x, this.segments[0].y);
+                for (let i = 1; i < this.segments.length; i++) {
+                    ctx.lineTo(this.segments[i].x, this.segments[i].y);
+                }
+                ctx.stroke();
+                
+                ctx.fillStyle = '#FF0000';
+                for (let i = 0; i < this.segments.length; i++) {
+                    ctx.beginPath();
+                    ctx.arc(this.segments[i].x, this.segments[i].y, 2, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+                
+                if (!this.attached) {
+                    const tip = this.getTip();
+                    ctx.fillStyle = '#3c3c3c';
+                    ctx.beginPath();
+                    ctx.arc(tip.x, tip.y, 3, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+                
+                ctx.fillStyle = '#3c3c3c';
+                ctx.beginPath();
+                ctx.arc(this.segments[0].x, this.segments[0].y, 3, 0, Math.PI * 2);
+                ctx.fill();
+                
+                if (this.attached) {
+                    const tip = this.getTip();
+                    ctx.beginPath();
+                    ctx.arc(tip.x, tip.y, 3, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+            }
+        }
+        
+        class DraggedSilk {
+            constructor(startX, startY) {
+                this.segments = [new SilkSegment(startX, startY, false)];
+                this.segments[0].fixed = true;
+                this.maxSegments = 100;
+                this.segmentLength = 10;
+                this.attached = false;
+                this.spiderAttached = true;
+                this.spiderSegmentIndex = -1;
+                this.canStick = false;
+                this.explicitConnections = new Set();
+                this.thread0EndpointSegment = null;
+            }
+            
+            addSegment() {
+                if (this.segments.length >= this.maxSegments) return false;
+                const last = this.segments[this.segments.length - 1];
+                const newSeg = new SilkSegment(last.x, last.y, false);
+                this.segments.push(newSeg);
+                return true;
+            }
+            
+            getTip() {
+                return this.segments[this.segments.length - 1];
+            }
+            
+            updateTipPosition(x, y) {
+                if (this.spiderAttached && !this.attached) {
+                    const tip = this.getTip();
+                    tip.x = x;
+                    tip.y = y;
+                    tip.fixed = false;
+                }
+            }
+            
+            setSpiderPosition(progress) {
+                const idx = Math.floor(progress * (this.segments.length - 1));
+                this.spiderSegmentIndex = idx;
+            }
+            
+            attach(x, y) {
+                const tip = this.getTip();
+                tip.x = x;
+                tip.y = y;
+                tip.fixed = true;
+                this.attached = true;
+                this.spiderAttached = false;
+                
+                this.explicitConnections.add(0);
+                this.explicitConnections.add(this.segments.length - 1);
+            }
+            
+            update(spiderX, spiderY, spiderWeight = 0) {
+                for (let i = 0; i < this.segments.length; i++) {
+                    const seg = this.segments[i];
+                    if (!seg.fixed) {
+                        seg.vy += 0.02;
+                    }
+                }
+                
+                if (this.spiderAttached && !this.attached) {
+                    const tip = this.getTip();
+                    tip.x = spiderX;
+                    tip.y = spiderY;
+                    tip.vx = 0;
+                    tip.vy = 0;
+                }
+                
+                if (this.attached && this.thread0EndpointSegment) {
+                    const tip = this.getTip();
+                    tip.x = this.thread0EndpointSegment.x;
+                    tip.y = this.thread0EndpointSegment.y;
+                    tip.vx = 0;
+                    tip.vy = 0;
+                }
+                
+                for (let seg of this.segments) {
+                    seg.update(false);
+                }
+                
+                if (this.spiderSegmentIndex >= 0 && this.spiderSegmentIndex < this.segments.length) {
+                    const spiderSeg = this.segments[this.spiderSegmentIndex];
+                    if (!spiderSeg.fixed) {
+                        spiderSeg.vy += spiderWeight;
+                    }
+                }
+                
+                for (let iter = 0; iter < 15; iter++) {
+                    for (let i = 0; i < this.segments.length - 1; i++) {
+                        const s1 = this.segments[i];
+                        const s2 = this.segments[i + 1];
+                        const dx = s2.x - s1.x;
+                        const dy = s2.y - s1.y;
+                        const dist = Math.sqrt(dx * dx + dy * dy);
+                        if (dist === 0) continue;
+                        
+                        const diff = (this.segmentLength - dist) / dist;
+                        const offsetX = dx * diff * 0.9;
+                        const offsetY = dy * diff * 0.9;
+                        
+                        if (!s1.fixed) {
+                            s1.x -= offsetX;
+                            s1.y -= offsetY;
+                        }
+                        if (!s2.fixed) {
+                            s2.x += offsetX;
+                            s2.y += offsetY;
+                        }
+                    }
+                    
+                    for (let seg of this.segments) {
+                        if (seg.fixed) {
+                            seg.vx = 0;
+                            seg.vy = 0;
+                        }
+                    }
+                }
+                
+                if (this.spiderAttached && !this.attached) {
+                    const tip = this.getTip();
+                    tip.x = spiderX;
+                    tip.y = spiderY;
+                }
+                
+                if (this.attached && this.thread0EndpointSegment) {
+                    const tip = this.getTip();
+                    tip.x = this.thread0EndpointSegment.x;
+                    tip.y = this.thread0EndpointSegment.y;
+                }
+            }
+            
+            draw() {
+                ctx.strokeStyle = '#3c3c3c';
+                ctx.lineWidth = 1;
+                ctx.beginPath();
+                ctx.moveTo(this.segments[0].x, this.segments[0].y);
+                for (let i = 1; i < this.segments.length; i++) {
+                    ctx.lineTo(this.segments[i].x, this.segments[i].y);
+                }
+                ctx.stroke();
+                
+                ctx.fillStyle = '#FF0000';
+                for (let i = 0; i < this.segments.length; i++) {
+                    ctx.beginPath();
+                    ctx.arc(this.segments[i].x, this.segments[i].y, 2, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+                
+                ctx.fillStyle = '#3c3c3c';
+                ctx.beginPath();
+                ctx.arc(this.segments[0].x, this.segments[0].y, 3, 0, Math.PI * 2);
+                ctx.fill();
+                
+                if (this.attached) {
+                    const tip = this.getTip();
+                    ctx.beginPath();
+                    ctx.arc(tip.x, tip.y, 3, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+            }
+        }
+        
+        class RappelSilk {
+            constructor(startX, startY, attachedStrand = null, attachProgress = 0) {
+                this.segments = [new SilkSegment(startX, startY, false)];
+                this.maxSegments = 200;
+                this.segmentLength = 10;
+                this.attached = false;
+                this.spiderHanging = true;
+                this.canStick = false;
+                this.explicitConnections = new Set();
+            }
+            
+            addSegment() {
+                if (this.segments.length >= this.maxSegments) return false;
+                const last = this.segments[this.segments.length - 1];
+                const newSeg = new SilkSegment(last.x, last.y + 2, false);
+                newSeg.vx = 0;
+                newSeg.vy = 0;
+                this.segments.push(newSeg);
+                return true;
+            }
+            
+            getTip() {
+                return this.segments[this.segments.length - 1];
+            }
+            
+            getSpiderPosition() {
+                const tip = this.getTip();
+                return { x: tip.x, y: tip.y };
+            }
+            
+            attach(x, y) {
+                const tip = this.getTip();
+                tip.x = x;
+                tip.y = y;
+                tip.fixed = true;
+                this.attached = true;
+                this.spiderHanging = false;
+                
+                this.explicitConnections.add(0);
+                this.explicitConnections.add(this.segments.length - 1);
+            }
+            
+            update(spiderWeight = 0) {
+                for (let seg of this.segments) {
+                    if (!seg.fixed) {
+                        seg.vy += 0.02;
+                    }
+                    seg.update(false);
+                }
+                
+                if (this.spiderHanging) {
+                    const tip = this.getTip();
+                    if (!tip.fixed) {
+                        tip.vy += spiderWeight;
+                    }
+                }
+                
+                for (let iter = 0; iter < 15; iter++) {
+                    for (let i = 0; i < this.segments.length - 1; i++) {
+                        const s1 = this.segments[i];
+                        const s2 = this.segments[i + 1];
+                        const dx = s2.x - s1.x;
+                        const dy = s2.y - s1.y;
+                        const dist = Math.sqrt(dx * dx + dy * dy);
+                        if (dist === 0) continue;
+                        
+                        const diff = (this.segmentLength - dist) / dist;
+                        const offsetX = dx * diff * 0.9;
+                        const offsetY = dy * diff * 0.9;
+                        
+                        if (!s1.fixed) {
+                            s1.x -= offsetX;
+                            s1.y -= offsetY;
+                        }
+                        if (!s2.fixed) {
+                            s2.x += offsetX;
+                            s2.y += offsetY;
+                        }
+                    }
+                }
+            }
+            
+            draw() {
+                ctx.strokeStyle = '#3c3c3c';
+                ctx.lineWidth = 1;
+                ctx.beginPath();
+                ctx.moveTo(this.segments[0].x, this.segments[0].y);
+                for (let i = 1; i < this.segments.length; i++) {
+                    ctx.lineTo(this.segments[i].x, this.segments[i].y);
+                }
+                ctx.stroke();
+                
+                ctx.fillStyle = '#FF0000';
+                for (let i = 0; i < this.segments.length; i++) {
+                    ctx.beginPath();
+                    ctx.arc(this.segments[i].x, this.segments[i].y, 2, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+                
+                ctx.fillStyle = '#3c3c3c';
+                ctx.beginPath();
+                ctx.arc(this.segments[0].x, this.segments[0].y, 3, 0, Math.PI * 2);
+                ctx.fill();
+                
+                if (this.attached) {
+                    const tip = this.getTip();
+                    ctx.beginPath();
+                    ctx.arc(tip.x, tip.y, 3, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+            }
+        }
+        
+        class Branch {
+            constructor(x1, y1, x2, y2, thickness, generation = 0) {
+                this.x1 = x1;
+                this.y1 = y1;
+                this.x2 = x2;
+                this.y2 = y2;
+                this.thickness = thickness;
+                this.generation = generation;
+                this.children = [];
+            }
+            
+            draw() {
+                ctx.strokeStyle = '#3c3c3c';
+                ctx.lineWidth = this.thickness;
+                ctx.lineCap = 'round';
+                ctx.beginPath();
+                ctx.moveTo(this.x1, this.y1);
+                ctx.lineTo(this.x2, this.y2);
+                ctx.stroke();
+                this.children.forEach(child => child.draw());
+            }
+            
+            addChild(branch) {
+                this.children.push(branch);
+            }
+            
+            checkCollision(px, py, radius = 5) {
+                const dx = this.x2 - this.x1;
+                const dy = this.y2 - this.y1;
+                const length = Math.sqrt(dx * dx + dy * dy);
+                const nx = dx / length;
+                const ny = dy / length;
+                const vx = px - this.x1;
+                const vy = py - this.y1;
+                const dot = vx * nx + vy * ny;
+                const t = Math.max(0, Math.min(length, dot));
+                const closestX = this.x1 + nx * t;
+                const closestY = this.y1 + ny * t;
+                const distX = px - closestX;
+                const distY = py - closestY;
+                const dist = Math.sqrt(distX * distX + distY * distY);
+                
+                if (dist < this.thickness / 2 + radius) {
+                    return { x: closestX, y: closestY };
+                }
+                
+                for (let child of this.children) {
+                    const collision = child.checkCollision(px, py, radius);
+                    if (collision) return collision;
+                }
+                return null;
+            }
+        }
+        
+        class Spider {
+            constructor(x, y) {
+                this.x = x;
+                this.y = y;
+                this.radius = 6;
+                this.weight = 0.15;
+                this.state = 'waiting_to_weave';
+                this.currentStrand = null;
+                this.bridgeStrand = null;
+                this.bridgeStrandFinalLength = 0;
+                this.secondStrand = null;
+                this.thirdStrand = null;
+                this.releaseTimer = 0;
+                this.crossProgress = 0;
+                this.thread1Progress = 1.0;
+                this.crossSpeed = 0.0025;
+                this.tying = false;
+                this.tyingTimer = 0;
+                this.legAnimation = 0;
+                this.thread1SpinCount = 0;
+                this.waitTimer = 0;
+                this.lastThread0SegmentIndex = undefined;
+                this.thread2InitialSegments = 0;
+                this.thread3InitialSegments = 0;
+                this.originalWeight = this.weight;
+                this.thread1a = null;
+                this.thread1b = null;
+                this.fourthStrand = null;
+                this.walkingThread = null;
+                this.walkProgress = 0;
+                this.lastWalkSegmentIndex = undefined;
+                this.radialTargets = [];
+                this.currentRadialIndex = 0;
+                this.currentRadialStrand = null;
+            }
+            
+            startWeaving() {
+                if (this.state === 'waiting_to_weave') {
+                    this.state = 'releasing_bridge';
+                }
+            }
+            
+            update() {
+                if (this.state === 'waiting_to_weave') {
+                    return;
+                } else if (this.state === 'releasing_bridge') {
+                    this.releaseTimer++;
+                    if (this.releaseTimer % 3 === 0) {
+                        if (!this.currentStrand) {
+                            this.currentStrand = new FloatedSilk(this.x, this.y);
+                            silkStrands.push(this.currentStrand);
+                        } else {
+                            const added = this.currentStrand.addSegment();
+                            if (!added) {
+                                this.state = 'waiting';
+                            }
+                        }
+                    }
+                    
+                    if (this.currentStrand) {
+                        const tip = this.currentStrand.getTip();
+                        const oppositeBranch = branches[1];
+                        const collision = oppositeBranch.checkCollision(tip.x, tip.y, 3);
+                        
+                        if (collision) {
+                            this.currentStrand.attach(collision.x, collision.y);
+                            this.bridgeStrand = this.currentStrand;
+                            this.currentStrand = null;
+                            this.state = 'pulling_bridge';
+                        }
+                    }
+                } else if (this.state === 'pulling_bridge') {
+                    this.tying = true;
+                    this.tyingTimer++;
+                    this.legAnimation = Math.sin(this.tyingTimer * 0.2) * 0.5 + 0.5;
+                    
+                    if (this.bridgeStrand) {
+                        const start = this.bridgeStrand.segments[0];
+                        start.x = this.x;
+                        start.y = this.y;
+                        
+                        const end = this.bridgeStrand.segments[this.bridgeStrand.segments.length - 1];
+                        const dx = end.x - start.x;
+                        const dy = end.y - start.y;
+                        const straightDist = Math.sqrt(dx * dx + dy * dy);
+                        
+                        let threadLength = 0;
+                        for (let i = 0; i < this.bridgeStrand.segments.length - 1; i++) {
+                            const s1 = this.bridgeStrand.segments[i];
+                            const s2 = this.bridgeStrand.segments[i + 1];
+                            const segDx = s2.x - s1.x;
+                            const segDy = s2.y - s1.y;
+                            threadLength += Math.sqrt(segDx * segDx + segDy * segDy);
+                        }
+                        
+                        const targetLength = straightDist + this.bridgeStrand.segmentLength;
+                        
+                        if (threadLength > targetLength && this.bridgeStrand.segments.length > 3) {
+                            const removeIdx = Math.floor(this.bridgeStrand.segments.length / 2);
+                            this.bridgeStrand.segments.splice(removeIdx, 1);
+                        } else {
+                            this.state = 'tying_start';
+                            this.tyingTimer = 0;
+                        }
+                    }
+                } else if (this.state === 'tying_start') {
+                    this.tyingTimer++;
+                    this.legAnimation = Math.sin(this.tyingTimer * 0.2) * 0.5 + 0.5;
+                    
+                    if (this.tyingTimer > 60) {
+                        this.tying = false;
+                        this.attachBridgeToStart();
+                        
+                        this.bridgeStrandFinalLength = this.bridgeStrand.segments.length;
+                        
+                        this.state = 'spinning_thread1';
+                        this.thread1SpinCount = 0;
+                    }
+                } else if (this.state === 'spinning_thread1') {
+                    this.releaseTimer++;
+                    
+                    if (this.thread1SpinCount === 0) {
+                        this.secondStrand = new DraggedSilk(this.x, this.y);
+                        silkStrands.push(this.secondStrand);
+                        this.thread1SpinCount++;
+                    } else if (this.releaseTimer % 3 === 0 && this.thread1SpinCount < 1) {
+                        this.secondStrand.addSegment();
+                        this.thread1SpinCount++;
+                    } else if (this.thread1SpinCount >= 1) {
+                        this.state = 'tying_thread1_start';
+                        this.tying = true;
+                        this.tyingTimer = 0;
+                    }
+                } else if (this.state === 'tying_thread1_start') {
+                    this.tyingTimer++;
+                    this.legAnimation = Math.sin(this.tyingTimer * 0.2) * 0.5 + 0.5;
+                    
+                    if (this.tyingTimer > 60) {
+                        this.tying = false;
+                        const thread0Start = this.bridgeStrand.segments[0];
+                        this.secondStrand.segments[0].x = thread0Start.x;
+                        this.secondStrand.segments[0].y = thread0Start.y;
+                        this.secondStrand.segments[0].fixed = true;
+                        
+                        this.secondStrand.explicitConnections.add(0);
+                        
+                        this.state = 'crossing_bridge';
+                        this.crossProgress = 0;
+                        this.releaseTimer = 0;
+                    }
+                } else if (this.state === 'crossing_bridge') {
+                    this.crossProgress += this.crossSpeed;
+                    
+                    const currentThread0SegmentIndex = Math.floor(this.crossProgress * (this.bridgeStrand.segments.length - 1));
+                    
+                    if (this.lastThread0SegmentIndex === undefined) {
+                        this.lastThread0SegmentIndex = -1;
+                    }
+                    
+                    if (currentThread0SegmentIndex > this.lastThread0SegmentIndex) {
+                        this.secondStrand.addSegment();
+                        this.lastThread0SegmentIndex = currentThread0SegmentIndex;
+                    }
+                    
+                    if (this.crossProgress >= 1) {
+                        this.crossProgress = 1;
+                        
+                        const thread0End = this.bridgeStrand.segments[this.bridgeStrand.segments.length - 1];
+                        this.x = thread0End.x;
+                        this.y = thread0End.y;
+                        
+                        this.lastThread0SegmentIndex = undefined;
+                        
+                        this.state = 'tying_thread1_end';
+                        this.tying = true;
+                        this.tyingTimer = 0;
+                    } else {
+                        const idx = Math.floor(this.crossProgress * (this.bridgeStrand.segments.length - 1));
+                        const nextIdx = Math.min(idx + 1, this.bridgeStrand.segments.length - 1);
+                        const t = (this.crossProgress * (this.bridgeStrand.segments.length - 1)) - idx;
+                        
+                        const s1 = this.bridgeStrand.segments[idx];
+                        const s2 = this.bridgeStrand.segments[nextIdx];
+                        
+                        this.x = s1.x + (s2.x - s1.x) * t;
+                        this.y = s1.y + (s2.y - s1.y) * t;
+                        
+                        if (!s1.fixed) {
+                            s1.vy += this.weight * (1 - t);
+                        }
+                        if (!s2.fixed) {
+                            s2.vy += this.weight * t;
+                        }
+                    }
+                    
+                    if (this.secondStrand && this.secondStrand.spiderAttached) {
+                        this.secondStrand.updateTipPosition(this.x, this.y);
+                    }
+                    
+                    this.releaseTimer++;
+                } else if (this.state === 'tying_thread1_end') {
+                    this.tyingTimer++;
+                    this.legAnimation = Math.sin(this.tyingTimer * 0.2) * 0.5 + 0.5;
+                    
+                    if (this.bridgeStrand) {
+                        const thread0End = this.bridgeStrand.segments[this.bridgeStrand.segments.length - 1];
+                        this.x = thread0End.x;
+                        this.y = thread0End.y;
+                    }
+                    
+                    if (this.secondStrand && this.secondStrand.spiderAttached) {
+                        this.secondStrand.updateTipPosition(this.x, this.y);
+                    }
+                    
+                    if (this.tyingTimer > 60) {
+                        this.tying = false;
+                        this.attachSecondStrand();
+                        
+                        if (this.secondStrand && this.secondStrand.attached) {
+                            this.state = 'moving_to_center';
+                        } else {
+                            this.tyingTimer = 50;
+                        }
+                    }
+                } else if (this.state === 'moving_to_center') {
+                    if (this.secondStrand) {
+                        const targetProgress = 0.5;
+                        
+                        if (Math.abs(this.thread1Progress - targetProgress) < 0.01) {
+                            this.thread1Progress = targetProgress;
+                            this.state = 'waiting';
+                        } else {
+                            if (this.thread1Progress > targetProgress) {
+                                this.thread1Progress -= 0.01;
+                                this.thread1Progress = Math.max(targetProgress, this.thread1Progress);
+                            } else {
+                                this.thread1Progress += 0.01;
+                                this.thread1Progress = Math.min(targetProgress, this.thread1Progress);
+                            }
+                        }
+                        
+                        this.secondStrand.setSpiderPosition(this.thread1Progress);
+                        
+                        const idx = Math.floor(this.thread1Progress * (this.secondStrand.segments.length - 1));
+                        const nextIdx = Math.min(idx + 1, this.secondStrand.segments.length - 1);
+                        const t = (this.thread1Progress * (this.secondStrand.segments.length - 1)) - idx;
+                        
+                        const s1 = this.secondStrand.segments[idx];
+                        const s2 = this.secondStrand.segments[nextIdx];
+                        
+                        this.x = s1.x + (s2.x - s1.x) * t;
+                        this.y = s1.y + (s2.y - s1.y) * t;
+                        
+                        if (!s1.fixed) {
+                            s1.vy += this.weight * (1 - t);
+                        }
+                        if (!s2.fixed) {
+                            s2.vy += this.weight * t;
+                        }
+                    }
+                } else if (this.state === 'waiting') {
+                    if (this.secondStrand && this.thread1Progress > 0) {
+                        this.secondStrand.setSpiderPosition(this.thread1Progress);
+                        
+                        const idx = Math.floor(this.thread1Progress * (this.secondStrand.segments.length - 1));
+                        const nextIdx = Math.min(idx + 1, this.secondStrand.segments.length - 1);
+                        const t = (this.thread1Progress * (this.secondStrand.segments.length - 1)) - idx;
+                        
+                        const s1 = this.secondStrand.segments[idx];
+                        const s2 = this.secondStrand.segments[nextIdx];
+                        
+                        this.x = s1.x + (s2.x - s1.x) * t;
+                        this.y = s1.y + (s2.y - s1.y) * t;
+                        
+                        if (!s1.fixed) {
+                            s1.vy += this.weight * (1 - t);
+                        }
+                        if (!s2.fixed) {
+                            s2.vy += this.weight * t;
+                        }
+                        
+                        this.waitTimer++;
+                        if (this.waitTimer > 120) {
+                            this.weight = 0;
+                            this.state = 'start_rappel';
+                            this.waitTimer = 0;
+                        }
+                    }
+                } else if (this.state === 'start_rappel') {
+                    const thread1SegIdx = Math.floor(this.thread1Progress * (this.secondStrand.segments.length - 1));
+                    const thread1Seg = this.secondStrand.segments[thread1SegIdx];
+                    
+                    // Reset velocities on all segments before split to prevent violent reaction
+                    for (let seg of this.secondStrand.segments) {
+                        seg.vx *= 0.1;
+                        seg.vy *= 0.1;
+                    }
+                    
+                    // Split thread1 into two parts at the connection point
+                    const thread1a_segments = this.secondStrand.segments.slice(0, thread1SegIdx + 1);
+                    const thread1b_segments = this.secondStrand.segments.slice(thread1SegIdx);
+                    
+                    // Create thread1a (start to connection point)
+                    const thread1a = new DraggedSilk(thread1a_segments[0].x, thread1a_segments[0].y);
+                    thread1a.segments = thread1a_segments;
+                    thread1a.attached = true;
+                    thread1a.spiderAttached = false;
+                    thread1a.explicitConnections = new Set([0, thread1a_segments.length - 1]);
+                    thread1a.thread0EndpointSegment = null;
+                    
+                    // Create thread1b (connection point to end)
+                    const thread1b = new DraggedSilk(thread1b_segments[0].x, thread1b_segments[0].y);
+                    thread1b.segments = thread1b_segments;
+                    thread1b.attached = true;
+                    thread1b.spiderAttached = false;
+                    thread1b.explicitConnections = new Set([0, thread1b_segments.length - 1]);
+                    thread1b.thread0EndpointSegment = this.secondStrand.thread0EndpointSegment;
+                    
+                    // Update webNodes to reference the new split threads
+                    for (let node of webNodes) {
+                        if (node.strand1 === this.secondStrand) {
+                            if (node.segmentIndex1 <= thread1SegIdx) {
+                                node.strand1 = thread1a;
+                            } else {
+                                node.strand1 = thread1b;
+                                node.segmentIndex1 = node.segmentIndex1 - thread1SegIdx;
+                            }
+                        }
+                        if (node.strand2 === this.secondStrand) {
+                            if (node.segmentIndex2 <= thread1SegIdx) {
+                                node.strand2 = thread1a;
+                            } else {
+                                node.strand2 = thread1b;
+                                node.segmentIndex2 = node.segmentIndex2 - thread1SegIdx;
+                            }
+                        }
+                    }
+                    
+                    // Remove old thread1 and add the two new threads
+                    const oldIndex = silkStrands.indexOf(this.secondStrand);
+                    if (oldIndex >= 0) {
+                        silkStrands.splice(oldIndex, 1);
+                    }
+                    silkStrands.push(thread1a);
+                    silkStrands.push(thread1b);
+                    
+                    // Store references to the split threads
+                    this.thread1a = thread1a;
+                    this.thread1b = thread1b;
+                    
+                    // Create thread2 (rappel line) attached to the shared segment
+                    this.thirdStrand = new RappelSilk(thread1Seg.x, thread1Seg.y, null, 0);
+                    this.thirdStrand.segments[0] = thread1Seg;
+                    this.thirdStrand.explicitConnections.add(0);
+                    silkStrands.push(this.thirdStrand);
+                    
+                    this.state = 'rappelling';
+                    this.releaseTimer = 0;
+                } else if (this.state === 'rappelling') {
+                    this.releaseTimer++;
+                    
+                    if (this.releaseTimer % 3 === 0) {
+                        this.thirdStrand.addSegment();
+                    }
+                    
+                    if (this.thirdStrand.segments.length >= 10 && this.weight === 0) {
+                        this.weight = this.originalWeight;
+                    }
+                    
+                    const spiderPos = this.thirdStrand.getSpiderPosition();
+                    this.x = spiderPos.x;
+                    this.y = spiderPos.y;
+                    
+                    for (let branch of branches) {
+                        const collision = branch.checkCollision(this.x, this.y, this.radius);
+                        if (collision) {
+                            this.thirdStrand.attach(collision.x, collision.y);
+                            this.state = 'rappel_complete';
+                            break;
+                        }
+                    }
+                    
+                    if (this.thirdStrand.segments.length > 100) {
+                        this.state = 'rappel_complete';
+                    }
+                } else if (this.state === 'rappel_complete') {
+                    if (this.weight === 0) {
+                        this.weight = this.originalWeight;
+                    }
+                    this.thread2InitialSegments = this.thirdStrand.segments.length;
+                    this.state = 'tensioning_thread2';
+                    this.tying = true;
+                    this.tyingTimer = 0;
+                } else if (this.state === 'tensioning_thread2') {
+                    this.tyingTimer++;
+                    this.legAnimation = Math.sin(this.tyingTimer * 0.2) * 0.5 + 0.5;
+                    
+                    if (this.thirdStrand) {
+                        const targetSegments = Math.ceil(this.thread2InitialSegments * 0.75);
+                        
+                        if (this.thirdStrand.segments.length > targetSegments && this.thirdStrand.segments.length > 3) {
+                            const removeIdx = Math.floor(this.thirdStrand.segments.length / 2);
+                            this.thirdStrand.segments.splice(removeIdx, 1);
+                        } else {
+                            this.tying = false;
+                            this.state = 'web_complete';
+                        }
+                    }
+                    
+                    const spiderPos = this.thirdStrand.getSpiderPosition();
+                    this.x = spiderPos.x;
+                    this.y = spiderPos.y;
+                } else if (this.state === 'web_complete') {
+                    if (this.thirdStrand) {
+                        const spiderPos = this.thirdStrand.getSpiderPosition();
+                        this.x = spiderPos.x;
+                        this.y = spiderPos.y;
+                    }
+                    
+                    this.waitTimer++;
+                    if (this.waitTimer > 60) {
+                        this.state = 'climbing_thread2';
+                        this.walkProgress = 1.0;
+                        this.waitTimer = 0;
+                    }
+                } else if (this.state === 'climbing_thread2') {
+                    this.walkProgress -= 0.01;
+                    
+                    if (this.walkProgress <= 0) {
+                        this.walkProgress = 0;
+                        const connectionSeg = this.thirdStrand.segments[0];
+                        this.x = connectionSeg.x;
+                        this.y = connectionSeg.y;
+                        this.state = 'start_thread3';
+                    } else {
+                        const idx = Math.floor(this.walkProgress * (this.thirdStrand.segments.length - 1));
+                        const nextIdx = Math.min(idx + 1, this.thirdStrand.segments.length - 1);
+                        const t = (this.walkProgress * (this.thirdStrand.segments.length - 1)) - idx;
+                        
+                        const s1 = this.thirdStrand.segments[idx];
+                        const s2 = this.thirdStrand.segments[nextIdx];
+                        
+                        this.x = s1.x + (s2.x - s1.x) * t;
+                        this.y = s1.y + (s2.y - s1.y) * t;
+                        
+                        if (!s1.fixed) {
+                            s1.vy += this.weight * (1 - t);
+                        }
+                        if (!s2.fixed) {
+                            s2.vy += this.weight * t;
+                        }
+                    }
+                } else if (this.state === 'start_thread3') {
+                    const connectionSeg = this.thirdStrand.segments[0];
+                    this.fourthStrand = new DraggedSilk(connectionSeg.x, connectionSeg.y);
+                    this.fourthStrand.segments[0] = connectionSeg;
+                    this.fourthStrand.spiderAttached = true;
+                    this.fourthStrand.explicitConnections.add(0);
+                    this.fourthStrand.addSegment();
+                    silkStrands.push(this.fourthStrand);
+                    
+                    // Choose thread1a to walk on (could also randomly choose)
+                    this.walkingThread = this.thread1a;
+                    this.walkProgress = 1.0;
+                    this.lastWalkSegmentIndex = undefined;
+                    this.state = 'walking_to_thread0';
+                } else if (this.state === 'walking_to_thread0') {
+                    if (this.fourthStrand) {
+                        this.fourthStrand.setSpiderPosition(0);
+                    }
+                    
+                    const currentWalkSegmentIndex = Math.floor(this.walkProgress * (this.walkingThread.segments.length - 1));
+                    
+                    if (this.lastWalkSegmentIndex === undefined) {
+                        this.lastWalkSegmentIndex = this.walkingThread.segments.length;
+                    }
+                    
+                    // Only add segments every 2 segment indices to reduce density
+                    if (currentWalkSegmentIndex < this.lastWalkSegmentIndex - 1) {
+                        this.fourthStrand.addSegment();
+                        this.lastWalkSegmentIndex = currentWalkSegmentIndex;
+                    }
+                    
+                    this.walkProgress -= 0.01;
+                    
+                    if (this.walkProgress <= 0.01) {
+                        this.walkProgress = 0.0;
+                        const seg = this.walkingThread.segments[0];
+                        this.x = seg.x;
+                        this.y = seg.y;
+                        this.lastWalkSegmentIndex = undefined;
+                        this.walkingThread = this.bridgeStrand;
+                        
+                        // Find where thread1a connects to thread0
+                        const thread1aStart = this.thread1a.segments[0];
+                        let closestIdx = 0;
+                        let closestDist = Infinity;
+                        for (let i = 0; i < this.bridgeStrand.segments.length; i++) {
+                            const seg = this.bridgeStrand.segments[i];
+                            const dx = seg.x - thread1aStart.x;
+                            const dy = seg.y - thread1aStart.y;
+                            const dist = Math.sqrt(dx * dx + dy * dy);
+                            if (dist < closestDist) {
+                                closestDist = dist;
+                                closestIdx = i;
+                            }
+                        }
+                        
+                        this.walkProgress = closestIdx / (this.bridgeStrand.segments.length - 1);
+                        this.state = 'walking_to_thread0_center';
+                    } else {
+                        const idx = Math.floor(this.walkProgress * (this.walkingThread.segments.length - 1));
+                        const nextIdx = Math.min(idx + 1, this.walkingThread.segments.length - 1);
+                        const t = (this.walkProgress * (this.walkingThread.segments.length - 1)) - idx;
+                        
+                        const s1 = this.walkingThread.segments[idx];
+                        const s2 = this.walkingThread.segments[nextIdx];
+                        
+                        this.x = s1.x + (s2.x - s1.x) * t;
+                        this.y = s1.y + (s2.y - s1.y) * t;
+                        
+                        if (!s1.fixed) {
+                            s1.vy += this.weight * (1 - t);
+                        }
+                        if (!s2.fixed) {
+                            s2.vy += this.weight * t;
+                        }
+                    }
+                    
+                    if (this.fourthStrand && this.fourthStrand.spiderAttached) {
+                        this.fourthStrand.updateTipPosition(this.x, this.y);
+                    }
+                } else if (this.state === 'walking_to_thread0_center') {
+                    if (this.fourthStrand) {
+                        this.fourthStrand.setSpiderPosition(0);
+                    }
+                    
+                    const currentWalkSegmentIndex = Math.floor(this.walkProgress * (this.walkingThread.segments.length - 1));
+                    
+                    if (this.lastWalkSegmentIndex === undefined) {
+                        this.lastWalkSegmentIndex = currentWalkSegmentIndex;
+                    }
+                    
+                    const targetProgress = 0.5;
+                    const direction = targetProgress > this.walkProgress ? 1 : -1;
+                    
+                    // Only add segments every 2 segment indices to reduce density
+                    if (direction > 0 && currentWalkSegmentIndex > this.lastWalkSegmentIndex + 1) {
+                        this.fourthStrand.addSegment();
+                        this.lastWalkSegmentIndex = currentWalkSegmentIndex;
+                    } else if (direction < 0 && currentWalkSegmentIndex < this.lastWalkSegmentIndex - 1) {
+                        this.fourthStrand.addSegment();
+                        this.lastWalkSegmentIndex = currentWalkSegmentIndex;
+                    }
+                    
+                    if (Math.abs(this.walkProgress - targetProgress) < 0.01) {
+                        this.walkProgress = targetProgress;
+                        this.lastWalkSegmentIndex = undefined;
+                        this.state = 'tying_thread3';
+                        this.tying = true;
+                        this.tyingTimer = 0;
+                    } else {
+                        this.walkProgress += direction * 0.01;
+                        
+                        const idx = Math.floor(this.walkProgress * (this.walkingThread.segments.length - 1));
+                        const nextIdx = Math.min(idx + 1, this.walkingThread.segments.length - 1);
+                        const t = (this.walkProgress * (this.walkingThread.segments.length - 1)) - idx;
+                        
+                        const s1 = this.walkingThread.segments[idx];
+                        const s2 = this.walkingThread.segments[nextIdx];
+                        
+                        this.x = s1.x + (s2.x - s1.x) * t;
+                        this.y = s1.y + (s2.y - s1.y) * t;
+                        
+                        if (!s1.fixed) {
+                            s1.vy += this.weight * (1 - t);
+                        }
+                        if (!s2.fixed) {
+                            s2.vy += this.weight * t;
+                        }
+                    }
+                    
+                    if (this.fourthStrand && this.fourthStrand.spiderAttached) {
+                        this.fourthStrand.updateTipPosition(this.x, this.y);
+                    }
+                } else if (this.state === 'tying_thread3') {
+                    this.tyingTimer++;
+                    this.legAnimation = Math.sin(this.tyingTimer * 0.2) * 0.5 + 0.5;
+                    
+                    const idx = Math.floor(0.5 * (this.bridgeStrand.segments.length - 1));
+                    const seg = this.bridgeStrand.segments[idx];
+                    this.x = seg.x;
+                    this.y = seg.y;
+                    
+                    if (this.fourthStrand && this.fourthStrand.spiderAttached) {
+                        this.fourthStrand.updateTipPosition(this.x, this.y);
+                    }
+                    
+                    if (this.tyingTimer > 60) {
+                        this.tying = false;
+                        this.attachFourthStrand();
+                        
+                        if (this.fourthStrand && this.fourthStrand.attached) {
+                            this.thread3InitialSegments = this.fourthStrand.segments.length;
+                            this.state = 'tensioning_thread3';
+                            this.tyingTimer = 0;
+                        }
+                    }
+                } else if (this.state === 'tensioning_thread3') {
+                    this.tyingTimer++;
+                    this.legAnimation = Math.sin(this.tyingTimer * 0.2) * 0.5 + 0.5;
+                    this.tying = true;
+                    
+                    if (this.fourthStrand) {
+                        const start = this.fourthStrand.segments[0];
+                        const end = this.fourthStrand.segments[this.fourthStrand.segments.length - 1];
+                        const dx = end.x - start.x;
+                        const dy = end.y - start.y;
+                        const straightDist = Math.sqrt(dx * dx + dy * dy);
+                        
+                        let threadLength = 0;
+                        for (let i = 0; i < this.fourthStrand.segments.length - 1; i++) {
+                            const s1 = this.fourthStrand.segments[i];
+                            const s2 = this.fourthStrand.segments[i + 1];
+                            const segDx = s2.x - s1.x;
+                            const segDy = s2.y - s1.y;
+                            threadLength += Math.sqrt(segDx * segDx + segDy * segDy);
+                        }
+                        
+                        const targetLength = straightDist + this.fourthStrand.segmentLength;
+                        
+                        if (threadLength > targetLength && this.fourthStrand.segments.length > 3) {
+                            const removeIdx = Math.floor(this.fourthStrand.segments.length / 2);
+                            this.fourthStrand.segments.splice(removeIdx, 1);
+                        } else {
+                            this.tying = false;
+                            this.state = 'final_complete';
+                        }
+                    }
+                    
+                    const idx = Math.floor(0.5 * (this.bridgeStrand.segments.length - 1));
+                    const seg = this.bridgeStrand.segments[idx];
+                    this.x = seg.x;
+                    this.y = seg.y;
+                } else if (this.state === 'final_complete') {
+                    const idx = Math.floor(0.5 * (this.bridgeStrand.segments.length - 1));
+                    const seg = this.bridgeStrand.segments[idx];
+                    this.x = seg.x;
+                    this.y = seg.y;
+                    
+                    this.waitTimer++;
+                    if (this.waitTimer > 60) {
+                        this.state = 'returning_to_radial';
+                        this.walkProgress = 1.0;
+                        this.walkingThread = this.fourthStrand;
+                        this.waitTimer = 0;
+                    }
+                } else if (this.state === 'returning_to_radial') {
+                    this.walkProgress -= 0.015;
+                    
+                    if (this.walkProgress <= 0) {
+                        this.walkProgress = 0;
+                        const connectionSeg = this.fourthStrand.segments[0];
+                        this.x = connectionSeg.x;
+                        this.y = connectionSeg.y;
+                        this.state = 'resting_at_convergence';
+                    } else {
+                        const idx = Math.floor(this.walkProgress * (this.fourthStrand.segments.length - 1));
+                        const nextIdx = Math.min(idx + 1, this.fourthStrand.segments.length - 1);
+                        const t = (this.walkProgress * (this.fourthStrand.segments.length - 1)) - idx;
+                        
+                        const s1 = this.fourthStrand.segments[idx];
+                        const s2 = this.fourthStrand.segments[nextIdx];
+                        
+                        this.x = s1.x + (s2.x - s1.x) * t;
+                        this.y = s1.y + (s2.y - s1.y) * t;
+                        
+                        if (!s1.fixed) {
+                            s1.vy += this.weight * (1 - t);
+                        }
+                        if (!s2.fixed) {
+                            s2.vy += this.weight * t;
+                        }
+                    }
+                } else if (this.state === 'resting_at_convergence') {
+                    // Rest at the convergence point where all radial threads meet
+                    const connectionSeg = this.thirdStrand.segments[0];
+                    this.x = connectionSeg.x;
+                    this.y = connectionSeg.y;
+                }
+            }
+            
+            attachBridgeToStart() {
+                if (this.bridgeStrand) {
+                    this.bridgeStrand.segments[0].x = this.x;
+                    this.bridgeStrand.segments[0].y = this.y;
+                    this.bridgeStrand.segments[0].fixed = true;
+                }
+            }
+            
+            attachSecondStrand() {
+                if (this.secondStrand && this.bridgeStrand) {
+                    const thread0End = this.bridgeStrand.segments[this.bridgeStrand.segments.length - 1];
+                    
+                    if (this.secondStrand.segments.length > 0) {
+                        const tip = this.secondStrand.getTip();
+                        tip.x = thread0End.x;
+                        tip.y = thread0End.y;
+                        tip.fixed = true;
+                        tip.vx = 0;
+                        tip.vy = 0;
+                        this.secondStrand.attached = true;
+                        this.secondStrand.spiderAttached = false;
+                        
+                        this.secondStrand.thread0EndpointSegment = thread0End;
+                        
+                        this.secondStrand.explicitConnections.add(this.secondStrand.segments.length - 1);
+                    }
+                }
+            }
+            
+            attachFourthStrand() {
+                if (this.fourthStrand && this.walkingThread && this.bridgeStrand) {
+                    const thread0CenterIdx = Math.floor(this.bridgeStrand.segments.length / 2);
+                    const thread0CenterSeg = this.bridgeStrand.segments[thread0CenterIdx];
+                    
+                    if (this.fourthStrand.segments.length > 0) {
+                        const tip = this.fourthStrand.getTip();
+                        tip.x = thread0CenterSeg.x;
+                        tip.y = thread0CenterSeg.y;
+                        tip.fixed = true;
+                        tip.vx = 0;
+                        tip.vy = 0;
+                        this.fourthStrand.attached = true;
+                        this.fourthStrand.spiderAttached = false;
+                        
+                        this.fourthStrand.explicitConnections.add(this.fourthStrand.segments.length - 1);
+                    }
+                }
+            }
+            
+            draw() {
+                if (this.tying) {
+                    ctx.strokeStyle = '#000000';
+                    ctx.lineWidth = 1;
+                    
+                    const leftAngle1 = -Math.PI / 4 + this.legAnimation * 0.5;
+                    const leftAngle2 = -Math.PI / 3 - this.legAnimation * 0.8;
+                    const leftJointX = this.x + Math.cos(leftAngle1) * 8;
+                    const leftJointY = this.y + Math.sin(leftAngle1) * 8;
+                    const leftEndX = leftJointX + Math.cos(leftAngle1 + leftAngle2) * 6;
+                    const leftEndY = leftJointY + Math.sin(leftAngle1 + leftAngle2) * 6;
+                    
+                    ctx.beginPath();
+                    ctx.moveTo(this.x, this.y);
+                    ctx.lineTo(leftJointX, leftJointY);
+                    ctx.lineTo(leftEndX, leftEndY);
+                    ctx.stroke();
+                    
+                    const rightAngle1 = -Math.PI / 4 - this.legAnimation * 0.5;
+                    const rightAngle2 = -Math.PI / 3 + this.legAnimation * 0.8;
+                    const rightJointX = this.x + Math.cos(rightAngle1) * 8;
+                    const rightJointY = this.y + Math.sin(rightAngle1) * 8;
+                    const rightEndX = rightJointX + Math.cos(rightAngle1 + rightAngle2) * 6;
+                    const rightEndY = rightJointY + Math.sin(rightAngle1 + rightAngle2) * 6;
+                    
+                    ctx.beginPath();
+                    ctx.moveTo(this.x, this.y);
+                    ctx.lineTo(rightJointX, rightJointY);
+                    ctx.lineTo(rightEndX, rightEndY);
+                    ctx.stroke();
+                }
+                
+                ctx.fillStyle = '#000000';
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+                ctx.fill();
+            }
+        }
+        
+        function generateBranches() {
+            branches = [];
+            const seedX = width * (0.25 + Math.random() * 0.5);
+            const seedY = height - 10;
+            const leftBranch = generateBranchSide(seedX, seedY, -1);
+            branches.push(leftBranch);
+            const rightBranch = generateBranchSide(seedX, seedY, 1);
+            branches.push(rightBranch);
+        }
+        
+        function generateBranchSide(startX, startY, direction) {
+            const segments = 6;
+            const baseThickness = 12;
+            let currentX = startX;
+            let currentY = startY;
+            let currentAngle = -45;
+            const mainBranch = new Branch(currentX, currentY, currentX, currentY, baseThickness, 0);
+            let currentBranch = mainBranch;
+            
+            for (let i = 0; i < segments; i++) {
+                const segmentLength = 90 + Math.random() * 50;
+                const thickness = baseThickness - (i * 1.5);
+                const zigzag = (Math.random() - 0.5) * 30;
+                currentAngle += zigzag;
+                currentAngle = Math.max(-85, Math.min(-15, currentAngle));
+                const angleRad = (currentAngle * Math.PI) / 180;
+                const newX = currentX + Math.cos(angleRad) * segmentLength * direction;
+                const newY = currentY + Math.sin(angleRad) * segmentLength;
+                const boundedX = Math.max(50, Math.min(width - 50, newX));
+                const boundedY = Math.max(50, newY);
+                const segment = new Branch(currentX, currentY, boundedX, boundedY, thickness, i + 1);
+                currentBranch.addChild(segment);
+                
+                if (i > 1 && i < segments - 1 && Math.random() > 0.5) {
+                    addTwig(currentX, currentY, currentAngle, thickness * 0.6, direction);
+                }
+                
+                currentX = boundedX;
+                currentY = boundedY;
+                currentBranch = segment;
+                if (currentY < 100) break;
+            }
+            
+            return mainBranch;
+            
+            function addTwig(x, y, baseAngle, thickness, dir) {
+                const twigAngle = baseAngle + (Math.random() > 0.5 ? 1 : -1) * (30 + Math.random() * 30);
+                const twigLength = 30 + Math.random() * 30;
+                const angleRad = (twigAngle * Math.PI) / 180;
+                const twigX = x + Math.cos(angleRad) * twigLength * dir;
+                const twigY = y + Math.sin(angleRad) * twigLength;
+                const twig = new Branch(x, y, twigX, twigY, thickness, 10);
+                currentBranch.addChild(twig);
+                
+                if (Math.random() > 0.7) {
+                    const subTwigAngle = twigAngle + (Math.random() - 0.5) * 40;
+                    const subTwigLength = 20 + Math.random() * 20;
+                    const subAngleRad = (subTwigAngle * Math.PI) / 180;
+                    const subTwigX = twigX + Math.cos(subAngleRad) * subTwigLength * dir;
+                    const subTwigY = twigY + Math.sin(subAngleRad) * subTwigLength;
+                    const subTwig = new Branch(twigX, twigY, subTwigX, subTwigY, thickness * 0.7, 11);
+                    twig.addChild(subTwig);
+                }
+            }
+        }
+        
+        function createSpider() {
+            if (branches.length > 0) {
+                const leftBranch = branches[0];
+                let segmentCount = 0;
+                let sixthSegment = null;
+                
+                function findSegment(branch) {
+                    if (branch.generation > 0) {
+                        segmentCount++;
+                        if (segmentCount === 6) {
+                            sixthSegment = branch;
+                            return true;
+                        }
+                    }
+                    for (let child of branch.children) {
+                        if (child.generation <= 6) {
+                            if (findSegment(child)) return true;
+                        }
+                    }
+                    return false;
+                }
+                
+                findSegment(leftBranch);
+                
+                if (sixthSegment) {
+                    const midX = (sixthSegment.x1 + sixthSegment.x2) / 2;
+                    const midY = (sixthSegment.y1 + sixthSegment.y2) / 2;
+                    spider = new Spider(midX, midY);
+                } else {
+                    const forkX = branches[0].x1;
+                    const forkY = branches[0].y1;
+                    spider = new Spider(forkX, forkY - 15);
+                }
+            }
+        }
+        
+        function startWeaving() {
+            if (spider) {
+                spider.startWeaving();
+            }
+        }
+        
+        function draw() {
+            ctx.fillStyle = '#f5f5dc';
+            ctx.fillRect(0, 0, width, height);
+            branches.forEach(branch => branch.draw());
+            silkStrands.forEach(strand => strand.draw());
+            
+            webNodes.forEach(node => node.draw());
+            
+            if (spider) {
+                spider.draw();
+            }
+        }
+        
+        function animate() {
+            updateWebConnections();
+            
+            // Update physics for all segments
+            silkStrands.forEach(strand => {
+                if (strand instanceof FloatedSilk) {
+                    if (strand.attached) {
+                        for (let seg of strand.segments) {
+                            if (!seg.fixed) {
+                                seg.vy += 0.02;
+                            }
+                        }
+                    }
+                    for (let seg of strand.segments) {
+                        seg.update(!strand.attached);
+                    }
+                } else if (strand instanceof DraggedSilk) {
+                    for (let seg of strand.segments) {
+                        if (!seg.fixed) {
+                            seg.vy += 0.02;
+                        }
+                    }
+                    for (let seg of strand.segments) {
+                        seg.update(false);
+                    }
+                    
+                    if (spider && strand.spiderSegmentIndex >= 0 && strand.spiderSegmentIndex < strand.segments.length) {
+                        const spiderSeg = strand.segments[strand.spiderSegmentIndex];
+                        if (!spiderSeg.fixed) {
+                            spiderSeg.vy += spider.weight;
+                        }
+                    }
+                } else if (strand instanceof RappelSilk) {
+                    for (let seg of strand.segments) {
+                        if (!seg.fixed) {
+                            seg.vy += 0.02;
+                        }
+                    }
+                    for (let seg of strand.segments) {
+                        seg.update(false);
+                    }
+                    
+                    if (spider && strand.spiderHanging) {
+                        const tip = strand.getTip();
+                        if (!tip.fixed) {
+                            tip.vy += spider.weight;
+                        }
+                    }
+                }
+            });
+            
+            // Global constraint solving for all threads
+            for (let iter = 0; iter < 30; iter++) {
+                for (let strand of silkStrands) {
+                    for (let i = 0; i < strand.segments.length - 1; i++) {
+                        const s1 = strand.segments[i];
+                        const s2 = strand.segments[i + 1];
+                        const dx = s2.x - s1.x;
+                        const dy = s2.y - s1.y;
+                        const dist = Math.sqrt(dx * dx + dy * dy);
+                        if (dist === 0) continue;
+                        
+                        const diff = (strand.segmentLength - dist) / dist;
+                        const offsetX = dx * diff * 0.7;
+                        const offsetY = dy * diff * 0.7;
+                        
+                        if (!s1.fixed) {
+                            s1.x -= offsetX;
+                            s1.y -= offsetY;
+                        }
+                        if (!s2.fixed) {
+                            s2.x += offsetX;
+                            s2.y += offsetY;
+                        }
+                    }
+                }
+                
+                // Zero velocities on fixed segments
+                for (let strand of silkStrands) {
+                    for (let seg of strand.segments) {
+                        if (seg.fixed) {
+                            seg.vx = 0;
+                            seg.vy = 0;
+                        }
+                    }
+                }
+            }
+            
+            // Update thread-specific positions after constraint solving
+            silkStrands.forEach(strand => {
+                if (strand instanceof DraggedSilk && spider) {
+                    if (strand.spiderAttached && !strand.attached) {
+                        const tip = strand.getTip();
+                        tip.x = spider.x;
+                        tip.y = spider.y;
+                    }
+                    
+                    if (strand.attached && strand.thread0EndpointSegment) {
+                        const tip = strand.getTip();
+                        tip.x = strand.thread0EndpointSegment.x;
+                        tip.y = strand.thread0EndpointSegment.y;
+                    }
+                } else if (strand instanceof FloatedSilk) {
+                    if (strand.tightening && strand.attached) {
+                        const start = strand.segments[0];
+                        const end = strand.segments[strand.segments.length - 1];
+                        const dx = end.x - start.x;
+                        const dy = end.y - start.y;
+                        const currentDist = Math.sqrt(dx * dx + dy * dy);
+                        
+                        if (currentDist > strand.targetLength) {
+                            for (let i = 1; i < strand.segments.length - 1; i++) {
+                                const t = i / (strand.segments.length - 1);
+                                const targetX = start.x + dx * t;
+                                const targetY = start.y + dy * t;
+                                const seg = strand.segments[i];
+                                seg.x += (targetX - seg.x) * 0.05;
+                                seg.y += (targetY - seg.y) * 0.05;
+                            }
+                        } else {
+                            strand.tightening = false;
+                        }
+                    }
+                }
+            });
+            
+            if (spider) {
+                spider.update();
+                
+                const debugDiv = document.getElementById('debugInfo');
+                if (debugDiv) {
+                    if (spider.state === 'crossing_bridge' && spider.bridgeStrandFinalLength > 0) {
+                        const currentThread0SegmentIndex = Math.floor(spider.crossProgress * (spider.bridgeStrand.segments.length - 1));
+                        
+                        debugDiv.innerHTML = `CROSSING<br>
+                            Progress: ${Math.floor(spider.crossProgress * 100)}%<br>
+                            Thread 1: ${spider.secondStrand.segments.length} segs<br>
+                            Current node: ${currentThread0SegmentIndex}<br>
+                            Last node: ${spider.lastThread0SegmentIndex}<br>
+                            Should add? ${currentThread0SegmentIndex > spider.lastThread0SegmentIndex}`;
+                    } else {
+                        const thread0Length = spider.bridgeStrand ? spider.bridgeStrand.segments.length : 0;
+                        const thread1Length = spider.secondStrand ? spider.secondStrand.segments.length : 0;
+                        const thread2Length = spider.thirdStrand ? spider.thirdStrand.segments.length : 0;
+                        
+                        debugDiv.innerHTML = `State: ${spider.state}<br>
+                            Thread 0: ${thread0Length} segs<br>
+                            Thread 1: ${thread1Length} segs<br>
+                            Thread 2: ${thread2Length} segs<br>
+                            T0 final: ${spider.bridgeStrandFinalLength}`;
+                    }
+                }
+            }
+            draw();
+            requestAnimationFrame(animate);
+        }
+        
+        function regenerate() {
+            silkStrands = [];
+            webNodes = [];
+            generateBranches();
+            createSpider();
+        }
+        
+        const windToggle = document.getElementById('windToggle');
+        const windStatus = document.getElementById('windStatus');
+        
+        windToggle.addEventListener('change', (e) => {
+            windEnabled = e.target.checked;
+            windStatus.textContent = windEnabled ? 'On' : 'Off';
+        });
+        
+        window.addEventListener('resize', () => {
+            resizeCanvas();
+            regenerate();
+        });
+        
+        resizeCanvas();
+        updateWindForce();
+        generateBranches();
+        createSpider();
+        animate();
+    </script>
+</body>
+</html>

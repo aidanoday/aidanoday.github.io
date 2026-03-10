@@ -36,7 +36,7 @@ const PROJECT_DATA = {
   "pebble-ai": {
     title: "Pebble AI",
     image: "assets/ai_pebble.png",
-    action: "showDialog()",
+    link: "ai_pebble.html",
     subtitle: "In-context Academic Advising",
     desc: "Spring 2025 - How might we guide lost students at a critical junctures in their academic journeys using agentic adivsors trained on historic student data and advising materials?"
   },
