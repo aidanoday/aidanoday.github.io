@@ -82,22 +82,7 @@
         let windLevel = 1;
         let windForce = { x: 0.1, y: 0.01 };
         let webNodes = [];
-
-        // Returns sorted array of segment indices that are connection/anchor points.
-        // Sections between consecutive pinned indices are solved independently.
-        function getPinnedIndices(strand, endpointSegmentSet) {
-            const pinned = new Set();
-            pinned.add(0);
-            pinned.add(strand.segments.length - 1);
-            for (let i = 0; i < strand.segments.length; i++) {
-                const seg = strand.segments[i];
-                if (seg.fixed) pinned.add(i);
-                if (seg.connectedNodes && seg.connectedNodes.length > 0) pinned.add(i);
-                if (endpointSegmentSet && endpointSegmentSet.has(seg)) pinned.add(i);
-            }
-            return Array.from(pinned).sort((a, b) => a - b);
-        }
-
+        
         function updateWindForce() {
             windForce.x = (windLevel / 10) * 0.125;
             windForce.y = (windLevel / 10) * 0.0125;
@@ -596,16 +581,17 @@
         
         function updateWebConnections() {
             webNodes = webNodes.filter(node => node.active);
-
+            
             for (let i = 0; i < silkStrands.length; i++) {
                 for (let j = i + 1; j < silkStrands.length; j++) {
                     const newNodes = findIntersections(silkStrands[i], silkStrands[j]);
                     webNodes.push(...newNodes);
                 }
             }
-
-            // WebNode updates are now done inside the constraint solver loop
-            // so they negotiate with distance constraints over multiple iterations
+            
+            for (let node of webNodes) {
+                node.update();
+            }
         }
         
         class SilkSegment {
@@ -1147,6 +1133,32 @@
                 this.spokeStrand = null; // the DraggedSilk being laid as a spoke
                 this.spokeAnchorPoint = null; // {x, y} target anchor
                 this.spokeLastSegCount = 0;
+
+                // Spiral building stage
+                this.spiralSpokes = [];
+                this.spiralCurrentSpokeIndex = 0;
+                this.spiralRadius = 0;
+                this.spiralPerSpokeIncrement = 0.006;
+                this.spiralBridgeDistance = this.radius * 4;
+                this.spiralMaxRadius = 0.9;
+                this.spiralArcs = [];
+                this.spiralCurrentArc = null;
+                this.spiralStepFrom = null;
+                this.spiralStepTo = null;
+                this.spiralStepProgress = 0;
+                this.spiralPullSegment = null;
+                this.spiralPullOriginalX = 0;
+                this.spiralPullOriginalY = 0;
+                this.spiralNextSpokeIndex = 0;
+                this.spiralNextRadius = 0;
+                this.spiralNextPos = null;
+                this.spiralWalkProgress = 0;
+                this.spiralReleaseTimer = 0;
+                this.spiralPrevRingRadius = 0;
+                this.spiralWalkArcStrand = null;
+                this.spiralWalkArcProgress = 0;
+                this.spiralTensionArc = null;
+                this.spiralPostTensionState = '';
             }
             
             startWeaving() {
@@ -1511,27 +1523,9 @@
                     this.legAnimation = Math.sin(this.tyingTimer * 0.2) * 0.5 + 0.5;
                     
                     if (this.thirdStrand) {
-                        const start = this.thirdStrand.segments[0];
-                        const end = this.thirdStrand.segments[this.thirdStrand.segments.length - 1];
-                        const dx = end.x - start.x;
-                        const dy = end.y - start.y;
-                        const straightDist = Math.sqrt(dx * dx + dy * dy);
-
-                        let threadLength = 0;
-                        for (let i = 0; i < this.thirdStrand.segments.length - 1; i++) {
-                            const s1 = this.thirdStrand.segments[i];
-                            const s2 = this.thirdStrand.segments[i + 1];
-                            const segDx = s2.x - s1.x;
-                            const segDy = s2.y - s1.y;
-                            threadLength += Math.sqrt(segDx * segDx + segDy * segDy);
-                        }
-
-                        // Use tight target — no slack allowance, since the spider's weight
-                        // during tensioning makes straightDist appear shorter than it will
-                        // be once the spider moves off
-                        const targetLength = straightDist;
-
-                        if (threadLength > targetLength && this.thirdStrand.segments.length > 3) {
+                        const targetSegments = Math.ceil(this.thread2InitialSegments * 0.75);
+                        
+                        if (this.thirdStrand.segments.length > targetSegments && this.thirdStrand.segments.length > 3) {
                             const removeIdx = Math.floor(this.thirdStrand.segments.length / 2);
                             this.thirdStrand.segments.splice(removeIdx, 1);
                         } else {
@@ -2352,6 +2346,404 @@
                     const connectionSeg = this.thirdStrand.segments[0];
                     this.x = connectionSeg.x;
                     this.y = connectionSeg.y;
+
+                    this.waitTimer++;
+                    if (this.waitTimer > 60) {
+                        this.waitTimer = 0;
+                        this.state = 'start_spiral';
+                    }
+
+                // ==================== Spiral States ====================
+
+                } else if (this.state === 'start_spiral') {
+                    const connectionSeg = this.thirdStrand.segments[0];
+                    this.x = connectionSeg.x;
+                    this.y = connectionSeg.y;
+
+                    this.spiralSpokes = this.spokes.filter(s => s.strand !== null && s.strand.segments && s.strand.segments.length >= 2);
+                    this.spiralSpokes.sort((a, b) => a.angle - b.angle);
+
+                    if (this.spiralSpokes.length < 3) {
+                        this.state = 'spiral_complete';
+                        return;
+                    }
+
+                    this.spiralCurrentSpokeIndex = 0;
+                    this.spiralRadius = 0.08;
+                    this.spiralPerSpokeIncrement = 0.006;
+                    this.spiralArcs = [];
+                    this.spiralWalkProgress = 0;
+
+                    console.log(`[spiral] Starting spiral with ${this.spiralSpokes.length} spokes`);
+                    this.state = 'spiral_walk_outward';
+
+                } else if (this.state === 'spiral_walk_outward') {
+                    // Walk outward on current spoke from center to spiralRadius
+                    const spoke = this.spiralSpokes[this.spiralCurrentSpokeIndex];
+                    this.spiralWalkProgress += 0.025;
+
+                    if (this.spiralWalkProgress > this.spiralRadius) {
+                        this.spiralWalkProgress = this.spiralRadius;
+                    }
+
+                    const pos = this.getSpokePosition(spoke, this.spiralWalkProgress);
+                    if (pos) {
+                        this.x = pos.x;
+                        this.y = pos.y;
+                        if (pos.segment && !pos.segment.fixed) {
+                            pos.segment.vy += this.weight;
+                        }
+                    }
+
+                    if (this.spiralWalkProgress >= this.spiralRadius) {
+                        this.state = 'spiral_create_arc';
+                    }
+
+                } else if (this.state === 'spiral_create_arc') {
+                    // Create dragged thread and decide step vs walk+pull
+                    const spoke = this.spiralSpokes[this.spiralCurrentSpokeIndex];
+                    const pos = this.getSpokePosition(spoke, this.spiralRadius);
+                    if (pos) {
+                        this.x = pos.x;
+                        this.y = pos.y;
+                    }
+
+                    this.spiralNextSpokeIndex = (this.spiralCurrentSpokeIndex + 1) % this.spiralSpokes.length;
+                    this.spiralNextRadius = this.spiralRadius + this.spiralPerSpokeIncrement;
+
+                    if (this.spiralNextRadius > this.spiralMaxRadius) {
+                        this.state = 'spiral_complete';
+                        return;
+                    }
+
+                    const nextSpoke = this.spiralSpokes[this.spiralNextSpokeIndex];
+                    const nextPos = this.getSpokePosition(nextSpoke, this.spiralNextRadius);
+
+                    if (!nextPos || nextPos.atEnd) {
+                        this.spiralRadius = this.spiralNextRadius;
+                        this.spiralCurrentSpokeIndex = this.spiralNextSpokeIndex;
+                        this.spiralWalkProgress = this.spiralRadius - this.spiralPerSpokeIncrement;
+                        this.state = 'spiral_walk_outward';
+                        return;
+                    }
+
+                    // Create dragged thread arc
+                    const gap = Math.hypot(nextPos.x - this.x, nextPos.y - this.y);
+                    this.spiralCurrentArc = new DraggedSilk(this.x, this.y);
+                    this.spiralCurrentArc.segments[0].fixed = false;
+                    this.spiralCurrentArc.spiderAttached = true;
+                    this.spiralCurrentArc.explicitConnections.add(0);
+                    silkStrands.push(this.spiralCurrentArc);
+
+                    // Connect arc start to current spoke via WebNode
+                    if (pos && pos.segment) {
+                        const node = new WebNode(
+                            this.spiralCurrentArc.segments[0], this.spiralCurrentArc, 0,
+                            pos.segment, spoke.strand, pos.segIdx
+                        );
+                        webNodes.push(node);
+                    }
+
+                    this.spiralStepTo = {
+                        x: nextPos.x, y: nextPos.y,
+                        segment: nextPos.segment, segIdx: nextPos.segIdx,
+                        spoke: nextSpoke
+                    };
+
+                    if (gap <= this.spiralBridgeDistance) {
+                        // Small gap: step across directly while dragging thread
+                        this.spiralStepFrom = { x: this.x, y: this.y };
+                        this.spiralStepProgress = 0;
+                        this.state = 'spiral_stepping';
+                    } else {
+                        // Large gap: walk to next spoke via existing web, dragging thread
+                        this.spiralWalkProgress = this.spiralRadius;
+                        this.spiralPrevRingRadius = this.spiralRadius - (this.spiralPerSpokeIncrement * this.spiralSpokes.length);
+                        if (this.spiralPrevRingRadius < 0.05) this.spiralPrevRingRadius = 0.05;
+                        this.releaseTimer = 0;
+                        this.state = 'spiral_drag_inward';
+                    }
+
+                } else if (this.state === 'spiral_stepping') {
+                    // Small gap: step across, dragging thread behind
+                    this.spiralStepProgress += 0.03;
+
+                    if (this.spiralCurrentArc && this.spiralCurrentArc.spiderAttached) {
+                        const totalGap = Math.hypot(
+                            this.spiralStepTo.x - this.spiralStepFrom.x,
+                            this.spiralStepTo.y - this.spiralStepFrom.y
+                        );
+                        const desiredSegs = Math.max(3, Math.ceil(totalGap / 12));
+                        const targetSegs = Math.floor(this.spiralStepProgress * desiredSegs) + 1;
+                        while (this.spiralCurrentArc.segments.length < targetSegs + 1) {
+                            this.spiralCurrentArc.addSegment();
+                        }
+                        this.spiralCurrentArc.updateTipPosition(this.x, this.y);
+                    }
+
+                    if (this.spiralStepProgress >= 1.0) {
+                        this.x = this.spiralStepTo.x;
+                        this.y = this.spiralStepTo.y;
+
+                        this.finalizeSpiralArc();
+
+                        this.spiralCurrentSpokeIndex = this.spiralNextSpokeIndex;
+                        this.spiralRadius = this.spiralNextRadius;
+                        this.spiralWalkProgress = this.spiralRadius;
+
+                        this.spiralTensionArc = this.spiralArcs[this.spiralArcs.length - 1].strand;
+                        this.spiralPostTensionState = 'spiral_tying_spoke';
+                        this.state = 'spiral_tensioning';
+                        this.tyingTimer = 0;
+                    } else {
+                        this.x = this.spiralStepFrom.x + (this.spiralStepTo.x - this.spiralStepFrom.x) * this.spiralStepProgress;
+                        this.y = this.spiralStepFrom.y + (this.spiralStepTo.y - this.spiralStepFrom.y) * this.spiralStepProgress;
+                    }
+
+                } else if (this.state === 'spiral_drag_inward') {
+                    // Walk inward on current spoke while dragging thread
+                    const spoke = this.spiralSpokes[this.spiralCurrentSpokeIndex];
+                    this.spiralWalkProgress -= 0.025;
+
+                    const pos = this.getSpokePosition(spoke, Math.max(this.spiralWalkProgress, 0.01));
+                    if (pos) {
+                        this.x = pos.x;
+                        this.y = pos.y;
+                        if (pos.segment && !pos.segment.fixed) {
+                            pos.segment.vy += this.weight;
+                        }
+                    }
+
+                    // Add segments to dragged thread as spider walks
+                    this.releaseTimer++;
+                    if (this.releaseTimer % 3 === 0 && this.spiralCurrentArc) {
+                        this.spiralCurrentArc.addSegment();
+                    }
+                    if (this.spiralCurrentArc) {
+                        this.spiralCurrentArc.updateTipPosition(this.x, this.y);
+                    }
+
+                    if (this.spiralWalkProgress <= this.spiralPrevRingRadius) {
+                        this.spiralWalkProgress = Math.max(this.spiralPrevRingRadius, 0.01);
+
+                        const prevArc = this.findPreviousArc(this.spiralCurrentSpokeIndex, this.spiralNextSpokeIndex);
+                        if (prevArc) {
+                            this.spiralWalkArcStrand = prevArc.strand;
+                            this.spiralWalkArcProgress = 0;
+                            this.state = 'spiral_drag_along_arc';
+                        } else {
+                            // No previous arc — walk through center to next spoke
+                            if (this.spiralWalkProgress > 0.02) {
+                                this.spiralPrevRingRadius = 0.01;
+                            } else {
+                                this.spiralCurrentSpokeIndex = this.spiralNextSpokeIndex;
+                                this.spiralRadius = this.spiralNextRadius;
+                                this.spiralWalkProgress = 0.01;
+                                this.state = 'spiral_drag_outward';
+                            }
+                        }
+                    }
+
+                } else if (this.state === 'spiral_drag_along_arc') {
+                    // Walk along previous ring's arc while dragging thread
+                    this.spiralWalkArcProgress += 0.04;
+
+                    // Add segments to dragged thread
+                    this.releaseTimer++;
+                    if (this.releaseTimer % 3 === 0 && this.spiralCurrentArc) {
+                        this.spiralCurrentArc.addSegment();
+                    }
+
+                    if (this.spiralWalkArcProgress >= 1.0) {
+                        this.spiralCurrentSpokeIndex = this.spiralNextSpokeIndex;
+                        this.spiralRadius = this.spiralNextRadius;
+                        this.spiralWalkProgress = this.spiralPrevRingRadius;
+                        this.state = 'spiral_drag_outward';
+                    } else if (this.spiralWalkArcStrand) {
+                        const segs = this.spiralWalkArcStrand.segments;
+                        const idx = Math.floor(this.spiralWalkArcProgress * (segs.length - 1));
+                        const nextIdx = Math.min(idx + 1, segs.length - 1);
+                        const t = (this.spiralWalkArcProgress * (segs.length - 1)) - idx;
+
+                        this.x = segs[idx].x + (segs[nextIdx].x - segs[idx].x) * t;
+                        this.y = segs[idx].y + (segs[nextIdx].y - segs[idx].y) * t;
+
+                        if (!segs[idx].fixed) {
+                            segs[idx].vy += this.weight * (1 - t);
+                        }
+                        if (!segs[nextIdx].fixed) {
+                            segs[nextIdx].vy += this.weight * t;
+                        }
+                    }
+
+                    if (this.spiralCurrentArc) {
+                        this.spiralCurrentArc.updateTipPosition(this.x, this.y);
+                    }
+
+                } else if (this.state === 'spiral_drag_outward') {
+                    // Walk outward on next spoke to new radius, dragging thread
+                    const spoke = this.spiralSpokes[this.spiralCurrentSpokeIndex];
+                    this.spiralWalkProgress += 0.025;
+
+                    // Add segments to dragged thread
+                    this.releaseTimer++;
+                    if (this.releaseTimer % 3 === 0 && this.spiralCurrentArc) {
+                        this.spiralCurrentArc.addSegment();
+                    }
+
+                    const pos = this.getSpokePosition(spoke, this.spiralWalkProgress);
+                    if (pos) {
+                        this.x = pos.x;
+                        this.y = pos.y;
+                        if (pos.segment && !pos.segment.fixed) {
+                            pos.segment.vy += this.weight;
+                        }
+                    }
+
+                    if (this.spiralCurrentArc) {
+                        this.spiralCurrentArc.updateTipPosition(this.x, this.y);
+                    }
+
+                    if (this.spiralWalkProgress >= this.spiralRadius) {
+                        this.spiralWalkProgress = this.spiralRadius;
+                        // Refresh target — spoke may have shifted during walk
+                        const nextPos = this.getSpokePosition(spoke, this.spiralRadius);
+                        if (nextPos && nextPos.segment) {
+                            this.spiralPullSegment = nextPos.segment;
+                            this.spiralPullOriginalX = nextPos.segment.x;
+                            this.spiralPullOriginalY = nextPos.segment.y;
+                            this.spiralStepTo = {
+                                x: nextPos.x, y: nextPos.y,
+                                segment: nextPos.segment, segIdx: nextPos.segIdx,
+                                spoke: spoke
+                            };
+                        }
+                        this.spiralPullProgress = 0;
+                        this.state = 'spiral_pull_inward';
+                    }
+
+                } else if (this.state === 'spiral_pull_inward') {
+                    // Pull the spoke segment toward center
+                    this.spiralPullProgress += 0.02;
+                    const centerSeg = this.thirdStrand.segments[0];
+
+                    if (this.spiralPullSegment) {
+                        const t = Math.min(this.spiralPullProgress, 1.0);
+                        // Pull ~40% toward center
+                        this.spiralPullSegment.x = this.spiralPullOriginalX + (centerSeg.x - this.spiralPullOriginalX) * t * 0.4;
+                        this.spiralPullSegment.y = this.spiralPullOriginalY + (centerSeg.y - this.spiralPullOriginalY) * t * 0.4;
+                        // Spider follows the segment
+                        this.x = this.spiralPullSegment.x;
+                        this.y = this.spiralPullSegment.y;
+                    }
+
+                    if (this.spiralCurrentArc && this.spiralCurrentArc.spiderAttached) {
+                        this.spiralCurrentArc.updateTipPosition(this.x, this.y);
+                    }
+
+                    if (this.spiralPullProgress >= 1.0) {
+                        // Attach the dragged silk to the pulled spoke
+                        this.finalizeSpiralArc();
+
+                        // Tighten the arc
+                        this.spiralTensionArc = this.spiralArcs[this.spiralArcs.length - 1].strand;
+                        this.spiralPostTensionState = 'spiral_release_spoke';
+                        this.state = 'spiral_tensioning';
+                        this.tyingTimer = 0;
+                        this.spiralReleaseTimer = 0;
+                    }
+
+                } else if (this.state === 'spiral_tensioning') {
+                    // Tighten the most recent spiral arc
+                    this.tyingTimer++;
+                    this.legAnimation = Math.sin(this.tyingTimer * 0.2) * 0.5 + 0.5;
+                    this.tying = true;
+
+                    if (this.spiralTensionArc && this.spiralTensionArc.segments.length > 3) {
+                        const arc = this.spiralTensionArc;
+                        const start = arc.segments[0];
+                        const end = arc.segments[arc.segments.length - 1];
+                        const straightDist = Math.hypot(end.x - start.x, end.y - start.y);
+
+                        let threadLength = 0;
+                        for (let i = 0; i < arc.segments.length - 1; i++) {
+                            const s1 = arc.segments[i];
+                            const s2 = arc.segments[i + 1];
+                            threadLength += Math.hypot(s2.x - s1.x, s2.y - s1.y);
+                        }
+
+                        const targetLength = straightDist - arc.segmentLength;
+
+                        if (threadLength > targetLength && arc.segments.length > 3) {
+                            // Remove up to 3 segments per frame for faster tightening
+                            for (let r = 0; r < 3 && arc.segments.length > 3 && threadLength > targetLength; r++) {
+                                const removeIdx = Math.floor(arc.segments.length / 2);
+                                const s1 = arc.segments[removeIdx - 1];
+                                const s2 = arc.segments[removeIdx];
+                                const s3 = arc.segments[removeIdx + 1] || s2;
+                                threadLength -= Math.hypot(s2.x - s1.x, s2.y - s1.y);
+                                threadLength -= Math.hypot(s3.x - s2.x, s3.y - s2.y);
+                                threadLength += Math.hypot(s3.x - s1.x, s3.y - s1.y);
+                                arc.segments.splice(removeIdx, 1);
+                            }
+                        } else {
+                            this.tying = false;
+                            this.spiralTensionArc = null;
+                            this.state = this.spiralPostTensionState;
+                            if (this.spiralPostTensionState === 'spiral_tying_spoke') {
+                                this.tying = true;
+                                this.tyingTimer = 0;
+                            }
+                        }
+                    } else {
+                        this.tying = false;
+                        this.spiralTensionArc = null;
+                        this.state = this.spiralPostTensionState;
+                        if (this.spiralPostTensionState === 'spiral_tying_spoke') {
+                            this.tying = true;
+                            this.tyingTimer = 0;
+                        }
+                    }
+
+                } else if (this.state === 'spiral_release_spoke') {
+                    // Release the pulled spoke — let physics restore its shape
+                    this.spiralReleaseTimer++;
+                    this.spiralPullSegment = null;
+
+                    const spoke = this.spiralSpokes[this.spiralCurrentSpokeIndex];
+                    const pos = this.getSpokePosition(spoke, this.spiralRadius);
+                    if (pos) {
+                        this.x = pos.x;
+                        this.y = pos.y;
+                    }
+
+                    if (this.spiralReleaseTimer > 30) {
+                        this.state = 'spiral_tying_spoke';
+                        this.tying = true;
+                        this.tyingTimer = 0;
+                    }
+
+                } else if (this.state === 'spiral_tying_spoke') {
+                    // Brief tying animation at current spoke position
+                    this.tyingTimer++;
+                    this.legAnimation = Math.sin(this.tyingTimer * 0.2) * 0.5 + 0.5;
+
+                    const spoke = this.spiralSpokes[this.spiralCurrentSpokeIndex];
+                    const pos = this.getSpokePosition(spoke, this.spiralRadius);
+                    if (pos) {
+                        this.x = pos.x;
+                        this.y = pos.y;
+                    }
+
+                    if (this.tyingTimer > 20) {
+                        this.tying = false;
+                        this.state = 'spiral_create_arc';
+                    }
+
+                } else if (this.state === 'spiral_complete') {
+                    const connectionSeg = this.thirdStrand.segments[0];
+                    this.x = connectionSeg.x;
+                    this.y = connectionSeg.y;
                 }
             }
             
@@ -2388,19 +2780,17 @@
                 if (this.fourthStrand && this.walkingThread && this.bridgeStrand) {
                     const thread0CenterIdx = Math.floor(this.bridgeStrand.segments.length / 2);
                     const thread0CenterSeg = this.bridgeStrand.segments[thread0CenterIdx];
-
+                    
                     if (this.fourthStrand.segments.length > 0) {
                         const tip = this.fourthStrand.getTip();
                         tip.x = thread0CenterSeg.x;
                         tip.y = thread0CenterSeg.y;
-                        // Don't mark tip as fixed — link it to thread0's center segment
-                        // so forces propagate bidirectionally through the constraint solver
+                        tip.fixed = true;
                         tip.vx = 0;
                         tip.vy = 0;
                         this.fourthStrand.attached = true;
                         this.fourthStrand.spiderAttached = false;
-                        this.fourthStrand.thread0EndpointSegment = thread0CenterSeg;
-
+                        
                         this.fourthStrand.explicitConnections.add(this.fourthStrand.segments.length - 1);
                     }
                 }
@@ -2443,6 +2833,100 @@
                 }
             }
 
+            getSpokePosition(spoke, progress) {
+                const strand = spoke.strand;
+                if (!strand || !strand.segments || strand.segments.length < 2) return null;
+
+                const segments = strand.segments;
+                const centerSeg = this.thirdStrand.segments[0];
+
+                const dStart = Math.hypot(segments[0].x - centerSeg.x, segments[0].y - centerSeg.y);
+                const dEnd = Math.hypot(segments[segments.length - 1].x - centerSeg.x, segments[segments.length - 1].y - centerSeg.y);
+
+                const centerIdx = dStart < dEnd ? 0 : segments.length - 1;
+                const outerIdx = dStart < dEnd ? segments.length - 1 : 0;
+                const dir = centerIdx < outerIdx ? 1 : -1;
+
+                let totalDist = 0;
+                for (let i = centerIdx; i !== outerIdx; i += dir) {
+                    totalDist += Math.hypot(segments[i + dir].x - segments[i].x, segments[i + dir].y - segments[i].y);
+                }
+
+                const targetDist = progress * totalDist;
+                let accumulated = 0;
+
+                for (let i = centerIdx; i !== outerIdx; i += dir) {
+                    const s1 = segments[i];
+                    const s2 = segments[i + dir];
+                    const segDist = Math.hypot(s2.x - s1.x, s2.y - s1.y);
+
+                    if (accumulated + segDist >= targetDist) {
+                        const t = segDist > 0 ? (targetDist - accumulated) / segDist : 0;
+                        return {
+                            x: s1.x + (s2.x - s1.x) * t,
+                            y: s1.y + (s2.y - s1.y) * t,
+                            segment: s1,
+                            segIdx: i,
+                            t: t,
+                            atEnd: false
+                        };
+                    }
+                    accumulated += segDist;
+                }
+
+                return {
+                    x: segments[outerIdx].x,
+                    y: segments[outerIdx].y,
+                    segment: segments[outerIdx],
+                    segIdx: outerIdx,
+                    t: 0,
+                    atEnd: true
+                };
+            }
+
+            finalizeSpiralArc() {
+                if (!this.spiralCurrentArc) return;
+
+                const arc = this.spiralCurrentArc;
+                const tip = arc.getTip();
+
+                if (this.spiralStepTo && this.spiralStepTo.segment) {
+                    tip.x = this.spiralStepTo.segment.x;
+                    tip.y = this.spiralStepTo.segment.y;
+
+                    const tipIdx = arc.segments.length - 1;
+                    const node = new WebNode(
+                        tip, arc, tipIdx,
+                        this.spiralStepTo.segment, this.spiralStepTo.spoke.strand, this.spiralStepTo.segIdx
+                    );
+                    webNodes.push(node);
+                    arc.explicitConnections.add(tipIdx);
+                }
+
+                arc.attached = true;
+                arc.spiderAttached = false;
+                tip.fixed = false;
+
+                this.spiralArcs.push({
+                    strand: arc,
+                    fromSpokeIdx: this.spiralCurrentSpokeIndex,
+                    toSpokeIdx: this.spiralNextSpokeIndex,
+                    radius: this.spiralRadius
+                });
+
+                this.spiralCurrentArc = null;
+            }
+
+            findPreviousArc(fromSpokeIdx, toSpokeIdx) {
+                for (let i = this.spiralArcs.length - 1; i >= 0; i--) {
+                    const arc = this.spiralArcs[i];
+                    if (arc.fromSpokeIdx === fromSpokeIdx && arc.toSpokeIdx === toSpokeIdx) {
+                        return arc;
+                    }
+                }
+                return null;
+            }
+
             draw() {
                 if (this.tying) {
                     ctx.strokeStyle = '#000000';
@@ -2454,27 +2938,27 @@
                     const leftJointY = this.y + Math.sin(leftAngle1) * 8;
                     const leftEndX = leftJointX + Math.cos(leftAngle1 + leftAngle2) * 6;
                     const leftEndY = leftJointY + Math.sin(leftAngle1 + leftAngle2) * 6;
-                    
+
                     ctx.beginPath();
                     ctx.moveTo(this.x, this.y);
                     ctx.lineTo(leftJointX, leftJointY);
                     ctx.lineTo(leftEndX, leftEndY);
                     ctx.stroke();
-                    
+
                     const rightAngle1 = -Math.PI / 4 - this.legAnimation * 0.5;
                     const rightAngle2 = -Math.PI / 3 + this.legAnimation * 0.8;
                     const rightJointX = this.x + Math.cos(rightAngle1) * 8;
                     const rightJointY = this.y + Math.sin(rightAngle1) * 8;
                     const rightEndX = rightJointX + Math.cos(rightAngle1 + rightAngle2) * 6;
                     const rightEndY = rightJointY + Math.sin(rightAngle1 + rightAngle2) * 6;
-                    
+
                     ctx.beginPath();
                     ctx.moveTo(this.x, this.y);
                     ctx.lineTo(rightJointX, rightJointY);
                     ctx.lineTo(rightEndX, rightEndY);
                     ctx.stroke();
                 }
-                
+
                 ctx.fillStyle = '#000000';
                 ctx.beginPath();
                 ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
@@ -2606,39 +3090,13 @@
         function animate() {
             updateWebConnections();
             
-            // Build set of all thread0EndpointSegment targets (once per frame)
-            const endpointSegmentSet = new Set();
-            for (let strand of silkStrands) {
-                if (strand instanceof DraggedSilk && strand.thread0EndpointSegment) {
-                    endpointSegmentSet.add(strand.thread0EndpointSegment);
-                }
-            }
-
-            // Cache pinned indices per strand (once per frame)
-            const strandPinnedCache = new Map();
-            for (let strand of silkStrands) {
-                const pinned = getPinnedIndices(strand, endpointSegmentSet);
-                strandPinnedCache.set(strand, {
-                    pinned: pinned,
-                    pinnedSet: new Set(pinned)
-                });
-            }
-
             // Update physics for all segments
-            // Gravity is scaled per sub-section between pinned points
             silkStrands.forEach(strand => {
-                const cache = strandPinnedCache.get(strand);
-                const pinned = cache ? cache.pinned : [0, strand.segments.length - 1];
-
                 if (strand instanceof FloatedSilk) {
                     if (strand.attached) {
-                        for (let p = 0; p < pinned.length - 1; p++) {
-                            const sectionLen = pinned[p + 1] - pinned[p];
-                            const gravityScale = Math.min(1, 10 / Math.max(1, sectionLen));
-                            const gravity = 0.02 * gravityScale;
-                            for (let i = pinned[p]; i <= pinned[p + 1]; i++) {
-                                const seg = strand.segments[i];
-                                if (!seg.fixed) seg.vy += gravity;
+                        for (let seg of strand.segments) {
+                            if (!seg.fixed) {
+                                seg.vy += 0.02;
                             }
                         }
                     }
@@ -2646,19 +3104,15 @@
                         seg.update(!strand.attached);
                     }
                 } else if (strand instanceof DraggedSilk) {
-                    for (let p = 0; p < pinned.length - 1; p++) {
-                        const sectionLen = pinned[p + 1] - pinned[p];
-                        const gravityScale = Math.min(1, 10 / Math.max(1, sectionLen));
-                        const gravity = 0.02 * gravityScale;
-                        for (let i = pinned[p]; i <= pinned[p + 1]; i++) {
-                            const seg = strand.segments[i];
-                            if (!seg.fixed) seg.vy += gravity;
+                    for (let seg of strand.segments) {
+                        if (!seg.fixed) {
+                            seg.vy += 0.02;
                         }
                     }
                     for (let seg of strand.segments) {
                         seg.update(false);
                     }
-
+                    
                     if (spider && strand.spiderSegmentIndex >= 0 && strand.spiderSegmentIndex < strand.segments.length) {
                         const spiderSeg = strand.segments[strand.spiderSegmentIndex];
                         if (!spiderSeg.fixed) {
@@ -2666,19 +3120,15 @@
                         }
                     }
                 } else if (strand instanceof RappelSilk) {
-                    for (let p = 0; p < pinned.length - 1; p++) {
-                        const sectionLen = pinned[p + 1] - pinned[p];
-                        const gravityScale = Math.min(1, 10 / Math.max(1, sectionLen));
-                        const gravity = 0.02 * gravityScale;
-                        for (let i = pinned[p]; i <= pinned[p + 1]; i++) {
-                            const seg = strand.segments[i];
-                            if (!seg.fixed) seg.vy += gravity;
+                    for (let seg of strand.segments) {
+                        if (!seg.fixed) {
+                            seg.vy += 0.02;
                         }
                     }
                     for (let seg of strand.segments) {
                         seg.update(false);
                     }
-
+                    
                     if (spider && strand.spiderHanging) {
                         const tip = strand.getTip();
                         if (!tip.fixed) {
@@ -2687,13 +3137,10 @@
                     }
                 }
             });
-
+            
             // Global constraint solving for all threads
             for (let iter = 0; iter < 30; iter++) {
                 for (let strand of silkStrands) {
-                    const cache = strandPinnedCache.get(strand);
-                    const pinnedSet = cache ? cache.pinnedSet : new Set([0, strand.segments.length - 1]);
-
                     for (let i = 0; i < strand.segments.length - 1; i++) {
                         const s1 = strand.segments[i];
                         const s2 = strand.segments[i + 1];
@@ -2701,59 +3148,22 @@
                         const dy = s2.y - s1.y;
                         const dist = Math.sqrt(dx * dx + dy * dy);
                         if (dist === 0) continue;
-
+                        
                         const diff = (strand.segmentLength - dist) / dist;
                         const offsetX = dx * diff * 0.7;
                         const offsetY = dy * diff * 0.7;
-
-                        // Pinned segments act as immovable boundaries —
-                        // prevents tension from propagating across connection points
-                        const s1Pinned = s1.fixed || pinnedSet.has(i);
-                        const s2Pinned = s2.fixed || pinnedSet.has(i + 1);
-
-                        if (!s1Pinned && !s2Pinned) {
+                        
+                        if (!s1.fixed) {
                             s1.x -= offsetX;
                             s1.y -= offsetY;
+                        }
+                        if (!s2.fixed) {
                             s2.x += offsetX;
                             s2.y += offsetY;
-                        } else if (!s1Pinned) {
-                            s1.x -= offsetX * 2;
-                            s1.y -= offsetY * 2;
-                        } else if (!s2Pinned) {
-                            s2.x += offsetX * 2;
-                            s2.y += offsetY * 2;
                         }
                     }
                 }
-
-                // WebNode constraints: keep connected segments together
-                // Running inside the solver loop lets tension propagate bidirectionally
-                for (let node of webNodes) {
-                    node.update();
-                }
-
-                // Bidirectional thread0 endpoint links: connected segments pull each other
-                for (let strand of silkStrands) {
-                    if (strand instanceof DraggedSilk && strand.attached && strand.thread0EndpointSegment) {
-                        const tip = strand.getTip();
-                        const linked = strand.thread0EndpointSegment;
-                        if (!tip.fixed && !linked.fixed) {
-                            const avgX = (tip.x + linked.x) / 2;
-                            const avgY = (tip.y + linked.y) / 2;
-                            tip.x = avgX;
-                            tip.y = avgY;
-                            linked.x = avgX;
-                            linked.y = avgY;
-                        } else if (!tip.fixed) {
-                            tip.x = linked.x;
-                            tip.y = linked.y;
-                        } else if (!linked.fixed) {
-                            linked.x = tip.x;
-                            linked.y = tip.y;
-                        }
-                    }
-                }
-
+                
                 // Zero velocities on fixed segments
                 for (let strand of silkStrands) {
                     for (let seg of strand.segments) {
@@ -2772,6 +3182,12 @@
                         const tip = strand.getTip();
                         tip.x = spider.x;
                         tip.y = spider.y;
+                    }
+                    
+                    if (strand.attached && strand.thread0EndpointSegment) {
+                        const tip = strand.getTip();
+                        tip.x = strand.thread0EndpointSegment.x;
+                        tip.y = strand.thread0EndpointSegment.y;
                     }
                 } else if (strand instanceof FloatedSilk) {
                     if (strand.tightening && strand.attached) {
@@ -2817,11 +3233,14 @@
                         const thread2Length = spider.thirdStrand ? spider.thirdStrand.segments.length : 0;
                         
                         const spokeCount = spider.spokes ? spider.spokes.length : 0;
+                        const spiralArcs = spider.spiralArcs ? spider.spiralArcs.length : 0;
+                        const spiralPct = spider.spiralRadius ? Math.floor(spider.spiralRadius * 100) : 0;
                         debugDiv.innerHTML = `State: ${spider.state}<br>
                             Thread 0: ${thread0Length} segs<br>
                             Thread 1: ${thread1Length} segs<br>
                             Thread 2: ${thread2Length} segs<br>
-                            Spokes: ${spokeCount}/${spider.maxSpokes}`;
+                            Spokes: ${spokeCount}/${spider.maxSpokes}<br>
+                            Spiral: ${spiralArcs} arcs, ${spiralPct}%`;
                     }
                 }
             }

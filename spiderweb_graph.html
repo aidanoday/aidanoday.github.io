@@ -1,0 +1,2328 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Spider Web Weaving (Graph)</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            background: #f5f5dc;
+            font-family: Arial, sans-serif;
+        }
+
+        canvas {
+            display: block;
+            width: 100%;
+            height: 100vh;
+        }
+
+        .controls {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            background: rgba(60, 60, 60, 0.9);
+            padding: 15px;
+            border-radius: 8px;
+            color: #f5f5dc;
+            max-width: 300px;
+        }
+
+        button {
+            background: #3c3c3c;
+            color: #f5f5dc;
+            border: 2px solid #2a2a2a;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 14px;
+            margin-top: 10px;
+        }
+
+        button:hover {
+            background: #2a2a2a;
+        }
+
+        .instructions {
+            font-size: 12px;
+            margin-top: 10px;
+            opacity: 0.8;
+        }
+    </style>
+</head>
+<body>
+    <div class="controls">
+        <div>Spider Web Simulator</div>
+        <button onclick="regenerate()">Regenerate Branches</button>
+        <button onclick="startWeaving()">Start Web</button>
+        <div class="instructions">Click "Start Web" to begin</div>
+        <div style="margin-top: 15px;">
+            <label>
+                <input type="checkbox" id="windToggle" checked>
+                Wind: <span id="windStatus">On</span>
+            </label>
+        </div>
+        <div style="margin-top: 5px;">
+            <label>
+                <input type="checkbox" id="metricsToggle">
+                Metrics: <span id="metricsStatus">Off</span>
+            </label>
+        </div>
+        <div style="margin-top: 10px;">
+            <label>Speed: <span id="speedValue">1.0</span>x</label><br>
+            <input type="range" id="speedSlider" min="1" max="4" step="0.1" value="1" style="width: 100%;">
+        </div>
+        <div style="margin-top: 10px;">
+            <label>Target Tension: <span id="tensionValue">3.0</span></label><br>
+            <input type="range" id="tensionSlider" min="0.5" max="8" step="0.1" value="3" style="width: 100%;">
+        </div>
+        <div id="debugInfo" style="margin-top: 15px; font-size: 11px; opacity: 0.9; border-top: 1px solid #555; padding-top: 10px;">
+            Debug info will appear here...
+        </div>
+    </div>
+    <canvas id="canvas"></canvas>
+
+    <script>
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
+
+        let width, height;
+        let branches = [];
+        let spider;
+        let webGraph = null;
+        let windEnabled = true;
+        let metricsEnabled = false;
+        let speedMultiplier = 1.0;
+        let targetTension = 3.0;
+        let windLevel = 1;
+        let windForce = { x: 0.1, y: 0.01 };
+
+        function updateWindForce() {
+            windForce.x = (windLevel / 10) * 0.125;
+            windForce.y = (windLevel / 10) * 0.0125;
+        }
+
+        function resizeCanvas() {
+            width = canvas.width = window.innerWidth;
+            height = canvas.height = window.innerHeight;
+        }
+
+        // ==================== SilkSegment ====================
+        class SilkSegment {
+            constructor(x, y, hasInitialVelocity = false) {
+                this.x = x;
+                this.y = y;
+                this.vx = hasInitialVelocity ? 2 : 0;
+                this.vy = hasInitialVelocity ? 0 : 0;
+                this.fixed = false;
+            }
+
+            update(applyWind = false) {
+                if (this.fixed) return;
+
+                if (applyWind && windEnabled) {
+                    this.vx += windForce.x;
+                    this.vy += windForce.y;
+                }
+                this.vx *= 0.98;
+                this.vy *= 0.98;
+                this.x += this.vx;
+                this.y += this.vy;
+            }
+        }
+
+        // ==================== WebGraphNode ====================
+        class WebGraphNode {
+            constructor(id, x, y, type = 'free') {
+                this.id = id;
+                this.x = x;
+                this.y = y;
+                this.vx = 0;
+                this.vy = 0;
+                this.fixed = false;
+                this.edges = [];
+                this.type = type; // 'anchor', 'hub', 'split', 'free'
+            }
+            integrate() {
+                if (this.fixed) return;
+                this.vx *= 0.98;
+                this.vy *= 0.98;
+                this.x += this.vx;
+                this.y += this.vy;
+            }
+            applyForce(fx, fy) {
+                if (this.fixed) return;
+                this.vx += fx;
+                this.vy += fy;
+            }
+        }
+
+        // ==================== WebGraphEdge ====================
+        // Spring model: rest length = 1px, no tension at 1px.
+        // Tension increases exponentially up to max stretch of 10px.
+        // "Tightened" = segment count reduced to straightLineDistance / 5.
+        // At 5px spacing, each segment exerts moderate contractive force,
+        // creating dynamic tension throughout the web.
+        const SPRING_REST = 5;      // equilibrium length (solver maintains this spacing)
+        const SPRING_NATURAL = 9;   // target spacing when spider tightens threads
+        const SPRING_MAX = 10;      // max stretch before hard resistance
+
+        class WebGraphEdge {
+            constructor(id, nodeA, nodeB, segmentCount, segmentLength = 10) {
+                this.id = id;
+                this.nodeA = nodeA;
+                this.nodeB = nodeB;
+                this.segments = [];
+                this.segmentLength = segmentLength; // kept for compatibility (growth, etc.)
+                this.isWindAffected = false;
+                for (let i = 0; i < segmentCount; i++) {
+                    const t = (i + 1) / (segmentCount + 1);
+                    this.segments.push(new SilkSegment(
+                        nodeA.x + (nodeB.x - nodeA.x) * t,
+                        nodeA.y + (nodeB.y - nodeA.y) * t
+                    ));
+                }
+                nodeA.edges.push(this);
+                nodeB.edges.push(this);
+            }
+            getPointCount() { return this.segments.length + 2; }
+            getPoint(i) {
+                if (i === 0) return this.nodeA;
+                if (i === this.segments.length + 1) return this.nodeB;
+                return this.segments[i - 1];
+            }
+            getPositionAtProgress(progress) {
+                const total = this.getPointCount();
+                const f = progress * (total - 1);
+                const idx = Math.floor(f);
+                const t = f - idx;
+                const p1 = this.getPoint(idx);
+                const p2 = this.getPoint(Math.min(idx + 1, total - 1));
+                return { x: p1.x + (p2.x - p1.x) * t, y: p1.y + (p2.y - p1.y) * t };
+            }
+            applyWeightAtProgress(progress, weight) {
+                const total = this.getPointCount();
+                const f = progress * (total - 1);
+                const idx = Math.floor(f);
+                const t = f - idx;
+                const p1 = this.getPoint(idx);
+                const p2 = this.getPoint(Math.min(idx + 1, total - 1));
+                if (!p1.fixed) p1.vy = (p1.vy || 0) + weight * (1 - t);
+                if (!p2.fixed) p2.vy = (p2.vy || 0) + weight * t;
+            }
+            getArcLength() {
+                let total = 0;
+                for (let i = 0; i < this.getPointCount() - 1; i++) {
+                    const p1 = this.getPoint(i);
+                    const p2 = this.getPoint(i + 1);
+                    total += Math.hypot(p2.x - p1.x, p2.y - p1.y);
+                }
+                return total;
+            }
+            getStraightLength() {
+                return Math.hypot(this.nodeB.x - this.nodeA.x, this.nodeB.y - this.nodeA.y);
+            }
+            // Target segment count for a "tightened" edge
+            getTightenedSegmentCount() {
+                return Math.max(1, Math.round(this.getStraightLength() / SPRING_NATURAL));
+            }
+            solveConstraints(reverse = false) {
+                const count = this.getPointCount();
+                const start = reverse ? count - 2 : 0;
+                const end = reverse ? -1 : count - 1;
+                const step = reverse ? -1 : 1;
+                for (let i = start; i !== end; i += step) {
+                    const p1 = this.getPoint(i);
+                    const p2 = this.getPoint(i + 1);
+                    const dx = p2.x - p1.x;
+                    const dy = p2.y - p1.y;
+                    const dist = Math.sqrt(dx * dx + dy * dy);
+                    if (dist === 0) continue;
+
+                    if (this.isWindAffected) {
+                        // Floating silk: original rigid segment-length constraint
+                        const diff = (this.segmentLength - dist) / dist;
+                        const stiffness = diff < 0 ? 0.95 : 0.4;
+                        const ox = dx * diff * stiffness;
+                        const oy = dy * diff * stiffness;
+                        if (!p1.fixed) { p1.x -= ox; p1.y -= oy; }
+                        if (!p2.fixed) { p2.x += ox; p2.y += oy; }
+                    } else {
+                        // Attached silk: solver maintains SPRING_REST spacing
+                        // Below rest: gentle push apart (allows sag from slack silk)
+                        // Above rest: strong pull together (resists stretching)
+                        const diff = (SPRING_REST - dist) / dist;
+                        let stiffness;
+                        if (dist <= SPRING_REST) {
+                            stiffness = 0.3;
+                        } else {
+                            const t = Math.min(1, (dist - SPRING_REST) / (SPRING_MAX - SPRING_REST));
+                            stiffness = 0.4 + 0.5 * t;
+                        }
+                        // When one point is fixed, the free point must absorb
+                        // the full gap correction (normally split between two).
+                        // Cap at 1.0 to avoid overshoot instability.
+                        const oneFixed = (p1.fixed !== p2.fixed);
+                        const s = oneFixed ? Math.min(stiffness * 2, 1.0) : stiffness;
+                        const ox = dx * diff * s;
+                        const oy = dy * diff * s;
+                        if (!p1.fixed) { p1.x -= ox; p1.y -= oy; }
+                        if (!p2.fixed) { p2.x += ox; p2.y += oy; }
+                    }
+                }
+            }
+            applyGravity(gravity) {
+                for (const seg of this.segments) {
+                    if (!seg.fixed) seg.vy += gravity;
+                }
+            }
+            integrateSegments() {
+                for (const seg of this.segments) seg.update(false);
+            }
+            applyWind(windForceVec) {
+                if (!this.isWindAffected) return;
+                for (const seg of this.segments) {
+                    seg.vx += windForceVec.x;
+                    seg.vy += windForceVec.y;
+                }
+                if (!this.nodeB.fixed) {
+                    this.nodeB.vx += windForceVec.x;
+                    this.nodeB.vy += windForceVec.y;
+                }
+            }
+            growFromB(newX, newY) {
+                this.segments.push(new SilkSegment(this.nodeB.x, this.nodeB.y));
+                this.nodeB.x = newX;
+                this.nodeB.y = newY;
+            }
+            removeMiddleSegment() {
+                if (this.segments.length > 1) {
+                    const idx = Math.floor(this.segments.length / 2);
+                    this.segments.splice(idx, 1);
+                }
+            }
+            // Remove a segment from the nodeA end (reeling in slack)
+            removeFromA() {
+                if (this.segments.length > 0) {
+                    this.segments.shift();
+                }
+            }
+            // Remove a segment from the nodeB end
+            removeFromB() {
+                if (this.segments.length > 0) {
+                    this.segments.pop();
+                }
+            }
+            // Remove segments until tightened (segCount ≈ straightDist / 5px)
+            // Removes from the nodeA end like reeling in silk, then redistributes.
+            tightenToTarget() {
+                const target = this.getTightenedSegmentCount();
+                let removed = 0;
+                while (this.segments.length > target && this.segments.length > 0) {
+                    this.removeFromA();
+                    removed++;
+                    if (removed >= 5) break; // limit per frame for visual effect
+                }
+                const done = this.segments.length <= target;
+                if (done) {
+                    this.redistributeSegments();
+                }
+                return done;
+            }
+            // Balance segments so every actual distance is between minLen and maxLen.
+            // Splits the longest segment if > maxLen, removes the shortest if < minLen.
+            // Returns true if any work was done.
+            balanceSegments(minLen = 5, maxLen = 7) {
+                const count = this.getPointCount();
+                if (count < 2) return false;
+
+                let longestDist = 0, longestIdx = -1;
+                let shortestDist = Infinity, shortestIdx = -1;
+
+                for (let i = 0; i < count - 1; i++) {
+                    const p1 = this.getPoint(i);
+                    const p2 = this.getPoint(i + 1);
+                    const d = Math.hypot(p2.x - p1.x, p2.y - p1.y);
+                    if (d > longestDist) { longestDist = d; longestIdx = i; }
+                    if (d < shortestDist) { shortestDist = d; shortestIdx = i; }
+                }
+
+                // Split longest segment if too long
+                if (longestDist > maxLen && longestIdx >= 0) {
+                    const p1 = this.getPoint(longestIdx);
+                    const p2 = this.getPoint(longestIdx + 1);
+                    const newSeg = new SilkSegment(
+                        (p1.x + p2.x) / 2,
+                        (p1.y + p2.y) / 2
+                    );
+                    // getPoint(i) maps: 0=nodeA, 1..N=segments[0..N-1], N+1=nodeB
+                    // Insert into segments array at index longestIdx
+                    this.segments.splice(longestIdx, 0, newSeg);
+                    return true;
+                }
+
+                // Remove shortest segment if too short (and we have segments to remove)
+                if (shortestDist < minLen && this.segments.length > 0) {
+                    // Between getPoint(shortestIdx) and getPoint(shortestIdx+1),
+                    // remove whichever point is a SilkSegment (not a node endpoint)
+                    const iA = shortestIdx;
+                    const iB = shortestIdx + 1;
+                    // segments indices: getPoint(k) for k in [1..segments.length] are segments[k-1]
+                    if (iB >= 1 && iB <= this.segments.length) {
+                        // getPoint(iB) is segments[iB-1], remove it
+                        this.segments.splice(iB - 1, 1);
+                        return true;
+                    } else if (iA >= 1 && iA <= this.segments.length) {
+                        // getPoint(iA) is segments[iA-1], remove it
+                        this.segments.splice(iA - 1, 1);
+                        return true;
+                    }
+                }
+
+                return false; // all segments balanced
+            }
+            // Average tension across this edge (tension = segmentDist - SPRING_REST)
+            getAverageTension() {
+                const count = this.getPointCount();
+                if (count < 2) return 0;
+                let totalTension = 0;
+                for (let i = 0; i < count - 1; i++) {
+                    const p1 = this.getPoint(i);
+                    const p2 = this.getPoint(i + 1);
+                    const d = Math.hypot(p2.x - p1.x, p2.y - p1.y);
+                    totalTension += d - SPRING_REST;
+                }
+                return totalTension / (count - 1);
+            }
+            // Remove segments until average tension >= target.
+            // fromEnd: 'A' or 'B' — which end the spider is reeling from.
+            // Returns true if work was done (still tensioning), false if target reached.
+            tensionToTarget(target, fromEnd = 'A') {
+                const avgTension = this.getAverageTension();
+                // Below target: remove a segment to increase tension
+                if (avgTension < target) {
+                    if (this.segments.length > 0) {
+                        if (fromEnd === 'B') {
+                            this.removeFromB();
+                        } else {
+                            this.removeFromA();
+                        }
+                        return true;
+                    }
+                    return false;
+                }
+                // Overshot: add a segment back if tension exceeds target by more than 0.5
+                if (avgTension > target + 0.5) {
+                    // Find the longest span and split it
+                    const count = this.getPointCount();
+                    let longestDist = 0, longestIdx = -1;
+                    for (let i = 0; i < count - 1; i++) {
+                        const p1 = this.getPoint(i);
+                        const p2 = this.getPoint(i + 1);
+                        const d = Math.hypot(p2.x - p1.x, p2.y - p1.y);
+                        if (d > longestDist) { longestDist = d; longestIdx = i; }
+                    }
+                    if (longestIdx >= 0) {
+                        const p1 = this.getPoint(longestIdx);
+                        const p2 = this.getPoint(longestIdx + 1);
+                        const newSeg = new SilkSegment(
+                            (p1.x + p2.x) / 2,
+                            (p1.y + p2.y) / 2
+                        );
+                        this.segments.splice(longestIdx, 0, newSeg);
+                        return true;
+                    }
+                }
+                // Within target to target+0.5 — done
+                return false;
+            }
+            // Evenly space segments along the line between nodeA and nodeB
+            redistributeSegments() {
+                const count = this.segments.length;
+                if (count === 0) return;
+                for (let i = 0; i < count; i++) {
+                    const t = (i + 1) / (count + 1);
+                    this.segments[i].x = this.nodeA.x + (this.nodeB.x - this.nodeA.x) * t;
+                    this.segments[i].y = this.nodeA.y + (this.nodeB.y - this.nodeA.y) * t;
+                    this.segments[i].vx = 0;
+                    this.segments[i].vy = 0;
+                }
+            }
+            draw(ctx) {
+                ctx.strokeStyle = '#3c3c3c';
+                ctx.lineWidth = 1;
+                ctx.beginPath();
+                const p0 = this.getPoint(0);
+                ctx.moveTo(p0.x, p0.y);
+                for (let i = 1; i < this.getPointCount(); i++) {
+                    const p = this.getPoint(i);
+                    ctx.lineTo(p.x, p.y);
+                }
+                ctx.stroke();
+
+                // Debug: red dots at segment joints, length + tension labels
+                if (metricsEnabled) {
+                    const count = this.getPointCount();
+                    ctx.font = '14px monospace';
+                    for (let i = 0; i < count; i++) {
+                        const p = this.getPoint(i);
+                        ctx.fillStyle = 'red';
+                        ctx.beginPath();
+                        ctx.arc(p.x, p.y, 2, 0, Math.PI * 2);
+                        ctx.fill();
+
+                        if (i < count - 1 && i % 5 === 0) {
+                            const p2 = this.getPoint(i + 1);
+                            const len = Math.hypot(p2.x - p.x, p2.y - p.y);
+                            const mx = (p.x + p2.x) / 2;
+                            const my = (p.y + p2.y) / 2;
+                            // Length label (charcoal)
+                            ctx.fillStyle = '#333';
+                            ctx.fillText(len.toFixed(1), mx, my - 8);
+                            // Tension: positive = tensioned (green), negative = slack (blue)
+                            const tension = len - SPRING_REST;
+                            const alpha = Math.min(1, Math.abs(tension) / SPRING_REST);
+                            ctx.fillStyle = tension > 0
+                                ? `rgba(34, 139, 34, ${alpha})`
+                                : `rgba(34, 102, 204, ${alpha})`;
+                            ctx.fillText(tension.toFixed(1), mx, my + 8);
+                        }
+                    }
+                }
+            }
+        }
+
+        // ==================== WebGraph ====================
+        class WebGraph {
+            constructor() {
+                this.nodes = [];
+                this.edges = [];
+                this.nextNodeId = 0;
+                this.nextEdgeId = 0;
+            }
+            createNode(x, y, type = 'free', fixed = false) {
+                const node = new WebGraphNode(this.nextNodeId++, x, y, type);
+                node.fixed = fixed;
+                this.nodes.push(node);
+                return node;
+            }
+            createEdge(nodeA, nodeB, segmentCount, segmentLength = 10) {
+                const edge = new WebGraphEdge(this.nextEdgeId++, nodeA, nodeB, segmentCount, segmentLength);
+                this.edges.push(edge);
+                return edge;
+            }
+            removeEdge(edge) {
+                const idx = this.edges.indexOf(edge);
+                if (idx >= 0) this.edges.splice(idx, 1);
+                edge.nodeA.edges = edge.nodeA.edges.filter(e => e !== edge);
+                edge.nodeB.edges = edge.nodeB.edges.filter(e => e !== edge);
+            }
+            splitEdge(edge, progress) {
+                const pos = edge.getPositionAtProgress(progress);
+                const newNode = this.createNode(pos.x, pos.y, 'split');
+                const totalPoints = edge.getPointCount();
+                const splitIdx = Math.max(1, Math.min(edge.segments.length, Math.round(progress * (totalPoints - 1)) - 1));
+                const segsA = edge.segments.slice(0, splitIdx);
+                const segsB = edge.segments.slice(splitIdx);
+                const oldNodeA = edge.nodeA;
+                const oldNodeB = edge.nodeB;
+                this.removeEdge(edge);
+                const edgeA = new WebGraphEdge(this.nextEdgeId++, oldNodeA, newNode, 0, edge.segmentLength);
+                edgeA.segments = segsA;
+                oldNodeA.edges.push(edgeA);
+                newNode.edges.push(edgeA);
+                this.edges.push(edgeA);
+                const edgeB = new WebGraphEdge(this.nextEdgeId++, newNode, oldNodeB, 0, edge.segmentLength);
+                edgeB.segments = segsB;
+                newNode.edges.push(edgeB);
+                oldNodeB.edges.push(edgeB);
+                this.edges.push(edgeB);
+                return { newNode, edgeA, edgeB };
+            }
+        }
+
+        // ==================== WalkableGraph ====================
+        class WalkableGraph {
+            constructor() {
+                this.nodes = [];
+                this.edges = [];
+                this.adjacency = new Map();
+            }
+
+            addNode(x, y, type, ref = null) {
+                const id = this.nodes.length;
+                this.nodes.push({ id, x, y, type, ref });
+                this.adjacency.set(id, []);
+                return id;
+            }
+
+            addEdge(fromId, toId, distance, walkable) {
+                const idx = this.edges.length;
+                this.edges.push({ from: fromId, to: toId, distance, walkable });
+                this.adjacency.get(fromId).push({ toId, edgeIdx: idx });
+                this.adjacency.get(toId).push({ toId: fromId, edgeIdx: idx });
+            }
+
+            findNearestNode(x, y, maxDist = 30) {
+                let best = -1;
+                let bestDist = maxDist;
+                for (const node of this.nodes) {
+                    const dx = node.x - x;
+                    const dy = node.y - y;
+                    const d = Math.sqrt(dx * dx + dy * dy);
+                    if (d < bestDist) {
+                        bestDist = d;
+                        best = node.id;
+                    }
+                }
+                return best;
+            }
+
+            findShortestPath(fromId, toId, excludeNodes = null) {
+                if (fromId < 0 || toId < 0) return null;
+
+                const dist = new Array(this.nodes.length).fill(Infinity);
+                const prev = new Array(this.nodes.length).fill(-1);
+                const prevEdge = new Array(this.nodes.length).fill(-1);
+                const visited = new Set();
+                if (excludeNodes) {
+                    for (const id of excludeNodes) {
+                        if (id !== fromId && id !== toId) visited.add(id);
+                    }
+                }
+
+                dist[fromId] = 0;
+                const pq = [{ id: fromId, d: 0 }];
+
+                while (pq.length > 0) {
+                    pq.sort((a, b) => a.d - b.d);
+                    const { id: u } = pq.shift();
+
+                    if (visited.has(u)) continue;
+                    visited.add(u);
+
+                    if (u === toId) break;
+
+                    for (const { toId: v, edgeIdx } of this.adjacency.get(u)) {
+                        if (visited.has(v)) continue;
+                        const edge = this.edges[edgeIdx];
+                        const newDist = dist[u] + edge.distance;
+                        if (newDist < dist[v]) {
+                            dist[v] = newDist;
+                            prev[v] = u;
+                            prevEdge[v] = edgeIdx;
+                            pq.push({ id: v, d: newDist });
+                        }
+                    }
+                }
+
+                if (dist[toId] === Infinity) return null;
+
+                const path = [];
+                let cur = toId;
+                while (cur !== fromId) {
+                    const edge = this.edges[prevEdge[cur]];
+                    const fromNode = this.nodes[prev[cur]];
+                    const toNode = this.nodes[cur];
+                    path.unshift({
+                        walkable: edge.walkable,
+                        fromNode: fromNode,
+                        toNode: toNode,
+                        distance: edge.distance
+                    });
+                    cur = prev[cur];
+                }
+
+                return path;
+            }
+
+            build(allEdges, allBranches, convergencePoint) {
+                this.nodes = [];
+                this.edges = [];
+                this.adjacency = new Map();
+
+                const SNAP = 8;
+
+                const getOrCreateNode = (x, y, type, ref) => {
+                    for (const node of this.nodes) {
+                        const dx = node.x - x;
+                        const dy = node.y - y;
+                        if (Math.sqrt(dx * dx + dy * dy) < SNAP) {
+                            return node.id;
+                        }
+                    }
+                    return this.addNode(x, y, type, ref);
+                };
+
+                const centerNodeId = getOrCreateNode(
+                    convergencePoint.x, convergencePoint.y, 'center', null
+                );
+
+                // Add graph edges as walkable edges
+                for (const edge of allEdges) {
+                    const startX = edge.nodeA.x;
+                    const startY = edge.nodeA.y;
+                    const endX = edge.nodeB.x;
+                    const endY = edge.nodeB.y;
+
+                    const startId = getOrCreateNode(startX, startY, 'edge_endpoint', edge);
+                    const endId = getOrCreateNode(endX, endY, 'edge_endpoint', edge);
+
+                    const totalDist = edge.getArcLength();
+
+                    if (startId !== endId) {
+                        this.addEdge(startId, endId, totalDist, {
+                            type: 'edge',
+                            ref: edge,
+                            startIdx: 0,
+                            endIdx: edge.getPointCount() - 1
+                        });
+                    }
+                }
+
+                // Add branch edges
+                const addBranchEdges = (branch) => {
+                    const startId = getOrCreateNode(branch.x1, branch.y1, 'branch_point', branch);
+                    const endId = getOrCreateNode(branch.x2, branch.y2, 'branch_point', branch);
+
+                    const dx = branch.x2 - branch.x1;
+                    const dy = branch.y2 - branch.y1;
+                    const dist = Math.sqrt(dx * dx + dy * dy);
+
+                    if (startId !== endId && dist > 0) {
+                        this.addEdge(startId, endId, dist, {
+                            type: 'branch',
+                            ref: branch,
+                            startIdx: 0,
+                            endIdx: 1
+                        });
+                    }
+
+                    for (const child of branch.children) {
+                        addBranchEdges(child);
+                    }
+                };
+
+                for (const branch of allBranches) {
+                    addBranchEdges(branch);
+                }
+
+                // Connect edge endpoints to branches they sit on
+                const projectOnBranch = (px, py, branch) => {
+                    const dx = branch.x2 - branch.x1;
+                    const dy = branch.y2 - branch.y1;
+                    const len2 = dx * dx + dy * dy;
+                    if (len2 === 0) return null;
+                    let t = ((px - branch.x1) * dx + (py - branch.y1) * dy) / len2;
+                    t = Math.max(0, Math.min(1, t));
+                    const projX = branch.x1 + dx * t;
+                    const projY = branch.y1 + dy * t;
+                    const dist = Math.hypot(px - projX, py - projY);
+                    return { dist, t, branch, projX, projY };
+                };
+
+                const allBranchSegments = [];
+                const collectBranches = (branch) => {
+                    const dx = branch.x2 - branch.x1;
+                    const dy = branch.y2 - branch.y1;
+                    if (dx * dx + dy * dy > 1) allBranchSegments.push(branch);
+                    for (const child of branch.children) collectBranches(child);
+                };
+                for (const b of allBranches) collectBranches(b);
+
+                for (const node of this.nodes) {
+                    if (node.type !== 'edge_endpoint' && node.type !== 'center') continue;
+
+                    for (const branch of allBranchSegments) {
+                        const proj = projectOnBranch(node.x, node.y, branch);
+                        if (!proj || proj.dist > 15) continue;
+
+                        const bStartId = this.findNearestNode(branch.x1, branch.y1, SNAP + 1);
+                        const bEndId = this.findNearestNode(branch.x2, branch.y2, SNAP + 1);
+
+                        if (bStartId >= 0 && bStartId !== node.id) {
+                            const d = Math.hypot(node.x - this.nodes[bStartId].x, node.y - this.nodes[bStartId].y);
+                            const alreadyConnected = this.adjacency.get(node.id).some(e => e.toId === bStartId);
+                            if (!alreadyConnected) {
+                                this.addEdge(node.id, bStartId, d, {
+                                    type: 'branch', ref: branch, startIdx: 0, endIdx: 1
+                                });
+                            }
+                        }
+                        if (bEndId >= 0 && bEndId !== node.id) {
+                            const d = Math.hypot(node.x - this.nodes[bEndId].x, node.y - this.nodes[bEndId].y);
+                            const alreadyConnected = this.adjacency.get(node.id).some(e => e.toId === bEndId);
+                            if (!alreadyConnected) {
+                                this.addEdge(node.id, bEndId, d, {
+                                    type: 'branch', ref: branch, startIdx: 0, endIdx: 1
+                                });
+                            }
+                        }
+                    }
+                }
+
+                // Proximity edges
+                const PROXIMITY = 15;
+                for (let i = 0; i < this.nodes.length; i++) {
+                    for (let j = i + 1; j < this.nodes.length; j++) {
+                        const ni = this.nodes[i];
+                        const nj = this.nodes[j];
+                        const d = Math.hypot(ni.x - nj.x, ni.y - nj.y);
+                        if (d < PROXIMITY) {
+                            const alreadyConnected = this.adjacency.get(i).some(e => e.toId === j);
+                            if (!alreadyConnected) {
+                                this.addEdge(i, j, d, {
+                                    type: 'proximity',
+                                    ref: null,
+                                    startIdx: 0,
+                                    endIdx: 0
+                                });
+                            }
+                        }
+                    }
+                }
+
+                return centerNodeId;
+            }
+        }
+
+        // ==================== AnchorFinder ====================
+        function findAnchorOnBranchOrStrand(centerX, centerY, angle, allBranches, graphEdges) {
+            const rayDx = Math.cos(angle);
+            const rayDy = Math.sin(angle);
+            const RAY_LENGTH = 2000;
+
+            let bestHit = null;
+            let bestDist = Infinity;
+
+            const testSegment = (x1, y1, x2, y2, sourceRef, sourceType) => {
+                const bdx = x2 - x1;
+                const bdy = y2 - y1;
+
+                const denom = rayDx * bdy - rayDy * bdx;
+                if (Math.abs(denom) < 0.001) return;
+
+                const t = ((x1 - centerX) * bdy - (y1 - centerY) * bdx) / denom;
+                const u = ((x1 - centerX) * rayDy - (y1 - centerY) * rayDx) / denom;
+
+                if (t > 20 && t < RAY_LENGTH && u >= 0 && u <= 1) {
+                    if (t < bestDist) {
+                        bestDist = t;
+                        const hitX = centerX + rayDx * t;
+                        const hitY = centerY + rayDy * t;
+                        bestHit = { x: hitX, y: hitY, source: sourceRef, sourceType: sourceType, u: u };
+                    }
+                }
+            };
+
+            // Check all branch segments
+            const checkBranch = (branch) => {
+                testSegment(branch.x1, branch.y1, branch.x2, branch.y2, branch, 'branch');
+                for (const child of branch.children) checkBranch(child);
+            };
+            for (const branch of allBranches) {
+                checkBranch(branch);
+            }
+
+            // Check all graph edges - test each segment pair for ray intersection
+            for (const edge of graphEdges) {
+                for (let i = 0; i < edge.getPointCount() - 1; i++) {
+                    const p1 = edge.getPoint(i);
+                    const p2 = edge.getPoint(i + 1);
+                    testSegment(p1.x, p1.y, p2.x, p2.y, edge, 'edge');
+                }
+            }
+
+            // For edge hits, snap to the nearest point on the edge
+            if (bestHit && bestHit.sourceType === 'edge') {
+                const edge = bestHit.source;
+                let closestDist = Infinity;
+                let closestIdx = 0;
+                for (let i = 0; i < edge.getPointCount(); i++) {
+                    const p = edge.getPoint(i);
+                    const dx = p.x - bestHit.x;
+                    const dy = p.y - bestHit.y;
+                    const d = dx * dx + dy * dy;
+                    if (d < closestDist) {
+                        closestDist = d;
+                        closestIdx = i;
+                    }
+                }
+                const closestP = edge.getPoint(closestIdx);
+                bestHit.x = closestP.x;
+                bestHit.y = closestP.y;
+                bestHit.segmentIndex = closestIdx;
+            }
+
+            return bestHit;
+        }
+
+        // Find largest angular gap between existing spokes
+        function findLargestSpokeGap(spokes) {
+            if (spokes.length < 2) return 0;
+
+            const angles = spokes.map(s => s.angle).sort((a, b) => a - b);
+
+            let maxGap = 0;
+            let bisectAngle = 0;
+
+            for (let i = 0; i < angles.length; i++) {
+                const next = (i + 1) % angles.length;
+                let gap;
+                if (next === 0) {
+                    gap = (2 * Math.PI) - angles[angles.length - 1] + angles[0];
+                } else {
+                    gap = angles[next] - angles[i];
+                }
+
+                if (gap > maxGap) {
+                    maxGap = gap;
+                    if (next === 0) {
+                        bisectAngle = angles[angles.length - 1] + gap / 2;
+                        if (bisectAngle > Math.PI) bisectAngle -= 2 * Math.PI;
+                    } else {
+                        bisectAngle = angles[i] + gap / 2;
+                    }
+                }
+            }
+
+            return bisectAngle;
+        }
+
+        // ==================== Branch ====================
+        class Branch {
+            constructor(x1, y1, x2, y2, thickness, generation = 0) {
+                this.x1 = x1;
+                this.y1 = y1;
+                this.x2 = x2;
+                this.y2 = y2;
+                this.thickness = thickness;
+                this.generation = generation;
+                this.children = [];
+            }
+
+            draw() {
+                ctx.strokeStyle = '#3c3c3c';
+                ctx.lineWidth = this.thickness;
+                ctx.lineCap = 'round';
+                ctx.beginPath();
+                ctx.moveTo(this.x1, this.y1);
+                ctx.lineTo(this.x2, this.y2);
+                ctx.stroke();
+                this.children.forEach(child => child.draw());
+            }
+
+            addChild(branch) {
+                this.children.push(branch);
+            }
+
+            checkCollision(px, py, radius = 5) {
+                const dx = this.x2 - this.x1;
+                const dy = this.y2 - this.y1;
+                const length = Math.sqrt(dx * dx + dy * dy);
+                const nx = dx / length;
+                const ny = dy / length;
+                const vx = px - this.x1;
+                const vy = py - this.y1;
+                const dot = vx * nx + vy * ny;
+                const t = Math.max(0, Math.min(length, dot));
+                const closestX = this.x1 + nx * t;
+                const closestY = this.y1 + ny * t;
+                const distX = px - closestX;
+                const distY = py - closestY;
+                const dist = Math.sqrt(distX * distX + distY * distY);
+
+                if (dist < this.thickness / 2 + radius) {
+                    return { x: closestX, y: closestY };
+                }
+
+                for (let child of this.children) {
+                    const collision = child.checkCollision(px, py, radius);
+                    if (collision) return collision;
+                }
+                return null;
+            }
+        }
+
+        // ==================== Spider ====================
+        class Spider {
+            constructor(x, y) {
+                this.x = x;
+                this.y = y;
+                this.radius = 6;
+                this.weight = 0.15;
+                this.restingWeight = 0.03; // constant subtle weight from spider's body
+                this.state = 'waiting_to_weave';
+
+                // Edge/node references (replacing strand references)
+                this.bridgeEdge = null;
+                this.bridgeStartNode = null;
+                this.bridgeEndNode = null;
+                this.bridgeTipNode = null;
+                this.thread1Edge = null;
+                this.thread1aEdge = null;
+                this.thread1bEdge = null;
+                this.hubNode = null;
+                this.rappelEdge = null;
+                this.rappelAnchorNode = null;
+                this.thread3Edge = null;
+                this.bridgeCenterNode = null;
+                this.spokeEdge = null;
+
+                this.bridgeStrandFinalLength = 0;
+                this.releaseTimer = 0;
+                this.crossProgress = 0;
+                this.thread1Progress = 1.0;
+                this.crossSpeed = 0.0025;
+                this.tying = false;
+                this.tyingTimer = 0;
+                this.legAnimation = 0;
+                this.thread1SpinCount = 0;
+                this.waitTimer = 0;
+                this.lastThread0SegmentIndex = undefined;
+                this.originalWeight = this.weight;
+                this.walkingEdge = null;
+                this.walkProgress = 0;
+                this.lastWalkSegmentIndex = undefined;
+
+                // Spoke-building stage
+                this.spokes = []; // [{edge, angle, anchorPoint: {x,y}}]
+                this.maxSpokes = 16;
+                this.walkableGraph = null;
+                this.currentWalkPath = null;
+                this.currentWalkStepIndex = 0;
+                this.walkStepProgress = 0;
+                this.spokeAnchorPoint = null;
+                this.spokeAnchorSource = null;
+                this.spokeAnchorSourceType = null;
+                this.spokeAnchorSegmentIndex = null;
+                this.spokeLastSegCount = 0;
+            }
+
+            getWalkSpeed() {
+                return this.crossSpeed * speedMultiplier;
+            }
+
+            // Returns progress increment for constant pixel speed on a given edge
+            getWalkSpeedForEdge(edge) {
+                const arcLen = edge.getArcLength();
+                if (arcLen <= 0) return this.getWalkSpeed();
+                // Target ~1 px/frame at base speed, scaled by multiplier
+                const pxPerFrame = 1.0 * speedMultiplier;
+                return pxPerFrame / arcLen;
+            }
+
+            startWeaving() {
+                if (this.state === 'waiting_to_weave') {
+                    this.state = 'releasing_bridge';
+                }
+            }
+
+            walkOnEdge(edge, progress, applyWeight = false) {
+                const pos = edge.getPositionAtProgress(progress);
+                this.x = pos.x;
+                this.y = pos.y;
+                if (applyWeight) edge.applyWeightAtProgress(progress, this.weight + this.restingWeight);
+            }
+
+            update() {
+                if (this.state === 'waiting_to_weave') {
+                    return;
+                } else if (this.state === 'releasing_bridge') {
+                    this.releaseTimer++;
+                    if (this.releaseTimer % 3 === 0) {
+                        if (!this.bridgeEdge) {
+                            // Create bridgeStartNode (fixed) and bridgeTipNode (free), bridgeEdge between them
+                            this.bridgeStartNode = webGraph.createNode(this.x, this.y, 'anchor', true);
+                            this.bridgeTipNode = webGraph.createNode(this.x + 5, this.y, 'free', false);
+                            this.bridgeTipNode.vx = 2;
+                            this.bridgeEdge = webGraph.createEdge(this.bridgeStartNode, this.bridgeTipNode, 0, 10);
+                            this.bridgeEdge.isWindAffected = true;
+                        } else {
+                            // Grow the bridge edge
+                            if (this.bridgeEdge.segments.length < 100) {
+                                const tip = this.bridgeTipNode;
+                                this.bridgeEdge.growFromB(tip.x + 5, tip.y);
+                            } else {
+                                this.state = 'waiting';
+                            }
+                        }
+                    }
+
+                    if (this.bridgeEdge) {
+                        const tip = this.bridgeTipNode;
+                        const oppositeBranch = branches[1];
+                        const collision = oppositeBranch.checkCollision(tip.x, tip.y, 3);
+
+                        if (collision) {
+                            tip.x = collision.x;
+                            tip.y = collision.y;
+                            tip.fixed = true;
+                            this.bridgeEndNode = tip;
+                            this.bridgeEdge.isWindAffected = false;
+                            // Tighten immediately: trim to target segment count
+                            // and redistribute so spring physics doesn't explode.
+                            // Also zero velocities from the floating phase.
+                            while (this.bridgeEdge.segments.length > this.bridgeEdge.getTightenedSegmentCount() && this.bridgeEdge.segments.length > 1) {
+                                this.bridgeEdge.removeMiddleSegment();
+                            }
+                            this.bridgeEdge.redistributeSegments();
+                            for (const seg of this.bridgeEdge.segments) {
+                                seg.vx = 0; seg.vy = 0;
+                            }
+                            this.state = 'pulling_bridge';
+                        }
+                    }
+                } else if (this.state === 'pulling_bridge') {
+                    this.tying = true;
+                    this.tyingTimer++;
+                    this.legAnimation = Math.sin(this.tyingTimer * 0.2) * 0.5 + 0.5;
+
+                    if (this.bridgeEdge) {
+                        this.bridgeStartNode.x = this.x;
+                        this.bridgeStartNode.y = this.y;
+
+                        if (!this.bridgeEdge.tensionToTarget(targetTension, 'A')) {
+                            this.state = 'tying_start';
+                            this.tyingTimer = 0;
+                        }
+                    }
+                } else if (this.state === 'tying_start') {
+                    this.tyingTimer++;
+                    this.legAnimation = Math.sin(this.tyingTimer * 0.2) * 0.5 + 0.5;
+
+                    if (this.tyingTimer > 60) {
+                        this.tying = false;
+                        // Fix bridge start
+                        this.bridgeStartNode.x = this.x;
+                        this.bridgeStartNode.y = this.y;
+                        this.bridgeStartNode.fixed = true;
+
+                        this.bridgeStrandFinalLength = this.bridgeEdge.getPointCount();
+
+                        this.state = 'spinning_thread1';
+                        this.thread1SpinCount = 0;
+                    }
+                } else if (this.state === 'spinning_thread1') {
+                    this.releaseTimer++;
+
+                    if (this.thread1SpinCount === 0) {
+                        // Create thread1Edge from bridgeStartNode with a free tip node
+                        const tipNode = webGraph.createNode(this.x, this.y, 'free', false);
+                        this.thread1Edge = webGraph.createEdge(this.bridgeStartNode, tipNode, 1, 10);
+                        this.thread1SpinCount++;
+                    } else if (this.thread1SpinCount >= 1) {
+                        this.state = 'tying_thread1_start';
+                        this.tying = true;
+                        this.tyingTimer = 0;
+                    }
+                } else if (this.state === 'tying_thread1_start') {
+                    this.tyingTimer++;
+                    this.legAnimation = Math.sin(this.tyingTimer * 0.2) * 0.5 + 0.5;
+
+                    if (this.tyingTimer > 60) {
+                        this.tying = false;
+                        // Fix thread1 start to bridge start
+                        // thread1Edge.nodeA is already bridgeStartNode (fixed)
+
+                        this.state = 'crossing_bridge';
+                        this.crossProgress = 0;
+                        this.releaseTimer = 0;
+                        this.lastThread0SegmentIndex = -1;
+                    }
+                } else if (this.state === 'crossing_bridge') {
+                    this.crossProgress += this.getWalkSpeedForEdge(this.bridgeEdge);
+                    this.releaseTimer++;
+
+                    // Grow thread1 on timer, capped at 2x estimated straight-line distance
+                    const thread1MaxSegs = Math.floor(this.bridgeEdge.getStraightLength() * 2 / SPRING_NATURAL);
+                    if (this.releaseTimer % 3 === 0 && this.thread1Edge.segments.length < thread1MaxSegs) {
+                        this.thread1Edge.growFromB(this.x, this.y);
+                    }
+
+                    if (this.crossProgress >= 1) {
+                        this.crossProgress = 1;
+                        this.walkOnEdge(this.bridgeEdge, 1.0, false);
+                        this.lastThread0SegmentIndex = undefined;
+
+                        this.state = 'tying_thread1_end';
+                        this.tying = true;
+                        this.tyingTimer = 0;
+                    } else {
+                        this.walkOnEdge(this.bridgeEdge, this.crossProgress);
+                    }
+
+                    // Update thread1 tip to spider position
+                    if (this.thread1Edge) {
+                        this.thread1Edge.nodeB.x = this.x;
+                        this.thread1Edge.nodeB.y = this.y;
+                    }
+
+                    this.releaseTimer++;
+                } else if (this.state === 'tying_thread1_end') {
+                    this.tyingTimer++;
+                    this.legAnimation = Math.sin(this.tyingTimer * 0.2) * 0.5 + 0.5;
+
+                    if (this.bridgeEdge) {
+                        this.walkOnEdge(this.bridgeEdge, 1.0, false);
+                    }
+
+                    // Keep thread1 tip at spider position
+                    if (this.thread1Edge) {
+                        this.thread1Edge.nodeB.x = this.x;
+                        this.thread1Edge.nodeB.y = this.y;
+                    }
+
+                    if (this.tyingTimer > 60) {
+                        this.tying = false;
+                        // Attach thread1 end to bridge end node
+                        this.thread1Edge.nodeB.x = this.bridgeEndNode.x;
+                        this.thread1Edge.nodeB.y = this.bridgeEndNode.y;
+                        this.thread1Edge.nodeB.fixed = true;
+
+                        // Thread1 is the only slack thread: target double the tightened count for visual sag.
+                        const target = this.thread1Edge.getTightenedSegmentCount() * .75;
+                        // Remove excess segments
+                        while (this.thread1Edge.segments.length > target && this.thread1Edge.segments.length > 1) {
+                            this.thread1Edge.removeMiddleSegment();
+                        }
+                        // Add segments if too few (so gravity can create visible sag)
+                        while (this.thread1Edge.segments.length < target) {
+                            const idx = Math.floor(this.thread1Edge.segments.length / 2);
+                            const p1 = this.thread1Edge.getPoint(idx);
+                            const p2 = this.thread1Edge.getPoint(idx + 1);
+                            const newSeg = new SilkSegment((p1.x + p2.x) / 2, (p1.y + p2.y) / 2);
+                            this.thread1Edge.segments.splice(idx, 0, newSeg);
+                        }
+
+                        this.state = 'moving_to_center';
+                    }
+                } else if (this.state === 'moving_to_center') {
+                    if (this.thread1Edge) {
+                        const targetProgress = 0.5;
+
+                        if (Math.abs(this.thread1Progress - targetProgress) < 0.005) {
+                            this.thread1Progress = targetProgress;
+                            this.state = 'waiting';
+                        } else {
+                            const t1Speed = this.getWalkSpeedForEdge(this.thread1Edge);
+                            if (this.thread1Progress > targetProgress) {
+                                this.thread1Progress -= t1Speed;
+                                this.thread1Progress = Math.max(targetProgress, this.thread1Progress);
+                            } else {
+                                this.thread1Progress += t1Speed;
+                                this.thread1Progress = Math.min(targetProgress, this.thread1Progress);
+                            }
+                        }
+
+                        this.walkOnEdge(this.thread1Edge, this.thread1Progress);
+                    }
+                } else if (this.state === 'waiting') {
+                    if (this.thread1Edge && this.thread1Progress > 0) {
+                        this.walkOnEdge(this.thread1Edge, this.thread1Progress);
+
+                        this.waitTimer++;
+                        if (this.waitTimer > 120) {
+                            this.weight = 0;
+                            this.state = 'start_rappel';
+                            this.waitTimer = 0;
+                        }
+                    }
+                } else if (this.state === 'start_rappel') {
+                    // Dampen velocities on thread1 before split
+                    for (const seg of this.thread1Edge.segments) {
+                        seg.vx *= 0.1;
+                        seg.vy *= 0.1;
+                    }
+
+                    // Split thread1Edge at midpoint to create hubNode
+                    const splitResult = webGraph.splitEdge(this.thread1Edge, 0.5);
+                    this.hubNode = splitResult.newNode;
+                    this.thread1aEdge = splitResult.edgeA;
+                    this.thread1bEdge = splitResult.edgeB;
+                    this.thread1Edge = null; // no longer valid
+
+                    // Create rappel edge from hubNode downward (10px segments, spun out slowly)
+                    const rappelTipNode = webGraph.createNode(this.hubNode.x, this.hubNode.y + 2, 'free', false);
+                    this.rappelEdge = webGraph.createEdge(this.hubNode, rappelTipNode, 0, 10);
+
+                    this.state = 'rappelling';
+                    this.releaseTimer = 0;
+                } else if (this.state === 'rappelling') {
+                    this.releaseTimer++;
+
+                    // Grow rappel on timer, capped at 2x estimated distance to bottom branch
+                    const rappelMaxSegs = Math.floor(height * 2 / SPRING_NATURAL);
+                    if (this.releaseTimer % 3 === 0 && this.rappelEdge.segments.length < rappelMaxSegs) {
+                        const tip = this.rappelEdge.nodeB;
+                        this.rappelEdge.growFromB(tip.x, tip.y);
+                    }
+
+                    if (this.rappelEdge.segments.length >= 5 && this.weight === 0) {
+                        this.weight = this.originalWeight;
+                    }
+
+                    // Spider position = rappelEdge.nodeB
+                    const tip = this.rappelEdge.nodeB;
+                    this.x = tip.x;
+                    this.y = tip.y;
+
+                    // Apply spider weight to tip
+                    if (!tip.fixed) {
+                        tip.vy += this.weight;
+                    }
+
+                    for (let branch of branches) {
+                        const collision = branch.checkCollision(this.x, this.y, this.radius);
+                        if (collision) {
+                            tip.x = collision.x;
+                            tip.y = collision.y;
+                            tip.fixed = true;
+                            this.rappelAnchorNode = tip;
+                            this.state = 'rappel_complete';
+                            break;
+                        }
+                    }
+
+                    if (this.rappelEdge.segments.length > 100) {
+                        this.state = 'rappel_complete';
+                    }
+                } else if (this.state === 'rappel_complete') {
+                    if (this.weight === 0) {
+                        this.weight = this.originalWeight;
+                    }
+                    this.state = 'tensioning_thread2';
+                    this.tying = true;
+                    this.tyingTimer = 0;
+                } else if (this.state === 'tensioning_thread2') {
+                    this.tyingTimer++;
+                    this.legAnimation = Math.sin(this.tyingTimer * 0.2) * 0.5 + 0.5;
+
+                    if (!this.rappelEdge.tensionToTarget(targetTension, 'B')) {
+                        this.tying = false;
+                        this.state = 'web_complete';
+                    }
+
+                    // Spider at rappel tip
+                    const tip = this.rappelEdge.nodeB;
+                    this.x = tip.x;
+                    this.y = tip.y;
+                } else if (this.state === 'web_complete') {
+                    if (this.rappelEdge) {
+                        const tip = this.rappelEdge.nodeB;
+                        this.x = tip.x;
+                        this.y = tip.y;
+                    }
+
+                    this.waitTimer++;
+                    if (this.waitTimer > 60) {
+                        this.state = 'climbing_thread2';
+                        this.walkProgress = 1.0;
+                        this.waitTimer = 0;
+                    }
+                } else if (this.state === 'climbing_thread2') {
+                    this.walkProgress -= this.getWalkSpeedForEdge(this.rappelEdge);
+
+                    if (this.walkProgress <= 0) {
+                        this.walkProgress = 0;
+                        this.x = this.hubNode.x;
+                        this.y = this.hubNode.y;
+                        // Skip thread3 — go straight to spokes
+                        this.state = 'resting_at_convergence';
+                        this.waitTimer = 0;
+                    } else {
+                        this.walkOnEdge(this.rappelEdge, this.walkProgress);
+                    }
+                } else if (this.state === 'start_thread3') {
+                    // Create thread3Edge from hubNode
+                    const tipNode = webGraph.createNode(this.hubNode.x, this.hubNode.y, 'free', false);
+                    this.thread3Edge = webGraph.createEdge(this.hubNode, tipNode, 1, 10);
+                    this.releaseTimer = 0;
+
+                    // Walk thread1aEdge from hubNode toward bridgeStartNode
+                    this.walkingEdge = this.thread1aEdge;
+                    this.walkProgress = 1.0; // start at nodeB end (hubNode)
+                    this.lastWalkSegmentIndex = undefined;
+                    this.state = 'walking_to_thread0';
+                } else if (this.state === 'walking_to_thread0') {
+                    this.releaseTimer++;
+
+                    // Grow thread3 on timer, capped at 2x estimated distance
+                    const thread3MaxSegs = Math.floor(this.thread3Edge.getStraightLength() * 4 / SPRING_NATURAL);
+                    if (this.releaseTimer % 3 === 0 && this.thread3Edge.segments.length < thread3MaxSegs) {
+                        this.thread3Edge.growFromB(this.x, this.y);
+                    }
+
+                    this.walkProgress -= this.getWalkSpeedForEdge(this.walkingEdge);
+
+                    if (this.walkProgress <= 0.005) {
+                        this.walkProgress = 0.0;
+                        // At bridgeStartNode, switch to walking bridgeEdge
+                        this.walkOnEdge(this.walkingEdge, 0, false);
+                        this.lastWalkSegmentIndex = undefined;
+                        this.walkingEdge = this.bridgeEdge;
+
+                        // Find progress on bridge edge closest to thread1a's start (bridgeStartNode)
+                        this.walkProgress = 0; // bridgeStartNode is nodeA of bridgeEdge
+                        this.state = 'walking_to_thread0_center';
+                    } else {
+                        this.walkOnEdge(this.walkingEdge, this.walkProgress);
+                    }
+
+                    // Update thread3 tip to spider position
+                    if (this.thread3Edge) {
+                        this.thread3Edge.nodeB.x = this.x;
+                        this.thread3Edge.nodeB.y = this.y;
+                    }
+                } else if (this.state === 'walking_to_thread0_center') {
+                    const currentWalkPtIdx = Math.floor(this.walkProgress * (this.walkingEdge.getPointCount() - 1));
+
+                    this.releaseTimer++;
+
+                    const targetProgress = 0.5;
+                    const direction = targetProgress > this.walkProgress ? 1 : -1;
+
+                    // Grow thread3 on timer, capped at 2x estimated distance
+                    const thread3CenterMaxSegs = Math.floor(this.thread3Edge.getStraightLength() * 4 / SPRING_NATURAL);
+                    if (this.releaseTimer % 3 === 0 && this.thread3Edge.segments.length < thread3CenterMaxSegs) {
+                        this.thread3Edge.growFromB(this.x, this.y);
+                    }
+
+                    if (Math.abs(this.walkProgress - targetProgress) < 0.005) {
+                        this.walkProgress = targetProgress;
+                        this.lastWalkSegmentIndex = undefined;
+                        this.state = 'tying_thread3';
+                        this.tying = true;
+                        this.tyingTimer = 0;
+                    } else {
+                        this.walkProgress += direction * this.getWalkSpeedForEdge(this.walkingEdge);
+                        this.walkOnEdge(this.walkingEdge, this.walkProgress);
+                    }
+
+                    // Update thread3 tip
+                    if (this.thread3Edge) {
+                        this.thread3Edge.nodeB.x = this.x;
+                        this.thread3Edge.nodeB.y = this.y;
+                    }
+                } else if (this.state === 'tying_thread3') {
+                    this.tyingTimer++;
+                    this.legAnimation = Math.sin(this.tyingTimer * 0.2) * 0.25 + 0.5;
+
+                    this.walkOnEdge(this.bridgeEdge, 0.5, false);
+
+                    if (this.thread3Edge) {
+                        this.thread3Edge.nodeB.x = this.x;
+                        this.thread3Edge.nodeB.y = this.y;
+                    }
+
+                    if (this.tyingTimer > 60) {
+                        this.tying = false;
+                        this.attachThread3ToBridgeCenter();
+                        this.state = 'tensioning_thread3';
+                        this.tyingTimer = 0;
+                    }
+                } else if (this.state === 'tensioning_thread3') {
+                    this.tyingTimer++;
+                    this.legAnimation = Math.sin(this.tyingTimer * 0.2) * 0.25 + 0.5;
+                    this.tying = true;
+
+                    if (!this.thread3Edge.tensionToTarget(targetTension, 'B')) {
+                        this.tying = false;
+                        this.state = 'final_complete';
+                    }
+
+                    // Stay at bridgeCenterNode (where thread3 was tied)
+                    this.x = this.bridgeCenterNode.x;
+                    this.y = this.bridgeCenterNode.y;
+                } else if (this.state === 'final_complete') {
+                    this.x = this.bridgeCenterNode.x;
+                    this.y = this.bridgeCenterNode.y;
+
+                    this.waitTimer++;
+                    if (this.waitTimer > 60) {
+                        this.state = 'returning_to_radial';
+                        this.walkProgress = 1.0;
+                        this.walkingEdge = this.thread3Edge;
+                        this.waitTimer = 0;
+                    }
+                } else if (this.state === 'returning_to_radial') {
+                    this.walkProgress -= this.getWalkSpeedForEdge(this.walkingEdge);
+
+                    if (this.walkProgress <= 0) {
+                        this.walkProgress = 0;
+                        this.x = this.hubNode.x;
+                        this.y = this.hubNode.y;
+                        this.state = 'resting_at_convergence';
+                    } else {
+                        this.walkOnEdge(this.walkingEdge, this.walkProgress);
+                    }
+                } else if (this.state === 'resting_at_convergence') {
+                    this.x = this.hubNode.x;
+                    this.y = this.hubNode.y;
+
+                    this.waitTimer++;
+                    if (this.waitTimer > 60) {
+                        this.waitTimer = 0;
+                        this.initializeSpokes();
+                        this.state = 'plan_next_spoke';
+                    }
+                } else if (this.state === 'plan_next_spoke') {
+                    this.x = this.hubNode.x;
+                    this.y = this.hubNode.y;
+
+                    if (this.spokes.length >= this.maxSpokes) {
+                        this.state = 'all_spokes_complete';
+                        return;
+                    }
+
+                    const centerX = this.hubNode.x;
+                    const centerY = this.hubNode.y;
+
+                    let anchor = null;
+                    let targetAngle = 0;
+                    const triedAngles = [];
+                    const MAX_TRIES = 5;
+
+                    for (let attempt = 0; attempt < MAX_TRIES; attempt++) {
+                        targetAngle = findLargestSpokeGap(this.spokes);
+
+                        anchor = findAnchorOnBranchOrStrand(centerX, centerY, targetAngle, branches, webGraph.edges);
+                        if (anchor) {
+                            break;
+                        }
+
+                        this.spokes.push({ edge: null, angle: targetAngle, anchorPoint: null });
+                        triedAngles.push(targetAngle);
+                    }
+
+                    if (!anchor) {
+                        this.state = 'all_spokes_complete';
+                        return;
+                    }
+
+                    this.spokeAnchorPoint = { x: anchor.x, y: anchor.y };
+
+                    // Find the best existing spoke to walk out along
+                    let bestSpoke = null;
+                    let bestDist = Infinity;
+                    for (const spoke of this.spokes) {
+                        if (!spoke.edge || !spoke.anchorPoint) continue;
+                        const dx = spoke.anchorPoint.x - anchor.x;
+                        const dy = spoke.anchorPoint.y - anchor.y;
+                        const d = Math.sqrt(dx * dx + dy * dy);
+                        if (d < bestDist) {
+                            bestDist = d;
+                            bestSpoke = spoke;
+                        }
+                    }
+
+                    if (!bestSpoke || !bestSpoke.edge) {
+                        this.spokes.push({ edge: null, angle: targetAngle, anchorPoint: this.spokeAnchorPoint });
+                        return;
+                    }
+
+                    const path = [];
+
+                    // Step 1: Walk along the chosen spoke from center to its outer end
+                    const spokeEdgeRef = bestSpoke.edge;
+                    const spokeStartPos = { x: spokeEdgeRef.nodeA.x, y: spokeEdgeRef.nodeA.y };
+                    const spokeEndPos = { x: spokeEdgeRef.nodeB.x, y: spokeEdgeRef.nodeB.y };
+
+                    const dStartToCenter = Math.hypot(spokeStartPos.x - centerX, spokeStartPos.y - centerY);
+                    const dEndToCenter = Math.hypot(spokeEndPos.x - centerX, spokeEndPos.y - centerY);
+
+                    let spokeOuterEnd, spokeFromNode, spokeToNode;
+                    if (dStartToCenter < dEndToCenter) {
+                        spokeFromNode = spokeStartPos;
+                        spokeToNode = spokeEndPos;
+                        spokeOuterEnd = spokeEdgeRef.nodeB;
+                    } else {
+                        spokeFromNode = spokeEndPos;
+                        spokeToNode = spokeStartPos;
+                        spokeOuterEnd = spokeEdgeRef.nodeA;
+                    }
+
+                    path.push({
+                        walkable: { type: 'edge', ref: spokeEdgeRef, startIdx: 0, endIdx: spokeEdgeRef.getPointCount() - 1 },
+                        fromNode: spokeFromNode,
+                        toNode: spokeToNode,
+                        distance: bestDist
+                    });
+
+                    // Step 2: Path from spoke outer end to anchor
+                    const spokeToAnchorDist = Math.hypot(spokeOuterEnd.x - anchor.x, spokeOuterEnd.y - anchor.y);
+                    if (spokeToAnchorDist > 15) {
+                        this.walkableGraph = new WalkableGraph();
+                        this.walkableGraph.build(webGraph.edges, branches, { x: centerX, y: centerY });
+
+                        const anchorNodeId = this.walkableGraph.addNode(anchor.x, anchor.y, 'anchor', anchor.source);
+
+                        // Connect anchor to the specific branch/edge it sits on
+                        if (anchor.sourceType === 'branch') {
+                            const bStartId = this.walkableGraph.findNearestNode(anchor.source.x1, anchor.source.y1, 20);
+                            const bEndId = this.walkableGraph.findNearestNode(anchor.source.x2, anchor.source.y2, 20);
+                            if (bStartId >= 0) {
+                                const d = Math.hypot(anchor.x - anchor.source.x1, anchor.y - anchor.source.y1);
+                                this.walkableGraph.addEdge(bStartId, anchorNodeId, d, {
+                                    type: 'branch', ref: anchor.source, startIdx: 0, endIdx: 1
+                                });
+                            }
+                            if (bEndId >= 0) {
+                                const d = Math.hypot(anchor.x - anchor.source.x2, anchor.y - anchor.source.y2);
+                                this.walkableGraph.addEdge(anchorNodeId, bEndId, d, {
+                                    type: 'branch', ref: anchor.source, startIdx: 0, endIdx: 1
+                                });
+                            }
+                        } else if (anchor.sourceType === 'edge') {
+                            const edgeRef = anchor.source;
+                            const sStartId = this.walkableGraph.findNearestNode(edgeRef.nodeA.x, edgeRef.nodeA.y, 20);
+                            const sEndId = this.walkableGraph.findNearestNode(edgeRef.nodeB.x, edgeRef.nodeB.y, 20);
+                            if (sStartId >= 0) {
+                                const d = Math.hypot(anchor.x - edgeRef.nodeA.x, anchor.y - edgeRef.nodeA.y);
+                                this.walkableGraph.addEdge(sStartId, anchorNodeId, d, {
+                                    type: 'edge', ref: edgeRef, startIdx: 0, endIdx: edgeRef.getPointCount() - 1
+                                });
+                            }
+                            if (sEndId >= 0) {
+                                const d = Math.hypot(anchor.x - edgeRef.nodeB.x, anchor.y - edgeRef.nodeB.y);
+                                this.walkableGraph.addEdge(anchorNodeId, sEndId, d, {
+                                    type: 'edge', ref: edgeRef, startIdx: 0, endIdx: edgeRef.getPointCount() - 1
+                                });
+                            }
+                        }
+
+                        // Proximity edges for anchor
+                        for (let i = 0; i < this.walkableGraph.nodes.length - 1; i++) {
+                            const node = this.walkableGraph.nodes[i];
+                            const d = Math.hypot(node.x - anchor.x, node.y - anchor.y);
+                            if (d < 40) {
+                                const alreadyConnected = this.walkableGraph.adjacency.get(i).some(e => e.toId === anchorNodeId);
+                                if (!alreadyConnected) {
+                                    this.walkableGraph.addEdge(i, anchorNodeId, d, {
+                                        type: 'proximity', ref: null, startIdx: 0, endIdx: 0
+                                    });
+                                }
+                            }
+                        }
+
+                        // Ensure spoke outer end is in the graph
+                        let spokeEndNodeId = this.walkableGraph.findNearestNode(spokeOuterEnd.x, spokeOuterEnd.y, 50);
+                        if (spokeEndNodeId < 0) {
+                            spokeEndNodeId = this.walkableGraph.addNode(spokeOuterEnd.x, spokeOuterEnd.y, 'spoke_end', null);
+                        }
+                        for (let i = 0; i < this.walkableGraph.nodes.length; i++) {
+                            if (i === spokeEndNodeId) continue;
+                            const node = this.walkableGraph.nodes[i];
+                            const d = Math.hypot(node.x - spokeOuterEnd.x, node.y - spokeOuterEnd.y);
+                            if (d < 40) {
+                                const alreadyConnected = this.walkableGraph.adjacency.get(spokeEndNodeId).some(e => e.toId === i);
+                                if (!alreadyConnected) {
+                                    this.walkableGraph.addEdge(spokeEndNodeId, i, d, {
+                                        type: 'proximity', ref: null, startIdx: 0, endIdx: 0
+                                    });
+                                }
+                            }
+                        }
+
+                        // If spoke end and anchor on same edge, connect directly
+                        if (anchor.sourceType === 'edge') {
+                            const edgeRef = anchor.source;
+                            let spokeOnEdge = false;
+                            for (let i = 0; i < edgeRef.getPointCount(); i++) {
+                                const p = edgeRef.getPoint(i);
+                                if (Math.hypot(p.x - spokeOuterEnd.x, p.y - spokeOuterEnd.y) < 20) {
+                                    spokeOnEdge = true;
+                                    break;
+                                }
+                            }
+                            if (spokeOnEdge) {
+                                const d = Math.hypot(spokeOuterEnd.x - anchor.x, spokeOuterEnd.y - anchor.y);
+                                this.walkableGraph.addEdge(spokeEndNodeId, anchorNodeId, d, {
+                                    type: 'edge', ref: edgeRef, startIdx: 0, endIdx: edgeRef.getPointCount() - 1
+                                });
+                            }
+                        }
+
+                        // Check same branch connection
+                        const projOnBranch = (px, py, br) => {
+                            const bdx = br.x2 - br.x1, bdy = br.y2 - br.y1;
+                            const len2 = bdx * bdx + bdy * bdy;
+                            if (len2 === 0) return null;
+                            const t = Math.max(0, Math.min(1, ((px - br.x1) * bdx + (py - br.y1) * bdy) / len2));
+                            return Math.hypot(px - (br.x1 + bdx * t), py - (br.y1 + bdy * t));
+                        };
+                        const checkBranches = (br) => {
+                            const dEnd = projOnBranch(spokeOuterEnd.x, spokeOuterEnd.y, br);
+                            const dAnc = projOnBranch(anchor.x, anchor.y, br);
+                            if (dEnd !== null && dEnd < 20 && dAnc !== null && dAnc < 20) {
+                                const d = Math.hypot(spokeOuterEnd.x - anchor.x, spokeOuterEnd.y - anchor.y);
+                                const alreadyConnected = this.walkableGraph.adjacency.get(spokeEndNodeId).some(e => e.toId === anchorNodeId);
+                                if (!alreadyConnected) {
+                                    this.walkableGraph.addEdge(spokeEndNodeId, anchorNodeId, d, {
+                                        type: 'branch', ref: br, startIdx: 0, endIdx: 1
+                                    });
+                                }
+                            }
+                            for (const child of br.children) checkBranches(child);
+                        };
+                        for (const br of branches) checkBranches(br);
+
+                        const centerNodeId2 = this.walkableGraph.findNearestNode(centerX, centerY, 15);
+                        const excludeSet = centerNodeId2 >= 0 ? [centerNodeId2] : [];
+                        if (spokeEndNodeId >= 0) {
+                            const bridgePath = this.walkableGraph.findShortestPath(spokeEndNodeId, anchorNodeId, excludeSet);
+                            if (bridgePath) {
+                                path.push(...bridgePath);
+                            }
+                        }
+                    }
+
+                    if (path.length === 0) {
+                        this.spokes.push({ edge: null, angle: targetAngle, anchorPoint: this.spokeAnchorPoint });
+                        return;
+                    }
+
+                    this.currentWalkPath = path;
+                    this.currentWalkStepIndex = 0;
+                    this.walkStepProgress = 0;
+
+                    // Start spoke silk from hub
+                    const spokeTipNode = webGraph.createNode(this.hubNode.x, this.hubNode.y, 'free', false);
+                    this.spokeEdge = webGraph.createEdge(this.hubNode, spokeTipNode, 0, 8);
+                    this.spokeLastSegCount = 1;
+                    // Store the anchor source info for later attachment
+                    this.spokeAnchorSource = anchor.source;
+                    this.spokeAnchorSourceType = anchor.sourceType;
+                    this.spokeAnchorSegmentIndex = anchor.segmentIndex;
+
+                    this.state = 'walking_to_anchor';
+                    this.releaseTimer = 0;
+
+                } else if (this.state === 'walking_to_anchor') {
+                    if (!this.currentWalkPath || this.currentWalkStepIndex >= this.currentWalkPath.length) {
+                        this.state = 'tying_spoke_anchor';
+                        this.tying = true;
+                        this.tyingTimer = 0;
+                        return;
+                    }
+
+                    const step = this.currentWalkPath[this.currentWalkStepIndex];
+                    // Constant pixel speed: compute step physical length
+                    const stepFromX = step.fromNode.x, stepFromY = step.fromNode.y;
+                    const stepToX = step.toNode.x, stepToY = step.toNode.y;
+                    const stepDist = Math.max(1, Math.hypot(stepToX - stepFromX, stepToY - stepFromY));
+                    const stepSpeed = (1.0 * speedMultiplier) / stepDist;
+                    this.walkStepProgress += stepSpeed;
+
+                    if (this.walkStepProgress >= 1.0) {
+                        this.walkStepProgress = 0;
+                        this.currentWalkStepIndex++;
+
+                        if (this.currentWalkStepIndex >= this.currentWalkPath.length) {
+                            this.x = this.spokeAnchorPoint.x;
+                            this.y = this.spokeAnchorPoint.y;
+                            this.state = 'tying_spoke_anchor';
+                            this.tying = true;
+                            this.tyingTimer = 0;
+                        }
+                        return;
+                    }
+
+                    const walkable = step.walkable;
+
+                    if (walkable.type === 'edge' && walkable.ref) {
+                        // Walk along edge points (follows real sag)
+                        const edgeRef = walkable.ref;
+                        const pointCount = edgeRef.getPointCount();
+
+                        // Find point indices closest to fromNode and toNode
+                        let fromIdx = 0, toIdx = pointCount - 1;
+                        let bestFromDist = Infinity, bestToDist = Infinity;
+                        for (let i = 0; i < pointCount; i++) {
+                            const p = edgeRef.getPoint(i);
+                            const df = Math.hypot(step.fromNode.x - p.x, step.fromNode.y - p.y);
+                            const dt = Math.hypot(step.toNode.x - p.x, step.toNode.y - p.y);
+                            if (df < bestFromDist) { bestFromDist = df; fromIdx = i; }
+                            if (dt < bestToDist) { bestToDist = dt; toIdx = i; }
+                        }
+
+                        const dir = fromIdx < toIdx ? 1 : -1;
+                        const stepCount = Math.abs(toIdx - fromIdx);
+
+                        if (stepCount === 0) {
+                            const p = edgeRef.getPoint(fromIdx);
+                            this.x = p.x;
+                            this.y = p.y;
+                        } else {
+                            let totalWalkDist = 0;
+                            for (let i = fromIdx; i !== toIdx; i += dir) {
+                                const p1 = edgeRef.getPoint(i);
+                                const p2 = edgeRef.getPoint(i + dir);
+                                totalWalkDist += Math.hypot(p2.x - p1.x, p2.y - p1.y);
+                            }
+
+                            const targetDist = this.walkStepProgress * totalWalkDist;
+                            let accumulated = 0;
+                            let placed = false;
+                            for (let i = fromIdx; i !== toIdx; i += dir) {
+                                const p1 = edgeRef.getPoint(i);
+                                const p2 = edgeRef.getPoint(i + dir);
+                                const segDist = Math.hypot(p2.x - p1.x, p2.y - p1.y);
+                                if (accumulated + segDist >= targetDist) {
+                                    const t = segDist > 0 ? (targetDist - accumulated) / segDist : 0;
+                                    this.x = p1.x + (p2.x - p1.x) * t;
+                                    this.y = p1.y + (p2.y - p1.y) * t;
+                                    placed = true;
+                                    break;
+                                }
+                                accumulated += segDist;
+                            }
+                            if (!placed) {
+                                const p = edgeRef.getPoint(toIdx);
+                                this.x = p.x;
+                                this.y = p.y;
+                            }
+                        }
+
+                        // Apply spider weight to nearest point
+                        let closestIdx = fromIdx;
+                        let closestDist = Infinity;
+                        for (let i = Math.min(fromIdx, toIdx); i <= Math.max(fromIdx, toIdx); i++) {
+                            const p = edgeRef.getPoint(i);
+                            const d = Math.hypot(p.x - this.x, p.y - this.y);
+                            if (d < closestDist) { closestDist = d; closestIdx = i; }
+                        }
+                        const closestP = edgeRef.getPoint(closestIdx);
+                        if (!closestP.fixed) {
+                            closestP.vy += this.weight;
+                        }
+                    } else {
+                        // Branch or proximity: straight-line interpolation
+                        const fromX = step.fromNode.x;
+                        const fromY = step.fromNode.y;
+                        const toX = step.toNode.x;
+                        const toY = step.toNode.y;
+                        this.x = fromX + (toX - fromX) * this.walkStepProgress;
+                        this.y = fromY + (toY - fromY) * this.walkStepProgress;
+                    }
+
+                    // Grow spoke edge on timer, capped at 2x estimated distance
+                    this.releaseTimer++;
+                    if (this.spokeEdge) {
+                        const spokeMaxSegs = Math.floor(this.spokeEdge.getStraightLength() * 4 / SPRING_NATURAL);
+                        if (this.releaseTimer % 3 === 0 && this.spokeEdge.segments.length < spokeMaxSegs) {
+                            this.spokeEdge.growFromB(this.x, this.y);
+                        }
+                        this.spokeEdge.nodeB.x = this.x;
+                        this.spokeEdge.nodeB.y = this.y;
+                    }
+
+                } else if (this.state === 'tying_spoke_anchor') {
+                    this.tyingTimer++;
+                    this.legAnimation = Math.sin(this.tyingTimer * 0.2) * 0.5 + 0.5;
+                    this.x = this.spokeAnchorPoint.x;
+                    this.y = this.spokeAnchorPoint.y;
+
+                    if (this.spokeEdge) {
+                        this.spokeEdge.nodeB.x = this.x;
+                        this.spokeEdge.nodeB.y = this.y;
+                    }
+
+                    if (this.tyingTimer > 60) {
+                        this.tying = false;
+
+                        if (this.spokeEdge) {
+                            // If the spoke lands on a graph edge, split that edge and attach to it
+                            if (this.spokeAnchorSourceType === 'edge' && this.spokeAnchorSource) {
+                                const targetEdge = this.spokeAnchorSource;
+                                // Check the edge still exists in the graph
+                                if (webGraph.edges.includes(targetEdge)) {
+                                    // Find the closest progress along the target edge
+                                    let bestProgress = 0;
+                                    let bestDist = Infinity;
+                                    const totalPts = targetEdge.getPointCount();
+                                    for (let i = 0; i < totalPts; i++) {
+                                        const p = targetEdge.getPoint(i);
+                                        const d = Math.hypot(p.x - this.spokeAnchorPoint.x, p.y - this.spokeAnchorPoint.y);
+                                        if (d < bestDist) {
+                                            bestDist = d;
+                                            bestProgress = i / (totalPts - 1);
+                                        }
+                                    }
+                                    // Split the target edge to create a junction node
+                                    const splitResult = webGraph.splitEdge(targetEdge, bestProgress);
+                                    const junctionNode = splitResult.newNode;
+
+                                    // Replace spoke's nodeB with the junction node so they're
+                                    // physically the same point - the spoke pulls on the thread
+                                    const oldNodeB = this.spokeEdge.nodeB;
+                                    // Remove spoke edge from old nodeB's edge list
+                                    oldNodeB.edges = oldNodeB.edges.filter(e => e !== this.spokeEdge);
+                                    // Remove old nodeB from graph if it has no edges
+                                    if (oldNodeB.edges.length === 0) {
+                                        const idx = webGraph.nodes.indexOf(oldNodeB);
+                                        if (idx >= 0) webGraph.nodes.splice(idx, 1);
+                                    }
+                                    // Set spoke's nodeB to the junction node
+                                    this.spokeEdge.nodeB = junctionNode;
+                                    junctionNode.edges.push(this.spokeEdge);
+
+                                    // Update anchor point to match actual position
+                                    this.spokeAnchorPoint.x = junctionNode.x;
+                                    this.spokeAnchorPoint.y = junctionNode.y;
+                                } else {
+                                    // Edge was already split/removed, find the nearest
+                                    // existing node on any edge near the anchor point
+                                    let nearestNode = null;
+                                    let nearestDist = 30;
+                                    for (const edge of webGraph.edges) {
+                                        for (let i = 0; i < edge.getPointCount(); i++) {
+                                            const p = edge.getPoint(i);
+                                            if (p instanceof WebGraphNode) {
+                                                const d = Math.hypot(p.x - this.spokeAnchorPoint.x, p.y - this.spokeAnchorPoint.y);
+                                                if (d < nearestDist) {
+                                                    nearestDist = d;
+                                                    nearestNode = p;
+                                                }
+                                            }
+                                        }
+                                    }
+                                    if (nearestNode) {
+                                        // Attach to the nearest node
+                                        const oldNodeB = this.spokeEdge.nodeB;
+                                        oldNodeB.edges = oldNodeB.edges.filter(e => e !== this.spokeEdge);
+                                        if (oldNodeB.edges.length === 0) {
+                                            const idx = webGraph.nodes.indexOf(oldNodeB);
+                                            if (idx >= 0) webGraph.nodes.splice(idx, 1);
+                                        }
+                                        this.spokeEdge.nodeB = nearestNode;
+                                        nearestNode.edges.push(this.spokeEdge);
+                                        this.spokeAnchorPoint.x = nearestNode.x;
+                                        this.spokeAnchorPoint.y = nearestNode.y;
+                                    } else {
+                                        // Fallback: just fix in place
+                                        this.spokeEdge.nodeB.x = this.spokeAnchorPoint.x;
+                                        this.spokeEdge.nodeB.y = this.spokeAnchorPoint.y;
+                                        this.spokeEdge.nodeB.fixed = true;
+                                    }
+                                }
+                            } else {
+                                // Branch anchor - just fix in place
+                                this.spokeEdge.nodeB.x = this.spokeAnchorPoint.x;
+                                this.spokeEdge.nodeB.y = this.spokeAnchorPoint.y;
+                                this.spokeEdge.nodeB.fixed = true;
+                            }
+                        }
+
+                        this.state = 'tensioning_spoke';
+                        this.tyingTimer = 0;
+                        this.tying = true;
+                    }
+
+                } else if (this.state === 'tensioning_spoke') {
+                    this.tyingTimer++;
+                    this.legAnimation = Math.sin(this.tyingTimer * 0.2) * 0.5 + 0.5;
+
+                    this.x = this.spokeAnchorPoint.x;
+                    this.y = this.spokeAnchorPoint.y;
+
+                    if (!this.spokeEdge.tensionToTarget(targetTension, 'B')) {
+                        this.tying = false;
+                        this.state = 'walking_spoke_to_center';
+                        this.walkProgress = 1.0;
+                    }
+
+                } else if (this.state === 'walking_spoke_to_center') {
+                    this.walkProgress -= this.getWalkSpeedForEdge(this.spokeEdge);
+
+                    if (this.walkProgress <= 0) {
+                        this.walkProgress = 0;
+                        this.x = this.hubNode.x;
+                        this.y = this.hubNode.y;
+                        this.state = 'tying_spoke_center';
+                        this.tying = true;
+                        this.tyingTimer = 0;
+                    } else if (this.spokeEdge) {
+                        this.walkOnEdge(this.spokeEdge, this.walkProgress);
+                    }
+
+                } else if (this.state === 'tying_spoke_center') {
+                    this.tyingTimer++;
+                    this.legAnimation = Math.sin(this.tyingTimer * 0.2) * 0.5 + 0.5;
+
+                    this.x = this.hubNode.x;
+                    this.y = this.hubNode.y;
+
+                    if (this.tyingTimer > 60) {
+                        this.tying = false;
+
+                        const centerX = this.hubNode.x;
+                        const centerY = this.hubNode.y;
+                        const angle = Math.atan2(
+                            this.spokeAnchorPoint.y - centerY,
+                            this.spokeAnchorPoint.x - centerX
+                        );
+                        this.spokes.push({
+                            edge: this.spokeEdge,
+                            angle: angle,
+                            anchorPoint: { ...this.spokeAnchorPoint }
+                        });
+
+                        this.spokeEdge = null;
+                        this.spokeAnchorPoint = null;
+                        this.spokeAnchorSource = null;
+                        this.spokeAnchorSourceType = null;
+                        this.spokeAnchorSegmentIndex = null;
+                        this.waitTimer = 0;
+                        this.state = 'spoke_pause';
+                    }
+
+                } else if (this.state === 'spoke_pause') {
+                    this.x = this.hubNode.x;
+                    this.y = this.hubNode.y;
+
+                    this.waitTimer++;
+                    if (this.waitTimer > 30) {
+                        this.waitTimer = 0;
+                        this.state = 'plan_next_spoke';
+                    }
+
+                } else if (this.state === 'all_spokes_complete') {
+                    this.x = this.hubNode.x;
+                    this.y = this.hubNode.y;
+                }
+            }
+
+            attachThread3ToBridgeCenter() {
+                if (this.thread3Edge && this.bridgeEdge) {
+                    // Split bridge edge at midpoint to create bridgeCenterNode
+                    const splitResult = webGraph.splitEdge(this.bridgeEdge, 0.5);
+                    this.bridgeCenterNode = splitResult.newNode;
+                    // Update bridgeEdge reference - it's been split into two
+                    // We keep a reference to the first half for future use
+                    this.bridgeEdge = splitResult.edgeA;
+
+                    // Replace thread3's nodeB with bridgeCenterNode so they're
+                    // physically the same point
+                    const oldNodeB = this.thread3Edge.nodeB;
+                    oldNodeB.edges = oldNodeB.edges.filter(e => e !== this.thread3Edge);
+                    if (oldNodeB.edges.length === 0) {
+                        const idx = webGraph.nodes.indexOf(oldNodeB);
+                        if (idx >= 0) webGraph.nodes.splice(idx, 1);
+                    }
+                    this.thread3Edge.nodeB = this.bridgeCenterNode;
+                    this.bridgeCenterNode.edges.push(this.thread3Edge);
+                }
+            }
+
+            initializeSpokes() {
+                const centerX = this.hubNode.x;
+                const centerY = this.hubNode.y;
+
+                this.spokes = [];
+
+                // thread1a: from hub toward bridge start
+                if (this.thread1aEdge) {
+                    const endNode = this.thread1aEdge.nodeA; // bridgeStartNode end
+                    const angle = Math.atan2(endNode.y - centerY, endNode.x - centerX);
+                    this.spokes.push({ edge: this.thread1aEdge, angle, anchorPoint: { x: endNode.x, y: endNode.y } });
+                }
+
+                // thread1b: from hub toward bridge end
+                if (this.thread1bEdge) {
+                    const endNode = this.thread1bEdge.nodeB; // bridgeEndNode end
+                    const angle = Math.atan2(endNode.y - centerY, endNode.x - centerX);
+                    this.spokes.push({ edge: this.thread1bEdge, angle, anchorPoint: { x: endNode.x, y: endNode.y } });
+                }
+
+                // rappel: from hub down to branch
+                if (this.rappelEdge) {
+                    const endNode = this.rappelEdge.nodeB;
+                    const angle = Math.atan2(endNode.y - centerY, endNode.x - centerX);
+                    this.spokes.push({ edge: this.rappelEdge, angle, anchorPoint: { x: endNode.x, y: endNode.y } });
+                }
+
+                // thread3: from hub toward bridge center
+                if (this.thread3Edge) {
+                    const endNode = this.thread3Edge.nodeB;
+                    const angle = Math.atan2(endNode.y - centerY, endNode.x - centerX);
+                    this.spokes.push({ edge: this.thread3Edge, angle, anchorPoint: { x: endNode.x, y: endNode.y } });
+                }
+            }
+
+            draw() {
+                if (this.tying) {
+                    ctx.strokeStyle = '#000000';
+                    ctx.lineWidth = 1;
+
+                    const leftAngle1 = -Math.PI / 4 + this.legAnimation * 0.5;
+                    const leftAngle2 = -Math.PI / 3 - this.legAnimation * 0.8;
+                    const leftJointX = this.x + Math.cos(leftAngle1) * 8;
+                    const leftJointY = this.y + Math.sin(leftAngle1) * 8;
+                    const leftEndX = leftJointX + Math.cos(leftAngle1 + leftAngle2) * 6;
+                    const leftEndY = leftJointY + Math.sin(leftAngle1 + leftAngle2) * 6;
+
+                    ctx.beginPath();
+                    ctx.moveTo(this.x, this.y);
+                    ctx.lineTo(leftJointX, leftJointY);
+                    ctx.lineTo(leftEndX, leftEndY);
+                    ctx.stroke();
+
+                    const rightAngle1 = -Math.PI / 4 - this.legAnimation * 0.5;
+                    const rightAngle2 = -Math.PI / 3 + this.legAnimation * 0.8;
+                    const rightJointX = this.x + Math.cos(rightAngle1) * 8;
+                    const rightJointY = this.y + Math.sin(rightAngle1) * 8;
+                    const rightEndX = rightJointX + Math.cos(rightAngle1 + rightAngle2) * 6;
+                    const rightEndY = rightJointY + Math.sin(rightAngle1 + rightAngle2) * 6;
+
+                    ctx.beginPath();
+                    ctx.moveTo(this.x, this.y);
+                    ctx.lineTo(rightJointX, rightJointY);
+                    ctx.lineTo(rightEndX, rightEndY);
+                    ctx.stroke();
+                }
+
+                ctx.fillStyle = '#000000';
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+                ctx.fill();
+            }
+        }
+
+        // ==================== Branch Generation ====================
+        function generateBranches() {
+            branches = [];
+            const seedX = width * (0.25 + Math.random() * 0.5);
+            const seedY = height - 10;
+            const leftBranch = generateBranchSide(seedX, seedY, -1);
+            branches.push(leftBranch);
+            const rightBranch = generateBranchSide(seedX, seedY, 1);
+            branches.push(rightBranch);
+        }
+
+        function generateBranchSide(startX, startY, direction) {
+            const segments = 8;
+            const baseThickness = 12;
+            let currentX = startX;
+            let currentY = startY;
+            let currentAngle = -45;
+            const mainBranch = new Branch(currentX, currentY, currentX, currentY, baseThickness, 0);
+            let currentBranch = mainBranch;
+
+            for (let i = 0; i < segments; i++) {
+                const segmentLength = 100 + Math.random() * 60;
+                const thickness = baseThickness - (i * 1.2);
+                // Small random variation instead of zigzag
+                const wobble = (Math.random() - 0.5) * 8;
+                // Start pointing outward (-25), gradually curve upward toward -80
+                const progress = i / (segments - 1);
+                const targetAngle = -45 + progress * -55;
+                currentAngle += (targetAngle - currentAngle) * 0.4 + wobble;
+                currentAngle = Math.max(-85, Math.min(-10, currentAngle));
+                const angleRad = (currentAngle * Math.PI) / 180;
+                const newX = currentX + Math.cos(angleRad) * segmentLength * direction;
+                const newY = currentY + Math.sin(angleRad) * segmentLength;
+                const boundedX = Math.max(30, Math.min(width - 30, newX));
+                const boundedY = Math.max(30, newY);
+                const segment = new Branch(currentX, currentY, boundedX, boundedY, thickness, i + 1);
+                currentBranch.addChild(segment);
+
+                if (i > 1 && i < segments - 1 && Math.random() > 0.5) {
+                    addTwig(currentX, currentY, currentAngle, thickness * 0.6, direction);
+                }
+
+                currentX = boundedX;
+                currentY = boundedY;
+                currentBranch = segment;
+                if (currentY < 50) break;
+            }
+
+            return mainBranch;
+
+            function addTwig(x, y, baseAngle, thickness, dir) {
+                const twigAngle = baseAngle + (Math.random() > 0.5 ? 1 : -1) * (30 + Math.random() * 30);
+                const twigLength = 30 + Math.random() * 30;
+                const angleRad = (twigAngle * Math.PI) / 180;
+                const twigX = x + Math.cos(angleRad) * twigLength * dir;
+                const twigY = y + Math.sin(angleRad) * twigLength;
+                const twig = new Branch(x, y, twigX, twigY, thickness, 10);
+                currentBranch.addChild(twig);
+
+                if (Math.random() > 0.7) {
+                    const subTwigAngle = twigAngle + (Math.random() - 0.5) * 40;
+                    const subTwigLength = 20 + Math.random() * 20;
+                    const subAngleRad = (subTwigAngle * Math.PI) / 180;
+                    const subTwigX = twigX + Math.cos(subAngleRad) * subTwigLength * dir;
+                    const subTwigY = twigY + Math.sin(subAngleRad) * subTwigLength;
+                    const subTwig = new Branch(twigX, twigY, subTwigX, subTwigY, thickness * 0.7, 11);
+                    twig.addChild(subTwig);
+                }
+            }
+        }
+
+        function createSpider() {
+            if (branches.length > 0) {
+                const leftBranch = branches[0];
+                let segmentCount = 0;
+                let sixthSegment = null;
+
+                function findSegment(branch) {
+                    if (branch.generation > 0) {
+                        segmentCount++;
+                        if (segmentCount === 6) {
+                            sixthSegment = branch;
+                            return true;
+                        }
+                    }
+                    for (let child of branch.children) {
+                        if (child.generation <= 6) {
+                            if (findSegment(child)) return true;
+                        }
+                    }
+                    return false;
+                }
+
+                findSegment(leftBranch);
+
+                if (sixthSegment) {
+                    const midX = (sixthSegment.x1 + sixthSegment.x2) / 2;
+                    const midY = (sixthSegment.y1 + sixthSegment.y2) / 2;
+                    spider = new Spider(midX, midY);
+                } else {
+                    const forkX = branches[0].x1;
+                    const forkY = branches[0].y1;
+                    spider = new Spider(forkX, forkY - 15);
+                }
+            }
+        }
+
+        function startWeaving() {
+            if (spider) {
+                spider.startWeaving();
+            }
+        }
+
+        // ==================== Draw ====================
+        function draw() {
+            ctx.fillStyle = '#f5f5dc';
+            ctx.fillRect(0, 0, width, height);
+            branches.forEach(branch => branch.draw());
+            for (const edge of webGraph.edges) edge.draw(ctx);
+            // Draw junction nodes
+            for (const node of webGraph.nodes) {
+                if (node.edges.length > 1 || node.fixed) {
+                    ctx.fillStyle = '#3c3c3c';
+                    ctx.beginPath();
+                    ctx.arc(node.x, node.y, 3, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+            }
+            if (spider) {
+                spider.draw();
+            }
+        }
+
+        // ==================== Animate ====================
+        function animate() {
+            // Apply gravity per-edge (skip floating silk)
+            for (const edge of webGraph.edges) {
+                if (edge.isWindAffected) continue;
+                const scale = Math.min(1, 20 / Math.max(1, edge.getPointCount()));
+                const gravity = 0.05 * scale;
+                edge.applyGravity(gravity);
+                if (!edge.nodeA.fixed) edge.nodeA.vy += gravity;
+                if (!edge.nodeB.fixed) edge.nodeB.vy += gravity;
+            }
+            // Apply wind
+            if (windEnabled) {
+                for (const edge of webGraph.edges) edge.applyWind(windForce);
+            }
+            // Integrate
+            for (const node of webGraph.nodes) node.integrate();
+            for (const edge of webGraph.edges) edge.integrateSegments();
+            // Constraint solver (alternate direction to prevent endpoint bias)
+            for (let iter = 0; iter < 60; iter++) {
+                const reverse = iter % 2 === 1;
+                for (const edge of webGraph.edges) edge.solveConstraints(reverse);
+                for (const node of webGraph.nodes) {
+                    if (node.fixed) { node.vx = 0; node.vy = 0; }
+                }
+            }
+            // Spider update
+            if (spider) {
+                spider.update();
+
+                const debugDiv = document.getElementById('debugInfo');
+                if (debugDiv) {
+                    const edgeCount = webGraph.edges.length;
+                    const nodeCount = webGraph.nodes.length;
+                    const spokeCount = spider.spokes ? spider.spokes.length : 0;
+
+                    if (spider.state === 'crossing_bridge' && spider.bridgeEdge) {
+                        debugDiv.innerHTML = `CROSSING<br>
+                            Progress: ${Math.floor(spider.crossProgress * 100)}%<br>
+                            Edges: ${edgeCount}<br>
+                            Nodes: ${nodeCount}`;
+                    } else {
+                        debugDiv.innerHTML = `State: ${spider.state}<br>
+                            Edges: ${edgeCount}<br>
+                            Nodes: ${nodeCount}<br>
+                            Spokes: ${spokeCount}/${spider.maxSpokes}`;
+                    }
+                }
+            }
+            draw();
+            requestAnimationFrame(animate);
+        }
+
+        function regenerate() {
+            webGraph = new WebGraph();
+            generateBranches();
+            createSpider();
+        }
+
+        const windToggle = document.getElementById('windToggle');
+        const windStatus = document.getElementById('windStatus');
+
+        windToggle.addEventListener('change', (e) => {
+            windEnabled = e.target.checked;
+            windStatus.textContent = windEnabled ? 'On' : 'Off';
+        });
+
+        const metricsToggle = document.getElementById('metricsToggle');
+        const metricsStatus = document.getElementById('metricsStatus');
+        metricsToggle.addEventListener('change', (e) => {
+            metricsEnabled = e.target.checked;
+            metricsStatus.textContent = metricsEnabled ? 'On' : 'Off';
+        });
+
+        const speedSlider = document.getElementById('speedSlider');
+        const speedValue = document.getElementById('speedValue');
+        speedSlider.addEventListener('input', (e) => {
+            speedMultiplier = parseFloat(e.target.value);
+            speedValue.textContent = speedMultiplier.toFixed(1);
+        });
+
+        const tensionSlider = document.getElementById('tensionSlider');
+        const tensionValue = document.getElementById('tensionValue');
+        tensionSlider.addEventListener('input', (e) => {
+            targetTension = parseFloat(e.target.value);
+            tensionValue.textContent = targetTension.toFixed(1);
+        });
+
+        window.addEventListener('resize', () => {
+            resizeCanvas();
+            regenerate();
+        });
+
+        resizeCanvas();
+        updateWindForce();
+        webGraph = new WebGraph();
+        generateBranches();
+        createSpider();
+        animate();
+    </script>
+</body>
+</html>

@@ -82,22 +82,7 @@
         let windLevel = 1;
         let windForce = { x: 0.1, y: 0.01 };
         let webNodes = [];
-
-        // Returns sorted array of segment indices that are connection/anchor points.
-        // Sections between consecutive pinned indices are solved independently.
-        function getPinnedIndices(strand, endpointSegmentSet) {
-            const pinned = new Set();
-            pinned.add(0);
-            pinned.add(strand.segments.length - 1);
-            for (let i = 0; i < strand.segments.length; i++) {
-                const seg = strand.segments[i];
-                if (seg.fixed) pinned.add(i);
-                if (seg.connectedNodes && seg.connectedNodes.length > 0) pinned.add(i);
-                if (endpointSegmentSet && endpointSegmentSet.has(seg)) pinned.add(i);
-            }
-            return Array.from(pinned).sort((a, b) => a - b);
-        }
-
+        
         function updateWindForce() {
             windForce.x = (windLevel / 10) * 0.125;
             windForce.y = (windLevel / 10) * 0.0125;
@@ -596,16 +581,17 @@
         
         function updateWebConnections() {
             webNodes = webNodes.filter(node => node.active);
-
+            
             for (let i = 0; i < silkStrands.length; i++) {
                 for (let j = i + 1; j < silkStrands.length; j++) {
                     const newNodes = findIntersections(silkStrands[i], silkStrands[j]);
                     webNodes.push(...newNodes);
                 }
             }
-
-            // WebNode updates are now done inside the constraint solver loop
-            // so they negotiate with distance constraints over multiple iterations
+            
+            for (let node of webNodes) {
+                node.update();
+            }
         }
         
         class SilkSegment {
@@ -1511,27 +1497,9 @@
                     this.legAnimation = Math.sin(this.tyingTimer * 0.2) * 0.5 + 0.5;
                     
                     if (this.thirdStrand) {
-                        const start = this.thirdStrand.segments[0];
-                        const end = this.thirdStrand.segments[this.thirdStrand.segments.length - 1];
-                        const dx = end.x - start.x;
-                        const dy = end.y - start.y;
-                        const straightDist = Math.sqrt(dx * dx + dy * dy);
-
-                        let threadLength = 0;
-                        for (let i = 0; i < this.thirdStrand.segments.length - 1; i++) {
-                            const s1 = this.thirdStrand.segments[i];
-                            const s2 = this.thirdStrand.segments[i + 1];
-                            const segDx = s2.x - s1.x;
-                            const segDy = s2.y - s1.y;
-                            threadLength += Math.sqrt(segDx * segDx + segDy * segDy);
-                        }
-
-                        // Use tight target — no slack allowance, since the spider's weight
-                        // during tensioning makes straightDist appear shorter than it will
-                        // be once the spider moves off
-                        const targetLength = straightDist;
-
-                        if (threadLength > targetLength && this.thirdStrand.segments.length > 3) {
+                        const targetSegments = Math.ceil(this.thread2InitialSegments * 0.75);
+                        
+                        if (this.thirdStrand.segments.length > targetSegments && this.thirdStrand.segments.length > 3) {
                             const removeIdx = Math.floor(this.thirdStrand.segments.length / 2);
                             this.thirdStrand.segments.splice(removeIdx, 1);
                         } else {
@@ -2388,19 +2356,17 @@
                 if (this.fourthStrand && this.walkingThread && this.bridgeStrand) {
                     const thread0CenterIdx = Math.floor(this.bridgeStrand.segments.length / 2);
                     const thread0CenterSeg = this.bridgeStrand.segments[thread0CenterIdx];
-
+                    
                     if (this.fourthStrand.segments.length > 0) {
                         const tip = this.fourthStrand.getTip();
                         tip.x = thread0CenterSeg.x;
                         tip.y = thread0CenterSeg.y;
-                        // Don't mark tip as fixed — link it to thread0's center segment
-                        // so forces propagate bidirectionally through the constraint solver
+                        tip.fixed = true;
                         tip.vx = 0;
                         tip.vy = 0;
                         this.fourthStrand.attached = true;
                         this.fourthStrand.spiderAttached = false;
-                        this.fourthStrand.thread0EndpointSegment = thread0CenterSeg;
-
+                        
                         this.fourthStrand.explicitConnections.add(this.fourthStrand.segments.length - 1);
                     }
                 }
@@ -2606,39 +2572,13 @@
         function animate() {
             updateWebConnections();
             
-            // Build set of all thread0EndpointSegment targets (once per frame)
-            const endpointSegmentSet = new Set();
-            for (let strand of silkStrands) {
-                if (strand instanceof DraggedSilk && strand.thread0EndpointSegment) {
-                    endpointSegmentSet.add(strand.thread0EndpointSegment);
-                }
-            }
-
-            // Cache pinned indices per strand (once per frame)
-            const strandPinnedCache = new Map();
-            for (let strand of silkStrands) {
-                const pinned = getPinnedIndices(strand, endpointSegmentSet);
-                strandPinnedCache.set(strand, {
-                    pinned: pinned,
-                    pinnedSet: new Set(pinned)
-                });
-            }
-
             // Update physics for all segments
-            // Gravity is scaled per sub-section between pinned points
             silkStrands.forEach(strand => {
-                const cache = strandPinnedCache.get(strand);
-                const pinned = cache ? cache.pinned : [0, strand.segments.length - 1];
-
                 if (strand instanceof FloatedSilk) {
                     if (strand.attached) {
-                        for (let p = 0; p < pinned.length - 1; p++) {
-                            const sectionLen = pinned[p + 1] - pinned[p];
-                            const gravityScale = Math.min(1, 10 / Math.max(1, sectionLen));
-                            const gravity = 0.02 * gravityScale;
-                            for (let i = pinned[p]; i <= pinned[p + 1]; i++) {
-                                const seg = strand.segments[i];
-                                if (!seg.fixed) seg.vy += gravity;
+                        for (let seg of strand.segments) {
+                            if (!seg.fixed) {
+                                seg.vy += 0.02;
                             }
                         }
                     }
@@ -2646,19 +2586,15 @@
                         seg.update(!strand.attached);
                     }
                 } else if (strand instanceof DraggedSilk) {
-                    for (let p = 0; p < pinned.length - 1; p++) {
-                        const sectionLen = pinned[p + 1] - pinned[p];
-                        const gravityScale = Math.min(1, 10 / Math.max(1, sectionLen));
-                        const gravity = 0.02 * gravityScale;
-                        for (let i = pinned[p]; i <= pinned[p + 1]; i++) {
-                            const seg = strand.segments[i];
-                            if (!seg.fixed) seg.vy += gravity;
+                    for (let seg of strand.segments) {
+                        if (!seg.fixed) {
+                            seg.vy += 0.02;
                         }
                     }
                     for (let seg of strand.segments) {
                         seg.update(false);
                     }
-
+                    
                     if (spider && strand.spiderSegmentIndex >= 0 && strand.spiderSegmentIndex < strand.segments.length) {
                         const spiderSeg = strand.segments[strand.spiderSegmentIndex];
                         if (!spiderSeg.fixed) {
@@ -2666,19 +2602,15 @@
                         }
                     }
                 } else if (strand instanceof RappelSilk) {
-                    for (let p = 0; p < pinned.length - 1; p++) {
-                        const sectionLen = pinned[p + 1] - pinned[p];
-                        const gravityScale = Math.min(1, 10 / Math.max(1, sectionLen));
-                        const gravity = 0.02 * gravityScale;
-                        for (let i = pinned[p]; i <= pinned[p + 1]; i++) {
-                            const seg = strand.segments[i];
-                            if (!seg.fixed) seg.vy += gravity;
+                    for (let seg of strand.segments) {
+                        if (!seg.fixed) {
+                            seg.vy += 0.02;
                         }
                     }
                     for (let seg of strand.segments) {
                         seg.update(false);
                     }
-
+                    
                     if (spider && strand.spiderHanging) {
                         const tip = strand.getTip();
                         if (!tip.fixed) {
@@ -2687,13 +2619,10 @@
                     }
                 }
             });
-
+            
             // Global constraint solving for all threads
             for (let iter = 0; iter < 30; iter++) {
                 for (let strand of silkStrands) {
-                    const cache = strandPinnedCache.get(strand);
-                    const pinnedSet = cache ? cache.pinnedSet : new Set([0, strand.segments.length - 1]);
-
                     for (let i = 0; i < strand.segments.length - 1; i++) {
                         const s1 = strand.segments[i];
                         const s2 = strand.segments[i + 1];
@@ -2701,59 +2630,22 @@
                         const dy = s2.y - s1.y;
                         const dist = Math.sqrt(dx * dx + dy * dy);
                         if (dist === 0) continue;
-
+                        
                         const diff = (strand.segmentLength - dist) / dist;
                         const offsetX = dx * diff * 0.7;
                         const offsetY = dy * diff * 0.7;
-
-                        // Pinned segments act as immovable boundaries —
-                        // prevents tension from propagating across connection points
-                        const s1Pinned = s1.fixed || pinnedSet.has(i);
-                        const s2Pinned = s2.fixed || pinnedSet.has(i + 1);
-
-                        if (!s1Pinned && !s2Pinned) {
+                        
+                        if (!s1.fixed) {
                             s1.x -= offsetX;
                             s1.y -= offsetY;
+                        }
+                        if (!s2.fixed) {
                             s2.x += offsetX;
                             s2.y += offsetY;
-                        } else if (!s1Pinned) {
-                            s1.x -= offsetX * 2;
-                            s1.y -= offsetY * 2;
-                        } else if (!s2Pinned) {
-                            s2.x += offsetX * 2;
-                            s2.y += offsetY * 2;
                         }
                     }
                 }
-
-                // WebNode constraints: keep connected segments together
-                // Running inside the solver loop lets tension propagate bidirectionally
-                for (let node of webNodes) {
-                    node.update();
-                }
-
-                // Bidirectional thread0 endpoint links: connected segments pull each other
-                for (let strand of silkStrands) {
-                    if (strand instanceof DraggedSilk && strand.attached && strand.thread0EndpointSegment) {
-                        const tip = strand.getTip();
-                        const linked = strand.thread0EndpointSegment;
-                        if (!tip.fixed && !linked.fixed) {
-                            const avgX = (tip.x + linked.x) / 2;
-                            const avgY = (tip.y + linked.y) / 2;
-                            tip.x = avgX;
-                            tip.y = avgY;
-                            linked.x = avgX;
-                            linked.y = avgY;
-                        } else if (!tip.fixed) {
-                            tip.x = linked.x;
-                            tip.y = linked.y;
-                        } else if (!linked.fixed) {
-                            linked.x = tip.x;
-                            linked.y = tip.y;
-                        }
-                    }
-                }
-
+                
                 // Zero velocities on fixed segments
                 for (let strand of silkStrands) {
                     for (let seg of strand.segments) {
@@ -2772,6 +2664,12 @@
                         const tip = strand.getTip();
                         tip.x = spider.x;
                         tip.y = spider.y;
+                    }
+                    
+                    if (strand.attached && strand.thread0EndpointSegment) {
+                        const tip = strand.getTip();
+                        tip.x = strand.thread0EndpointSegment.x;
+                        tip.y = strand.thread0EndpointSegment.y;
                     }
                 } else if (strand instanceof FloatedSilk) {
                     if (strand.tightening && strand.attached) {
