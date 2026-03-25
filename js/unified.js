@@ -9,7 +9,7 @@ const PROJECT_DATA = {
     image: "assets/optML_Ship.png",
     link: "optML_shipper.html",
     subtitle: "AI-augmented Shipping Dashboard",
-    desc: "Fall 2025 - How might a top 3 global athletics company leverage machine learning to optimize their downstream supply chain?"
+    desc: "Fall 2025 - How might a top 3 global athletics company leverage machine learning to optimize their downstream supply chain? Following a general call for innovative ways to leverage ai, I explored this question, developed a business plan, and used Claude to help make a prototype in react.js."
   },
   "store-portal": {
     title: "Store Portal 2.1",
@@ -31,42 +31,42 @@ const PROJECT_DATA = {
     image: "assets/linkCover.png",
     link: "linkCC.html",
     subtitle: "Mobile UX Design for ILOVEWHATEVER.",
-    desc: "Summer 2022 - How might we create an app for creative connection that is atomic, and so simple that anyone can use it?"
+    desc: "Summer 2022 - How might we create an app for creative connection that is atomic, and so simple that anyone can use it?  Facing a evaporating runway and low user adoption, we refocused the app on one core feature: aggregating and sharing creative work simply and quickly."
   },
   "pebble-ai": {
     title: "Pebble AI",
     image: "assets/ai_pebble.png",
     link: "ai_pebble.html",
     subtitle: "In-context Academic Advising",
-    desc: "Spring 2025 - How might we guide lost students at a critical junctures in their academic journeys using agentic adivsors trained on historic student data and advising materials?"
+    desc: "Spring 2025 - How might we guide lost students at a critical junctures in their academic journeys?  Using agentic adivsors trained on historic student data and advising materials, this concept brings personalized, context-aware, and proactive advising to students.  I developed the concept and prototype in collaboration with a team of 2 other designers for a graduate design course at University of Washington."
   },
   "twabler": {
     title: "Twabler 🐣 🏷",
     image: "assets/Twabler_Cover.png",
     link: "twabler.html",
     subtitle: "Mobile UX for Code for San Francisco",
-    desc: "Autumn 2019 - A labeling method for ML NLP training sets that improves on old methods by segmenting and batching tweet labeling tasks."
+    desc: "Autumn 2019 - A labeling method for ML NLP training sets that improves on old methods by segmenting and batching tweet labeling tasks. While volunteering for the UX team at Code for San Francisco, I picked up where their previous designer left off and improved entity coding speed by 130%."
   },
   "knomee": {
     title: "Knomee Prototype📱💵🧘‍♀️",
     image: "assets/Knomee.png",
     link: "knomee_app.html",
     subtitle: "Strategy and Prototyping for Knomee",
-    desc: "Winter 2023 - How might we help the newly-affluent meaningfully align their financial planning with values?"
+    desc: "Winter 2023 - How might we help the newly-affluent meaningfully align their financial planning with values?  I worked directly with the founder of Knomee to bring her MVP prototype to life with a lively clickable Figma prototype."
   },
   "inquired": {
     title: "Better Curriculum Navigation 📓👩‍🏫🗺️",
     image: "assets/InquirED.png",
     action: "showDialog()",
-    subtitle: "Improving the inquirED portal",
-    desc: "Summer 2024 - How might we use accessibility compliance as an opportunity to improve clarity?"
+    subtitle: "Accessibility Audit, Mobile First Design, and Navigation Redesign for InquirED",
+    desc: "Summer 2024 - How might we use accessibility compliance as an opportunity to improve clarity?  Building off of a win in redesigning the curriculum selection page, I worked for three months with engineers and product managers to overhaul the navigation system and correct over 93 flagged accessibility issues."
   },
   "synq": {
     title: "Synq Logo Animation ⚜️🎞",
     image: "assets/Synq_Cover.png",
     link: "synq.html",
     subtitle: "Logo and Motion Design for Synq",
-    desc: "Autumn 2022 - A monolithic “S” revealed as just a part of the larger whole: a composite isometric cube."
+    desc: "Autumn 2022 - A monolithic “S” revealed as just a part of the larger whole: a composite isometric cube.  A "
   },
   "jordache": {
     title: "JORDACHE Home Page 🐴👖",
@@ -188,7 +188,7 @@ class ProjectCard extends HTMLElement {
                 box-shadow: 0 2px 8px rgba(0, 43, 128, 0.08);
                 transition: transform 0.2s ease, box-shadow 0.2s ease; 
                 height: auto;
-                font-family: 'Work Sans', sans-serif;
+                font-family: 'Atkinson Hyperlegible', sans-serif;
                 box-sizing: border-box;
                 cursor: pointer;
             }
@@ -254,22 +254,28 @@ class ProjectCard extends HTMLElement {
             }
 
             .toggle-btn {
-                background: none; 
-                border: none; 
-                padding: 0;
-                margin-top: 8px; 
-                cursor: pointer; 
-                font-family: 'Work Sans', sans-serif;
+                background: rgba(255, 247, 240, 0.7);
+                border: 1px solid rgba(0, 0, 0, 0.15);
+                padding: 6px 14px;
+                border-radius: 6px;
+                margin-top: 8px;
+                cursor: pointer;
+                font-family: 'Atkinson Hyperlegible', sans-serif;
                 font-size: 12px;
-                font-weight: 600; 
-                color: #888; 
+                font-weight: 600;
+                color: #888;
                 text-decoration: underline;
                 text-underline-offset: 2px;
                 align-self: flex-start;
-                transition: color 0.2s;
+                transition: color 0.2s, background 0.2s, border-color 0.2s;
             }
 
-            .toggle-btn:hover { color: #555; }
+            .toggle-btn:hover {
+                color: #555;
+                background: rgba(255, 247, 240, 0.9);
+                border-color: rgba(0, 0, 0, 0.25);
+            }
+            .toggle-btn.hidden { display: none; }
 
             /* 1. Create the container for the hover label */
             .card[onclick*="showConstructionDialog"] {
@@ -316,6 +322,13 @@ class ProjectCard extends HTMLElement {
         ${wrapperClose}`;
         
         this.shadowRoot.querySelector('.toggle-btn').addEventListener('click', (e) => this.toggleExpand(e));
+
+        // Only show the toggle button when text is actually clamped
+        const desc = this.shadowRoot.querySelector('.desc');
+        const btn = this.shadowRoot.querySelector('.toggle-btn');
+        if (!this.expanded && desc.scrollHeight <= desc.clientHeight) {
+            btn.classList.add('hidden');
+        }
     }
 }
 customElements.define('project-card', ProjectCard);

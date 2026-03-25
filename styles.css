@@ -33,41 +33,10 @@
             rgb(0, 0, 0)
         );
 
-    --minView:300px;
-    --minViewUnitless:300;
-
-    --maxView:1600px;
-    --maxViewUnitless:1600;
-
-    --minParagraph: 16px;
-    --minParagraphUnitless:16;
-
-    --maxParagraph: 24px;
-    --maxParagraphUnitless:24;
-
-    --minParagraphSmall: 16px;
-    --minParagraphUnitlessSmall:16;
-
-    --maxParagraphSmall: 24px;
-    --maxParagraphUnitlessSmall:24;
-
-    --minH1: 72px;
-    --minH1Unitless:72;
-
-    --maxH1: 72px;
-    --maxH1Unitless:72;
-
-    --fluidParagraph: calc(var(--minParagraph) + (var(--maxParagraphUnitless) - var(--minParagraphUnitless)) * ((100vw - var(--minView))/(var(--maxViewUnitless) - var(--minViewUnitless))));
-    --fluidParagraphSmall: calc(var(--minParagraphSmall) + (var(--maxParagraphSmallUnitless) - var(--minParagraphSmallUnitless)) * ((100vw - var(--minView))/(var(--maxViewUnitless) - var(--minViewUnitless))));
-    --fluidH1: 72px /* calc(var(--minH1) + (var(--maxH1Unitless) - var(--minH1Unitless)) * ((100vw - var(--minView))/(var(--maxViewUnitless) - var(--minViewUnitless))))*/;
-    --fluidH2: 36px/* calc(var(--minH1) - 44px + (var(--maxH1Unitless) - var(--minH1Unitless) -44) * ((100vw - var(--minView))/(var(--maxViewUnitless) - var(--minViewUnitless))))*/;
-    --fluidH3: 18px/* calc(var(--minH1) - 44px + (var(--maxH1Unitless) - var(--minH1Unitless) -44) * ((100vw - var(--minView))/(var(--maxViewUnitless) - var(--minViewUnitless))))*/;
-    --fluidH4: 16px/* calc(var(--minH1) - 40px + (var(--maxH1Unitless) - var(--minH1Unitless)) * ((100vw - var(--minView))/(var(--maxViewUnitless) - var(--minViewUnitless))))*/;
-    --fluidH5: 12px/* calc(var(--minH1) - 96px + (var(--maxH1Unitless) - var(--minH1Unitless)) * ((100vw - var(--minView))/(var(--maxViewUnitless) - var(--minViewUnitless))))*/;
 }
 
 @import url('https://fonts.googleapis.com/css2?family=Inter&display=swap');
-@import url('https://fonts.googleapis.com/css2?family=Work+Sans:ital,wght@0,300;0,400;0,600;0,700;1,300;1,400;1,600;1,700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400;1,700&display=swap');
 
 html {
     scroll-behavior:smooth ;
@@ -86,28 +55,28 @@ a{
 }
 
 h1 {
-    font-family: 'Work Sans', sans-serif;
-    font-size: var(--fluidH1);
+    font-family: 'Atkinson Hyperlegible', sans-serif;
+    font-size: 72px;
     word-wrap: break-word;
     margin: 0px;
 
 }
 
 h2 {
-    font-family: 'Work Sans', sans-serif;
-    font-size: var(--fluidH2);
+    font-family: 'Atkinson Hyperlegible', sans-serif;
+    font-size: 36px;
     margin-left: 12px;
 }
 
 h3 {
-    font-family: 'Work Sans', sans-serif;
+    font-family: 'Atkinson Hyperlegible', sans-serif;
     margin-left: 12px;
     margin-right: 12px;
     margin-top: 12px;
 }
 
 h4 {
-    font-family: 'Work Sans', sans-serif;
+    font-family: 'Atkinson Hyperlegible', sans-serif;
     margin:0px;
 
 }
@@ -168,26 +137,26 @@ spinner{
 }
 
 p {
-    font-family:'Work Sans', sans-serif;
+    font-family:'Atkinson Hyperlegible', sans-serif;
     font-weight: 100;
-    font-size: var(--fluidParagraph);
+    font-size: 16px;
     margin-top: 0px;
     margin-left: 12px;
     margin-right: 12px;
 }
 
 li{
-    font-family: 'Work Sans', sans-serif;
+    font-family: 'Atkinson Hyperlegible', sans-serif;
     font-weight: 100;
-    font-size: var(--fluidParagraph);
+    font-size: 16px;
     margin-bottom:12px;
 
 }
 
 p.small {
-    font-family:'Work Sans', sans-serif;
+    font-family:'Atkinson Hyperlegible', sans-serif;
     font-weight: 100;
-    font-size: var(--fluidParagraphSmall);
+    font-size: 16px;
     margin-left: 12px;
     margin-right: 12px;
 
@@ -214,6 +183,16 @@ p.small {
     max-width: 1000px;
     border-radius: 8px;
     margin-bottom: 12px;
+}
+
+.img-centered {
+    width: 100%;
+    max-width: 800px;
+    border-radius: 8px;
+    margin-bottom: 12px;
+    display: block;
+    margin-left: auto;
+    margin-right: auto;
 }
 .fhaw{
     width: 100%;
@@ -350,7 +329,7 @@ a.animated {
     font-family: 'Helvetica';
     font-style: normal;
     font-weight: lighter;
-    font-size: var(--fluidParagraph);
+    font-size: 16px;
     line-height: 30px;
   
     color: var(--Text);
@@ -372,7 +351,7 @@ a.animated:hover {
     background-size: 0 3px, 100% 3px;
     color: var(--Text);
     font-weight: bolder;
-    font-size: calc(var(--fluidParagraph) + 2px);
+    font-size: 18px;
   }
 
 a.animated:active {
@@ -384,7 +363,7 @@ a.onSurface {
     font-family: 'Helvetica';
     font-style: normal;
     font-weight: lighter;
-    font-size: var(--fluidParagraph);
+    font-size: 16px;
     line-height: 30px;
   
     color: var(--onSurface);
@@ -406,7 +385,7 @@ a.onSurface:hover {
     background-size: 0 3px, 100% 3px;
     color: var(--onSurface);
     font-weight: bolder;
-    font-size: calc(var(--fluidParagraph) + 2px);
+    font-size: 18px;
   }
 
 a.onSurface:active {
@@ -417,10 +396,10 @@ a.onSurface:active {
 
 
 a.subtle {
-  font-family: 'Work Sans', sans-serif;
+  font-family: 'Atkinson Hyperlegible', sans-serif;
   text-decoration: none;
   font-weight: 400;
-  font-size: var(--fluidParagraph);
+  font-size: 16px;
   background: var(--UnderlineSolid);
     background-size: 100% 2px, 0 2px;
     background-position: 100% 100%, 0 100%;
@@ -529,12 +508,17 @@ container.flex_wrapper {
 section {
     display: flex;
     flex-direction: column;
-    align-items: flex-start;
+    align-items: center;
 
     padding: 5vw 5%;
     gap: 1vh;
     width: 100vw;
     box-sizing: border-box;
+}
+
+section > * {
+    max-width: 1000px;
+    width: 100%;
 }
 
 section.bg-red { background: #f8d0d0; }
@@ -575,7 +559,7 @@ site-footer {
     width: 100vw;
     box-sizing: border-box;
     background: var(--Surface);
-    font-family: 'Work Sans', sans-serif;
+    font-family: 'Atkinson Hyperlegible', sans-serif;
     font-size: 14px;
     padding-bottom: 20vh;
 }
@@ -646,7 +630,7 @@ site-footer a:hover {
     height: 44px;
     border-radius: 50%;
     cursor: pointer;
-    font-family: 'Work Sans', sans-serif;
+    font-family: 'Atkinson Hyperlegible', sans-serif;
     line-height: 1;
     z-index: 10001;
 }

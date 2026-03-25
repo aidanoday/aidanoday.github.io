@@ -60,8 +60,8 @@
         <div class="instructions">Click "Start Web" to begin</div>
         <div style="margin-top: 15px;">
             <label>
-                <input type="checkbox" id="windToggle" checked>
-                Wind: <span id="windStatus">On</span>
+                <input type="checkbox" id="windToggle">
+                Wind: <span id="windStatus">Off</span>
             </label>
         </div>
         <div style="margin-top: 5px;">
@@ -75,8 +75,8 @@
             <input type="range" id="speedSlider" min="1" max="4" step="0.1" value="1" style="width: 100%;">
         </div>
         <div style="margin-top: 10px;">
-            <label>Target Tension: <span id="tensionValue">3.0</span></label><br>
-            <input type="range" id="tensionSlider" min="0.5" max="8" step="0.1" value="3" style="width: 100%;">
+            <label>Target Tension: <span id="tensionValue">0.60</span></label><br>
+            <input type="range" id="tensionSlider" min="0.1" max="1" step="0.02" value="0.6" style="width: 100%;">
         </div>
         <div id="debugInfo" style="margin-top: 15px; font-size: 11px; opacity: 0.9; border-top: 1px solid #555; padding-top: 10px;">
             Debug info will appear here...
@@ -92,16 +92,16 @@
         let branches = [];
         let spider;
         let webGraph = null;
-        let windEnabled = true;
+        let windEnabled = false;
         let metricsEnabled = false;
         let speedMultiplier = 1.0;
-        let targetTension = 3.0;
+        let targetTension = 0.6;
         let windLevel = 1;
-        let windForce = { x: 0.1, y: 0.01 };
+        let windForce = { x: 0.3, y: -0.05 };
 
         function updateWindForce() {
-            windForce.x = (windLevel / 10) * 0.125;
-            windForce.y = (windLevel / 10) * 0.0125;
+            windForce.x = (windLevel / 10) * 0.375;
+            windForce.y = (windLevel / 10) * -0.06;
         }
 
         function resizeCanvas() {
@@ -126,8 +126,8 @@
                     this.vx += windForce.x;
                     this.vy += windForce.y;
                 }
-                this.vx *= 0.98;
-                this.vy *= 0.98;
+                this.vx *= 0.9;
+                this.vy *= 0.9;
                 this.x += this.vx;
                 this.y += this.vy;
             }
@@ -144,11 +144,30 @@
                 this.fixed = false;
                 this.edges = [];
                 this.type = type; // 'anchor', 'hub', 'split', 'free'
+                // Constraint correction accumulators — averaged across edges
+                this._cx = 0;
+                this._cy = 0;
+                this._cn = 0;
+            }
+            resetCorrections() {
+                this._cx = 0;
+                this._cy = 0;
+                this._cn = 0;
+            }
+            accumulateCorrection(dx, dy) {
+                this._cx += dx;
+                this._cy += dy;
+                this._cn++;
+            }
+            applyCorrections() {
+                if (this.fixed || this._cn === 0) return;
+                this.x += this._cx / this._cn;
+                this.y += this._cy / this._cn;
             }
             integrate() {
                 if (this.fixed) return;
-                this.vx *= 0.98;
-                this.vy *= 0.98;
+                this.vx *= 0.9;
+                this.vy *= 0.9;
                 this.x += this.vx;
                 this.y += this.vy;
             }
@@ -165,7 +184,7 @@
         // "Tightened" = segment count reduced to straightLineDistance / 5.
         // At 5px spacing, each segment exerts moderate contractive force,
         // creating dynamic tension throughout the web.
-        const SPRING_REST = 5;      // equilibrium length (solver maintains this spacing)
+        const SPRING_REST = 3;      // short rest length — threads bias toward taut
         const SPRING_NATURAL = 9;   // target spacing when spider tightens threads
         const SPRING_MAX = 10;      // max stretch before hard resistance
 
@@ -177,6 +196,8 @@
                 this.segments = [];
                 this.segmentLength = segmentLength; // kept for compatibility (growth, etc.)
                 this.isWindAffected = false;
+                this.isGravityAffected = false;
+                this.isBeingSpun = false; // true while spider is actively dragging the tip
                 for (let i = 0; i < segmentCount; i++) {
                     const t = (i + 1) / (segmentCount + 1);
                     this.segments.push(new SilkSegment(
@@ -228,12 +249,66 @@
             getTightenedSegmentCount() {
                 return Math.max(1, Math.round(this.getStraightLength() / SPRING_NATURAL));
             }
-            solveConstraints(reverse = false) {
+            // Wind-affected silk: pair-by-pair rigid constraint
+            solveConstraintsWind() {
                 const count = this.getPointCount();
-                const start = reverse ? count - 2 : 0;
-                const end = reverse ? -1 : count - 1;
-                const step = reverse ? -1 : 1;
-                for (let i = start; i !== end; i += step) {
+                for (let i = 0; i < count - 1; i++) {
+                    const p1 = this.getPoint(i);
+                    const p2 = this.getPoint(i + 1);
+                    const dx = p2.x - p1.x;
+                    const dy = p2.y - p1.y;
+                    const dist = Math.sqrt(dx * dx + dy * dy);
+                    if (dist === 0) continue;
+                    const diff = (this.segmentLength - dist) / dist;
+                    const stiffness = diff < 0 ? 0.95 : 0.4;
+                    const ox = dx * diff * stiffness;
+                    const oy = dy * diff * stiffness;
+                    if (!p1.fixed) { p1.x -= ox; p1.y -= oy; }
+                    if (!p2.fixed) { p2.x += ox; p2.y += oy; }
+                }
+            }
+            // Lightweight catenary solver for silk being spun —
+            // simple distance constraint at 10px, no tension logic.
+            // Just keeps segments chained together so they hang naturally.
+            solveCatenary(restLen = 10) {
+                const count = this.getPointCount();
+                for (let i = 0; i < count - 1; i++) {
+                    const p1 = this.getPoint(i);
+                    const p2 = this.getPoint(i + 1);
+                    const dx = p2.x - p1.x;
+                    const dy = p2.y - p1.y;
+                    const dist = Math.sqrt(dx * dx + dy * dy);
+                    if (dist === 0) continue;
+                    const diff = (restLen - dist) / dist;
+                    // Only correct if stretched beyond rest (don't fight compression)
+                    if (diff > 0) continue;
+                    const stiffness = 0.5;
+                    const ox = dx * diff * stiffness;
+                    const oy = dy * diff * stiffness;
+                    const p1Fixed = p1.fixed;
+                    const p2Fixed = p2.fixed;
+                    if (p1Fixed && p2Fixed) continue;
+                    if (p1Fixed) {
+                        p2.x += ox * 2; p2.y += oy * 2;
+                    } else if (p2Fixed) {
+                        p1.x -= ox * 2; p1.y -= oy * 2;
+                    } else {
+                        p1.x -= ox; p1.y -= oy;
+                        p2.x += ox; p2.y += oy;
+                    }
+                }
+            }
+            // Attached silk: pairwise constraint solver.
+            // Each adjacent pair enforces SPRING_REST distance.
+            // Forces propagate naturally through the chain;
+            // gravity sag emerges as a catenary.
+            // Endpoint nodes (WebGraphNode) get corrections accumulated
+            // so shared nodes average across all connected edges.
+            solvePairwise() {
+                const count = this.getPointCount();
+                if (count < 2) return;
+
+                for (let i = 0; i < count - 1; i++) {
                     const p1 = this.getPoint(i);
                     const p2 = this.getPoint(i + 1);
                     const dx = p2.x - p1.x;
@@ -241,35 +316,102 @@
                     const dist = Math.sqrt(dx * dx + dy * dy);
                     if (dist === 0) continue;
 
-                    if (this.isWindAffected) {
-                        // Floating silk: original rigid segment-length constraint
-                        const diff = (this.segmentLength - dist) / dist;
-                        const stiffness = diff < 0 ? 0.95 : 0.4;
-                        const ox = dx * diff * stiffness;
-                        const oy = dy * diff * stiffness;
-                        if (!p1.fixed) { p1.x -= ox; p1.y -= oy; }
-                        if (!p2.fixed) { p2.x += ox; p2.y += oy; }
+                    const diff = (SPRING_REST - dist) / dist;
+                    // Nonlinear stiffness: strong contraction (threads pull taut)
+                    // but softening under stretch (yields to spider/wind/gravity).
+                    let stiffness;
+                    if (diff > 0) {
+                        // Compressed (dist < rest): strong push-apart
+                        stiffness = 0.5;
                     } else {
-                        // Attached silk: solver maintains SPRING_REST spacing
-                        // Below rest: gentle push apart (allows sag from slack silk)
-                        // Above rest: strong pull together (resists stretching)
-                        const diff = (SPRING_REST - dist) / dist;
-                        let stiffness;
-                        if (dist <= SPRING_REST) {
-                            stiffness = 0.3;
+                        // Stretched (dist > rest): strong snap-back near rest,
+                        // softening as stretch increases so external forces win
+                        const stretchRatio = (dist - SPRING_REST) / SPRING_REST;
+                        stiffness = 0.5 / (1 + stretchRatio * 4);
+                    }
+                    const ox = dx * diff * stiffness;
+                    const oy = dy * diff * stiffness;
+
+                    const p1Fixed = p1.fixed;
+                    const p2Fixed = p2.fixed;
+                    const p1IsNode = p1 instanceof WebGraphNode;
+                    const p2IsNode = p2 instanceof WebGraphNode;
+
+                    if (p1Fixed && p2Fixed) continue;
+
+                    if (p1Fixed) {
+                        if (p2IsNode) {
+                            p2.accumulateCorrection(ox * 2, oy * 2);
                         } else {
-                            const t = Math.min(1, (dist - SPRING_REST) / (SPRING_MAX - SPRING_REST));
-                            stiffness = 0.4 + 0.5 * t;
+                            p2.x += ox * 2;
+                            p2.y += oy * 2;
                         }
-                        // When one point is fixed, the free point must absorb
-                        // the full gap correction (normally split between two).
-                        // Cap at 1.0 to avoid overshoot instability.
-                        const oneFixed = (p1.fixed !== p2.fixed);
-                        const s = oneFixed ? Math.min(stiffness * 2, 1.0) : stiffness;
-                        const ox = dx * diff * s;
-                        const oy = dy * diff * s;
-                        if (!p1.fixed) { p1.x -= ox; p1.y -= oy; }
-                        if (!p2.fixed) { p2.x += ox; p2.y += oy; }
+                    } else if (p2Fixed) {
+                        if (p1IsNode) {
+                            p1.accumulateCorrection(-ox * 2, -oy * 2);
+                        } else {
+                            p1.x -= ox * 2;
+                            p1.y -= oy * 2;
+                        }
+                    } else {
+                        if (p1IsNode) {
+                            p1.accumulateCorrection(-ox, -oy);
+                        } else {
+                            p1.x -= ox;
+                            p1.y -= oy;
+                        }
+                        if (p2IsNode) {
+                            p2.accumulateCorrection(ox, oy);
+                        } else {
+                            p2.x += ox;
+                            p2.y += oy;
+                        }
+                    }
+                }
+            }
+            // Tension equalization: spans with higher tension than their
+            // neighbors pull their points inward to shrink, evening out
+            // tension along the chain.
+            equalizeTension(strength = 0.3) {
+                const count = this.getPointCount();
+                if (count < 3) return;
+
+                // Compute per-span tension (normalized stretch)
+                const tensions = [];
+                for (let i = 0; i < count - 1; i++) {
+                    const p1 = this.getPoint(i);
+                    const p2 = this.getPoint(i + 1);
+                    const d = Math.hypot(p2.x - p1.x, p2.y - p1.y);
+                    tensions.push((d - SPRING_REST) / (SPRING_MAX - SPRING_REST));
+                }
+
+                // For each interior point, compare the two spans it connects.
+                // The higher-tension span contracts proportionally to the difference.
+                for (let i = 1; i < count - 1; i++) {
+                    const tLeft = tensions[i - 1];
+                    const tRight = tensions[i];
+                    const diff = tLeft - tRight;
+                    if (Math.abs(diff) < 0.01) continue;
+
+                    const p = this.getPoint(i);
+                    if (p.fixed) continue;
+
+                    // Pull point toward the higher-tension side
+                    const pLeft = this.getPoint(i - 1);
+                    const pRight = this.getPoint(i + 1);
+                    const pull = diff * strength;
+
+                    // diff > 0: left span is tighter, pull point left to shrink it
+                    // diff < 0: right span is tighter, pull point right to shrink it
+                    const isNode = p instanceof WebGraphNode;
+                    const mx = pull * ((pLeft.x - p.x) - (pRight.x - p.x)) * 0.5;
+                    const my = pull * ((pLeft.y - p.y) - (pRight.y - p.y)) * 0.5;
+
+                    if (isNode) {
+                        p.accumulateCorrection(mx, my);
+                    } else {
+                        p.x += mx;
+                        p.y += my;
                     }
                 }
             }
@@ -331,6 +473,46 @@
                 }
                 return done;
             }
+            // Nudge segments toward equal arc-spacing. blend controls
+            // how much correction per frame (0 = none, 1 = full snap).
+            // Low blend preserves gravity sag while fixing endpoint bias.
+            equalizeSpans(blend = 0.3) {
+                const count = this.getPointCount();
+                if (count < 3) return;
+
+                // Snapshot positions
+                const pos = [];
+                for (let i = 0; i < count; i++) {
+                    const p = this.getPoint(i);
+                    pos.push({ x: p.x, y: p.y });
+                }
+
+                // Cumulative arc lengths
+                const cumLen = [0];
+                for (let i = 0; i < count - 1; i++) {
+                    const dx = pos[i + 1].x - pos[i].x;
+                    const dy = pos[i + 1].y - pos[i].y;
+                    cumLen.push(cumLen[i] + Math.hypot(dx, dy));
+                }
+                const totalArc = cumLen[count - 1];
+                if (totalArc === 0) return;
+
+                // Blend each segment toward its equal-spaced position
+                for (let i = 1; i < count - 1; i++) {
+                    const targetDist = (totalArc * i) / (count - 1);
+                    let j = 0;
+                    while (j < count - 2 && cumLen[j + 1] < targetDist) j++;
+                    const spanLen = cumLen[j + 1] - cumLen[j];
+                    const t = spanLen > 0 ? (targetDist - cumLen[j]) / spanLen : 0;
+                    const targetX = pos[j].x + (pos[j + 1].x - pos[j].x) * t;
+                    const targetY = pos[j].y + (pos[j + 1].y - pos[j].y) * t;
+                    const seg = this.segments[i - 1];
+                    if (!seg.fixed) {
+                        seg.x += (targetX - seg.x) * blend;
+                        seg.y += (targetY - seg.y) * blend;
+                    }
+                }
+            }
             // Balance segments so every actual distance is between minLen and maxLen.
             // Splits the longest segment if > maxLen, removes the shortest if < minLen.
             // Returns true if any work was done.
@@ -383,18 +565,20 @@
 
                 return false; // all segments balanced
             }
-            // Average tension across this edge (tension = segmentDist - SPRING_REST)
+            // Average tension across this edge, normalized 0–1.
+            // 0 = spans at SPRING_REST, 1 = spans at SPRING_MAX.
             getAverageTension() {
                 const count = this.getPointCount();
                 if (count < 2) return 0;
-                let totalTension = 0;
+                let totalStretch = 0;
                 for (let i = 0; i < count - 1; i++) {
                     const p1 = this.getPoint(i);
                     const p2 = this.getPoint(i + 1);
                     const d = Math.hypot(p2.x - p1.x, p2.y - p1.y);
-                    totalTension += d - SPRING_REST;
+                    totalStretch += d - SPRING_REST;
                 }
-                return totalTension / (count - 1);
+                const avgStretch = totalStretch / (count - 1);
+                return avgStretch / (SPRING_MAX - SPRING_REST);
             }
             // Remove segments until average tension >= target.
             // fromEnd: 'A' or 'B' — which end the spider is reeling from.
@@ -413,8 +597,8 @@
                     }
                     return false;
                 }
-                // Overshot: add a segment back if tension exceeds target by more than 0.5
-                if (avgTension > target + 0.5) {
+                // Overshot: add a segment back if tension exceeds target by more than 0.1
+                if (avgTension > target + 0.1) {
                     // Find the longest span and split it
                     const count = this.getPointCount();
                     let longestDist = 0, longestIdx = -1;
@@ -435,7 +619,7 @@
                         return true;
                     }
                 }
-                // Within target to target+0.5 — done
+                // Within target to target+0.1 — done
                 return false;
             }
             // Evenly space segments along the line between nodeA and nodeB
@@ -481,13 +665,13 @@
                             // Length label (charcoal)
                             ctx.fillStyle = '#333';
                             ctx.fillText(len.toFixed(1), mx, my - 8);
-                            // Tension: positive = tensioned (green), negative = slack (blue)
-                            const tension = len - SPRING_REST;
-                            const alpha = Math.min(1, Math.abs(tension) / SPRING_REST);
+                            // Tension 0–1: positive = tensioned (green), negative = slack (blue)
+                            const tension = (len - SPRING_REST) / (SPRING_MAX - SPRING_REST);
+                            const alpha = Math.min(1, Math.abs(tension));
                             ctx.fillStyle = tension > 0
                                 ? `rgba(34, 139, 34, ${alpha})`
                                 : `rgba(34, 102, 204, ${alpha})`;
-                            ctx.fillText(tension.toFixed(1), mx, my + 8);
+                            ctx.fillText(tension.toFixed(2), mx, my + 8);
                         }
                     }
                 }
@@ -1112,6 +1296,8 @@
                         // Create thread1Edge from bridgeStartNode with a free tip node
                         const tipNode = webGraph.createNode(this.x, this.y, 'free', false);
                         this.thread1Edge = webGraph.createEdge(this.bridgeStartNode, tipNode, 1, 10);
+                        this.thread1Edge.isGravityAffected = true;
+                        this.thread1Edge.isBeingSpun = true;
                         this.thread1SpinCount++;
                     } else if (this.thread1SpinCount >= 1) {
                         this.state = 'tying_thread1_start';
@@ -1137,8 +1323,8 @@
                     this.releaseTimer++;
 
                     // Grow thread1 on timer, capped at 2x estimated straight-line distance
-                    const thread1MaxSegs = Math.floor(this.bridgeEdge.getStraightLength() * 2 / SPRING_NATURAL);
-                    if (this.releaseTimer % 3 === 0 && this.thread1Edge.segments.length < thread1MaxSegs) {
+                    const thread1MaxSegs = Math.floor(this.bridgeEdge.getStraightLength() * 1.0 / SPRING_NATURAL);
+                    if (this.releaseTimer % 9 === 0 && this.thread1Edge.segments.length < thread1MaxSegs) {
                         this.thread1Edge.growFromB(this.x, this.y);
                     }
 
@@ -1181,9 +1367,11 @@
                         this.thread1Edge.nodeB.x = this.bridgeEndNode.x;
                         this.thread1Edge.nodeB.y = this.bridgeEndNode.y;
                         this.thread1Edge.nodeB.fixed = true;
+                        this.thread1Edge.isBeingSpun = false;
 
-                        // Thread1 is the only slack thread: target double the tightened count for visual sag.
-                        const target = this.thread1Edge.getTightenedSegmentCount() * .75;
+                        // Thread1 is the only slack thread: extra segments so
+                        // rest-length exceeds distance, giving gravity room to sag.
+                        const target = Math.floor(this.thread1Edge.getTightenedSegmentCount() * 1.0);
                         // Remove excess segments
                         while (this.thread1Edge.segments.length > target && this.thread1Edge.segments.length > 1) {
                             this.thread1Edge.removeMiddleSegment();
@@ -1242,20 +1430,23 @@
                     this.hubNode = splitResult.newNode;
                     this.thread1aEdge = splitResult.edgeA;
                     this.thread1bEdge = splitResult.edgeB;
+                    this.thread1aEdge.isGravityAffected = true;
+                    this.thread1bEdge.isGravityAffected = true;
                     this.thread1Edge = null; // no longer valid
 
                     // Create rappel edge from hubNode downward (10px segments, spun out slowly)
                     const rappelTipNode = webGraph.createNode(this.hubNode.x, this.hubNode.y + 2, 'free', false);
                     this.rappelEdge = webGraph.createEdge(this.hubNode, rappelTipNode, 0, 10);
+                    this.rappelEdge.isGravityAffected = true;
+                    this.rappelEdge.isBeingSpun = true;
 
                     this.state = 'rappelling';
                     this.releaseTimer = 0;
                 } else if (this.state === 'rappelling') {
                     this.releaseTimer++;
 
-                    // Grow rappel on timer, capped at 2x estimated distance to bottom branch
-                    const rappelMaxSegs = Math.floor(height * 2 / SPRING_NATURAL);
-                    if (this.releaseTimer % 3 === 0 && this.rappelEdge.segments.length < rappelMaxSegs) {
+                    // Grow rappel on timer until branch is hit
+                    if (this.releaseTimer % 9 === 0 && this.rappelEdge.segments.length < 500) {
                         const tip = this.rappelEdge.nodeB;
                         this.rappelEdge.growFromB(tip.x, tip.y);
                     }
@@ -1286,13 +1477,11 @@
                         }
                     }
 
-                    if (this.rappelEdge.segments.length > 100) {
-                        this.state = 'rappel_complete';
-                    }
                 } else if (this.state === 'rappel_complete') {
                     if (this.weight === 0) {
                         this.weight = this.originalWeight;
                     }
+                    this.rappelEdge.isBeingSpun = false;
                     this.state = 'tensioning_thread2';
                     this.tying = true;
                     this.tyingTimer = 0;
@@ -1339,6 +1528,7 @@
                     // Create thread3Edge from hubNode
                     const tipNode = webGraph.createNode(this.hubNode.x, this.hubNode.y, 'free', false);
                     this.thread3Edge = webGraph.createEdge(this.hubNode, tipNode, 1, 10);
+                    this.thread3Edge.isBeingSpun = true;
                     this.releaseTimer = 0;
 
                     // Walk thread1aEdge from hubNode toward bridgeStartNode
@@ -1351,7 +1541,7 @@
 
                     // Grow thread3 on timer, capped at 2x estimated distance
                     const thread3MaxSegs = Math.floor(this.thread3Edge.getStraightLength() * 4 / SPRING_NATURAL);
-                    if (this.releaseTimer % 3 === 0 && this.thread3Edge.segments.length < thread3MaxSegs) {
+                    if (this.releaseTimer % 9 === 0 && this.thread3Edge.segments.length < thread3MaxSegs) {
                         this.thread3Edge.growFromB(this.x, this.y);
                     }
 
@@ -1386,7 +1576,7 @@
 
                     // Grow thread3 on timer, capped at 2x estimated distance
                     const thread3CenterMaxSegs = Math.floor(this.thread3Edge.getStraightLength() * 4 / SPRING_NATURAL);
-                    if (this.releaseTimer % 3 === 0 && this.thread3Edge.segments.length < thread3CenterMaxSegs) {
+                    if (this.releaseTimer % 9 === 0 && this.thread3Edge.segments.length < thread3CenterMaxSegs) {
                         this.thread3Edge.growFromB(this.x, this.y);
                     }
 
@@ -1420,6 +1610,7 @@
                     if (this.tyingTimer > 60) {
                         this.tying = false;
                         this.attachThread3ToBridgeCenter();
+                        this.thread3Edge.isBeingSpun = false;
                         this.state = 'tensioning_thread3';
                         this.tyingTimer = 0;
                     }
@@ -1691,6 +1882,7 @@
                     // Start spoke silk from hub
                     const spokeTipNode = webGraph.createNode(this.hubNode.x, this.hubNode.y, 'free', false);
                     this.spokeEdge = webGraph.createEdge(this.hubNode, spokeTipNode, 0, 8);
+                    this.spokeEdge.isBeingSpun = true;
                     this.spokeLastSegCount = 1;
                     // Store the anchor source info for later attachment
                     this.spokeAnchorSource = anchor.source;
@@ -1812,7 +2004,7 @@
                     this.releaseTimer++;
                     if (this.spokeEdge) {
                         const spokeMaxSegs = Math.floor(this.spokeEdge.getStraightLength() * 4 / SPRING_NATURAL);
-                        if (this.releaseTimer % 3 === 0 && this.spokeEdge.segments.length < spokeMaxSegs) {
+                        if (this.releaseTimer % 9 === 0 && this.spokeEdge.segments.length < spokeMaxSegs) {
                             this.spokeEdge.growFromB(this.x, this.y);
                         }
                         this.spokeEdge.nodeB.x = this.x;
@@ -1916,6 +2108,7 @@
                             }
                         }
 
+                        this.spokeEdge.isBeingSpun = false;
                         this.state = 'tensioning_spoke';
                         this.tyingTimer = 0;
                         this.tying = true;
@@ -2022,6 +2215,29 @@
                 const centerY = this.hubNode.y;
 
                 this.spokes = [];
+
+                // thread0 (bridge): from bridgeCenterNode toward bridgeStartNode
+                // bridgeEdge = edgeA after split (bridgeStartNode → bridgeCenterNode)
+                if (this.bridgeEdge) {
+                    const endNode = this.bridgeEdge.nodeA; // bridgeStartNode
+                    const angle = Math.atan2(endNode.y - centerY, endNode.x - centerX);
+                    this.spokes.push({ edge: this.bridgeEdge, angle, anchorPoint: { x: endNode.x, y: endNode.y } });
+                }
+
+                // thread0 other half: from bridgeCenterNode toward bridgeEndNode
+                // Find edgeB — the other edge connected to bridgeCenterNode that
+                // leads to bridgeEndNode
+                if (this.bridgeCenterNode && this.bridgeEndNode) {
+                    for (const edge of this.bridgeCenterNode.edges) {
+                        if (edge === this.bridgeEdge || edge === this.thread3Edge) continue;
+                        const otherNode = edge.nodeA === this.bridgeCenterNode ? edge.nodeB : edge.nodeA;
+                        if (otherNode === this.bridgeEndNode || Math.hypot(otherNode.x - this.bridgeEndNode.x, otherNode.y - this.bridgeEndNode.y) < 10) {
+                            const angle = Math.atan2(otherNode.y - centerY, otherNode.x - centerX);
+                            this.spokes.push({ edge, angle, anchorPoint: { x: otherNode.x, y: otherNode.y } });
+                            break;
+                        }
+                    }
+                }
 
                 // thread1a: from hub toward bridge start
                 if (this.thread1aEdge) {
@@ -2226,31 +2442,69 @@
 
         // ==================== Animate ====================
         function animate() {
-            // Apply gravity per-edge (skip floating silk)
+            // Apply gravity only to thread1 and rappel edges
             for (const edge of webGraph.edges) {
-                if (edge.isWindAffected) continue;
+                if (!edge.isGravityAffected) continue;
                 const scale = Math.min(1, 20 / Math.max(1, edge.getPointCount()));
-                const gravity = 0.05 * scale;
+                const gravity = 0.02 * scale;
                 edge.applyGravity(gravity);
-                if (!edge.nodeA.fixed) edge.nodeA.vy += gravity;
-                if (!edge.nodeB.fixed) edge.nodeB.vy += gravity;
             }
-            // Apply wind
-            if (windEnabled) {
-                for (const edge of webGraph.edges) edge.applyWind(windForce);
+            // Apply wind — floating silk always catches the breeze;
+            // attached silk only when wind toggle is on
+            for (const edge of webGraph.edges) {
+                if (edge.isWindAffected) {
+                    // Always apply wind to floating silk
+                    for (const seg of edge.segments) {
+                        seg.vx += windForce.x;
+                        seg.vy += windForce.y;
+                    }
+                    if (!edge.nodeB.fixed) {
+                        edge.nodeB.vx += windForce.x;
+                        edge.nodeB.vy += windForce.y;
+                    }
+                } else if (windEnabled) {
+                    edge.applyWind(windForce);
+                }
             }
             // Integrate
             for (const node of webGraph.nodes) node.integrate();
             for (const edge of webGraph.edges) edge.integrateSegments();
-            // Constraint solver (alternate direction to prevent endpoint bias)
-            for (let iter = 0; iter < 60; iter++) {
-                const reverse = iter % 2 === 1;
-                for (const edge of webGraph.edges) edge.solveConstraints(reverse);
+            // Constraint solver — pairwise relaxation with accumulated
+            // node corrections so shared nodes (hub, junctions) average
+            // forces from all connected edges uniformly.
+            for (let iter = 0; iter < 15; iter++) {
+                // Reset node correction accumulators
+                for (const node of webGraph.nodes) node.resetCorrections();
+                // Solve each edge — segments move directly,
+                // node corrections are accumulated
+                for (const edge of webGraph.edges) {
+                    if (edge.isBeingSpun) {
+                        edge.solveCatenary(10);
+                        continue;
+                    }
+                    if (edge.isWindAffected) {
+                        edge.solveConstraintsWind();
+                    } else {
+                        edge.solvePairwise();
+                    }
+                }
+                // Apply averaged corrections to shared nodes
                 for (const node of webGraph.nodes) {
+                    node.applyCorrections();
                     if (node.fixed) { node.vx = 0; node.vy = 0; }
                 }
             }
-            // Spider update
+            // Single tension equalization pass after solver settles
+            for (const node of webGraph.nodes) node.resetCorrections();
+            for (const edge of webGraph.edges) {
+                if (edge.isWindAffected || edge.isBeingSpun) continue;
+                edge.equalizeTension(0.15);
+            }
+            for (const node of webGraph.nodes) {
+                node.applyCorrections();
+                if (node.fixed) { node.vx = 0; node.vy = 0; }
+            }
+// Spider update
             if (spider) {
                 spider.update();
 
@@ -2309,7 +2563,7 @@
         const tensionValue = document.getElementById('tensionValue');
         tensionSlider.addEventListener('input', (e) => {
             targetTension = parseFloat(e.target.value);
-            tensionValue.textContent = targetTension.toFixed(1);
+            tensionValue.textContent = targetTension.toFixed(2);
         });
 
         window.addEventListener('resize', () => {
