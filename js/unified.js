@@ -188,7 +188,7 @@ class ProjectCard extends HTMLElement {
                 box-shadow: 0 2px 8px rgba(0, 43, 128, 0.08);
                 transition: transform 0.2s ease, box-shadow 0.2s ease; 
                 height: auto;
-                font-family: 'Atkinson Hyperlegible', sans-serif;
+                font-family: 'Roboto', sans-serif;
                 box-sizing: border-box;
                 cursor: pointer;
             }
@@ -260,7 +260,7 @@ class ProjectCard extends HTMLElement {
                 border-radius: 6px;
                 margin-top: 8px;
                 cursor: pointer;
-                font-family: 'Atkinson Hyperlegible', sans-serif;
+                font-family: 'Roboto', sans-serif;
                 font-size: 12px;
                 font-weight: 600;
                 color: #888;
