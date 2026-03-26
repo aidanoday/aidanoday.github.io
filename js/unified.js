@@ -1276,3 +1276,18 @@ function closeContactModal() {
 }
 
 customElements.define('site-footer', SiteFooter);
+
+// Letter scroll-settle animation
+const letter = document.getElementById('letter');
+if (letter) {
+    const observer = new IntersectionObserver((entries) => {
+        entries.forEach(entry => {
+            if (entry.isIntersecting) {
+                letter.classList.add('settled');
+            } else {
+                letter.classList.remove('settled');
+            }
+        });
+    }, { threshold: 0.2 });
+    observer.observe(letter);
+}

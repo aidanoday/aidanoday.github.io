@@ -528,7 +528,95 @@ section > * {
 section.bg-red { background: #f8d0d0; }
 section.bg-orange { background: #f8e0c8; }
 section.bg-yellow { background: #f8f0c0; }
-section.bg-green { background: #c8f0d0; }
+section.bg-green { background: #c8f0d0; perspective: 900px; }
+
+/* Letter on surface */
+.letter {
+    background: #fffef8;
+    padding: 40px 48px;
+    max-width: 680px;
+    margin: 0 auto;
+    border-radius: 2px;
+    box-shadow:
+        0 1px 3px rgba(0,0,0,0.08),
+        0 8px 24px rgba(0,0,0,0.12),
+        inset 0 0 60px rgba(255,253,240,0.3);
+    font-family: 'Courier New', Courier, monospace;
+    line-height: 1.7;
+    position: relative;
+    transform: rotateX(12deg) rotateZ(-2deg) translateY(40px);
+    opacity: 0;
+    transition: transform 0.8s cubic-bezier(0.22, 1, 0.36, 1),
+                opacity 0.6s ease,
+                box-shadow 0.4s ease;
+    transform-origin: center bottom;
+}
+
+.letter::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background:
+        repeating-linear-gradient(
+            transparent,
+            transparent 27px,
+            rgba(0,120,200,0.06) 27px,
+            rgba(0,120,200,0.06) 28px
+        );
+    pointer-events: none;
+}
+
+.letter.settled {
+    transform: rotateX(4deg) rotateZ(-1.5deg) translateY(0);
+    opacity: 1;
+    box-shadow:
+        0 2px 4px rgba(0,0,0,0.1),
+        0 12px 32px rgba(0,0,0,0.15),
+        inset 0 0 60px rgba(255,253,240,0.3);
+}
+
+.letter:hover {
+    transform: rotateX(0deg) rotateZ(0deg) translateY(-4px);
+    box-shadow:
+        0 4px 8px rgba(0,0,0,0.1),
+        0 20px 48px rgba(0,0,0,0.18),
+        inset 0 0 60px rgba(255,253,240,0.3);
+}
+
+.letter p {
+    font-family: 'Courier New', Courier, monospace;
+    font-size: 15px;
+    font-weight: 400;
+    color: #2a2a2a;
+    margin: 0 0 16px;
+    text-indent: 0;
+}
+
+.letter p b {
+    font-weight: 700;
+    color: #111;
+}
+
+.letter .letter-closing {
+    margin-top: 32px;
+    margin-bottom: 4px;
+}
+
+.letter .letter-signature {
+    font-style: italic;
+    font-weight: 700;
+    font-size: 18px;
+    margin-bottom: 0;
+}
+
+@media only screen and (max-width: 600px) {
+    .letter {
+        padding: 28px 24px;
+    }
+}
 section.bg-blue { background: #c8d8f8; }
 section.bg-indigo { background: #d0c8f0; }
 section.bg-violet { background: #e8c8f0; }
