@@ -5,21 +5,21 @@ console.log("1. Script loaded successfully!");
 const PROJECT_DATA = {
 
    "optml-shipper": {
-    title: "optML shipper",
+    title: "📊 optML shipper",
     image: "assets/optML_Ship.png",
     link: "optML_shipper.html",
     subtitle: "AI-augmented Shipping Dashboard",
     desc: "Fall 2025 - How might a top 3 global athletics company leverage machine learning to optimize their downstream supply chain? Following a general call for innovative ways to leverage ai, I explored this question, developed a business plan, and used Claude to help make a prototype in react.js."
   },
   "store-portal": {
-    title: "Store Portal 2.1",
+    title: "🗓️ Store Portal 2.1",
     image: "assets/store_portal_cover.png",
     link: "storePortal_2_1.html",
     subtitle: "User research, Interface design",
     desc: "Summer/Fall 2025 - How can UX best practices and insights from contextual inquiry elevate lululemon's internally-built Store Shipping Portal from minimum viable product to most valuable portal?"
   },
   "dawg-walks": {
-    title: "Dawg Walks",
+    title: "👯‍♀️ Dawg Walks Kiosk",
     image: "assets/dawgWalks.png",
     link: "https://sites.google.com/uw.edu/dawgwalks/home",
     external: true,
@@ -27,91 +27,91 @@ const PROJECT_DATA = {
     desc: "Autumn 2025 - How might we increase safety and connection for UW students traveling after dark?"
   },
   "link-cc": {
-    title: "Creative Connections 🖇📱",
+    title: "🎨 Creative Connections App",
     image: "assets/linkCover.png",
     link: "linkCC.html",
     subtitle: "Mobile UX Design for ILOVEWHATEVER.",
     desc: "Summer 2022 - How might we create an app for creative connection that is atomic, and so simple that anyone can use it?  Facing a evaporating runway and low user adoption, we refocused the app on one core feature: aggregating and sharing creative work simply and quickly."
   },
   "pebble-ai": {
-    title: "Pebble AI",
+    title: "🗿 Pebble AI Agent",
     image: "assets/ai_pebble.png",
     link: "ai_pebble.html",
     subtitle: "In-context Academic Advising",
     desc: "Spring 2025 - How might we guide lost students at a critical junctures in their academic journeys?  Using agentic adivsors trained on historic student data and advising materials, this concept brings personalized, context-aware, and proactive advising to students.  I developed the concept and prototype in collaboration with a team of 2 other designers for a graduate design course at University of Washington."
   },
   "twabler": {
-    title: "Twabler 🐣 🏷",
+    title: "🏷 Twabler App",
     image: "assets/Twabler_Cover.png",
     link: "twabler.html",
     subtitle: "Mobile UX for Code for San Francisco",
     desc: "Autumn 2019 - A labeling method for ML NLP training sets that improves on old methods by segmenting and batching tweet labeling tasks. While volunteering for the UX team at Code for San Francisco, I picked up where their previous designer left off and improved entity coding speed by 130%."
   },
   "knomee": {
-    title: "Knomee Prototype📱💵🧘‍♀️",
+    title: "💆‍♀️ Knomee Mobile Prototype",
     image: "assets/Knomee.png",
     link: "knomee_app.html",
     subtitle: "Strategy and Prototyping for Knomee",
     desc: "Winter 2023 - How might we help the newly-affluent meaningfully align their financial planning with values?  I worked directly with the founder of Knomee to bring her MVP prototype to life with a lively clickable Figma prototype."
   },
   "inquired": {
-    title: "Better Curriculum Navigation 📓👩‍🏫🗺️",
+    title: "📚 Better Curriculum Navigation",
     image: "assets/InquirED.png",
     action: "showDialog()",
     subtitle: "Accessibility Audit, Mobile First Design, and Navigation Redesign for InquirED",
     desc: "Summer 2024 - How might we use accessibility compliance as an opportunity to improve clarity?  Building off of a win in redesigning the curriculum selection page, I worked for three months with engineers and product managers to overhaul the navigation system and correct over 93 flagged accessibility issues."
   },
   "synq": {
-    title: "Synq Logo Animation ⚜️🎞",
+    title: "🎞 Synq Logo Animation",
     image: "assets/Synq_Cover.png",
     link: "synq.html",
     subtitle: "Logo and Motion Design for Synq",
     desc: "Autumn 2022 - A monolithic “S” revealed as just a part of the larger whole: a composite isometric cube.  A "
   },
   "jordache": {
-    title: "JORDACHE Home Page 🐴👖",
+    title: "👖 JORDACHE Home Page",
     image: "assets/Jordache_Cover.png",
     link: "jordache.html",
     subtitle: "Responsive Landing Page for JORDACHE",
     desc: "Winter 2023 - Revamping JORDACHE's online storefront to communicate 'Sexy, Bold, and Timeless.'"
   },
   "stay-home": {
-    title: "Stay Home 🏠 🦠",
+    title: "🏠 Stay Home App",
     image: "assets/StayHome_Cover.png",
     link: "stayHome.html",
     subtitle: "Mobile App Hack",
     desc: "Summer 2020 - How might we transform staying home into a fun, safe, and rewarding experience?"
   },
   "tact-tiles": {
-    title: "TactTiles 🟦 🧤 🟨 🟥",
+    title: "🧊 TactTiles Focus Box",
     image: "assets/TactileCubeCover.png",
     link: "tactTiles.html",
     subtitle: "Interaction Design for DALI Lab.",
-    desc: "A customizable sensory therapeutic toy for people with Autism with heightened sensory input."
+    desc: "Winter-Spring 2019 - A customizable sensory therapeutic toy for people with Autism with heightened sensory input."
   },
   "rent-cap": {
-    title: "Rent Cap 🌇",
+    title: "🌇 Rent Cap Portal",
     image: "assets/RentCap_Cover.png",
     link: "rentCap.html",
     subtitle: "Web App and Logo Design for Code for San Francisco",
-    desc: "Fall 2019 - An informational portal for helping tenants determine new rent protection status.  Volunteer "
+    desc: "Fall 2019 - An informational portal for helping tenants determine new rent protection status."
   },
   "honor-code": {
-    title: "Honor Code Study 🤥",
+    title: "🤥 Honor Code Study",
     image: "assets/ivyLeagueCheaters_cover.png",
     link: "cheaters.html",
     subtitle: "Culminating Systems Design Case for Engs 12 course",
     desc: "Fall 2018 - Do students cheat at Dartmouth? What drives this behavior? What can faculty do to curb this behavior?"
   },
   "tote": {
-    title: "Totes Wide Open 👜",
+    title: "👜 Wide-Open Shelf Tote",
     image: "assets/toteCover.png",
     link: "tote.html",
     subtitle: "Product Design for Engs 12 course",
     desc: "Fall 2018 - An over-the-shoulder tote that opens wider than any other bag"
   },
   "animations": {
-    title: "Animation 🎞",
+    title: "🎞 Animation",
     image: "assets/laptop_spin.gif",
     link: "animations/index.html",
     subtitle: "A Gallery of Motion Graphics.",
@@ -119,7 +119,7 @@ const PROJECT_DATA = {
     status:"pending"
   },
   "waybetterboxd": {
-    title: "waybetterboxd 🎬",
+    title: "🎬 waybetterboxd web app",
     image: "assets/waybetterboxd_cover.png",
     link: "https://www.aidanoday.me/waybetterboxd.html?list=H4sIAAAAAAAAE4VVy27cRhD8lcJecuGubCXIIZdAVmwoiI0YkhAhMHxoDpucgYbTxPRwafqkf8gpQPJz-pKkh5LtOAddJK22px9VXdXv3u1uQkqBUTzjrYjfNTtfyqQ_nJxELoVzKx-6g5PxpA9xPFlq9L543k9b9CsaQ1x3ze6nOYc0gBIkdyFRXtHRipBwMacuc4czlxk3Il2Dr6pCuShkLiiCPqQOKiPDS-L1gDdBQyqcp8yllkCSwuizjDj3OWiRyXPGpbQhNfh1iXCSjiE51pq-wXUYBs4NLqltQ2nwNgyRS4NfKA3U4FKkAaUOL3mVbH1RseZCxipzGtDnwKmDJ0XLnOBoKrPN1K4guMxkH5Fo_Pd_93d_vSB3q5Lu7_6uaYvn1WZ8HDGzupnhw3jYNbvnu2Z3FjpK3-iuef6-ebe7lhVXRfKK0ycIKbLu1SL3p1-ScZa6FZ6pU0jfW8lzWVpZcU7j1CAyHQ1JHxRFVvvxMK4sCR0fg2M94NqHNCjUh74gpCLwYfAYmDIWz6mS3SqrhiNbIjiJkV2R_ADFWcQbd-MN_dRYcs6QHmfx_u5PhY35gnLCbegSTVqXYz3Auq8BtbdR5lRA6Kgu2AN2Y1ANkhq8mD9-xOsw-LJaXyPbKtlgIxXnK_w1bSWvCDp2oWPrPzM81wAL90y5oOQ5rmg5Shoeufld5qw_7ppnRs3NXDzXRi7YiipOn51-_5RsHh_t_fZo__DoUkZKjrciaYDkyVPCBVPxLoa-R1BQJ1PZds0EszDF4le8pJzU04K-sl4HGeXIulG18claqHCD_7V9wJUYfJYx8WKwho5TQU8xKnrJFRUn40QVaTLJiRbO0GC_GpxT8autCaMsAvWUGYTMI-VbaiOjlbr9VKDMo2JObWbavptTCXHL0aBnjtadtTNlVjU5SQ8VF2jTM6dSCdd5qhFsnOXHl7rNTzkHVrzsBsp4bUCkBoTRNrXHyJQUixe03IeyJTCE5syHL1E_ylKXZQmpxrTkbm0dvvtSqnUfLjg_Qb6vEVcu4FXYNbuf04a5FKigC1rIUJ-th8awlE7sL0KUxHHFkkNFe5qz82RjkzEWVxMqR5m4g0ycqZqjrlp4RMcahsSdDWGSqDVn5Vx1xUfOKxJzd8C1fCpav9M5Tzlo7SDbepbgkDmSoa8-TI9lzQrLYm7ow_hJRl93Ul3EiP9MIUVEOTKqb6GNnDqFusDJMfrgLKbmy5s67IYQdKljUHywZ_4wRcmsG5qb_0q_ZX7wXCxk3lbNnJ1PEmVYEVQiFd4WxklK7IpiVlCMxvG3xtYUbvkTx69Fzf9wnSnpBsQTnEfRsg9pX_7z4rParxeBxUBljopj0FAxu5bbVXB_90dtv96eBokHM1XusIS-DkmYvBQZMtXDZ4MQFlLP3X6ezAWCwUsZ6kUejub1b6bmkXNVlNWol9aU0dnBjeQ25CZO1dD7zNzJaCvUMjJTNBCYnIeYm9R1qQaR1ga00Lrd5M15YtisCGcj5-DIoLUbdSV9oA3a9_8AsroBsIAIAAA&name=Aidan's%20Demo%20List",
     external: true,
@@ -146,7 +146,28 @@ class ProjectCard extends HTMLElement {
         e.preventDefault();
         e.stopPropagation();
         this.expanded = !this.expanded;
-        this.render();
+
+        const desc = this.shadowRoot.querySelector('.desc');
+        const btn = this.shadowRoot.querySelector('.toggle-btn');
+
+        if (this.expanded) {
+            desc.style.webkitLineClamp = 'unset';
+            desc.style.maxHeight = desc.scrollHeight + 'px';
+            btn.textContent = 'see less...';
+        } else {
+            // Set current expanded height so transition has a start value
+            desc.style.maxHeight = desc.scrollHeight + 'px';
+            // Force reflow then collapse
+            desc.offsetHeight;
+            desc.style.maxHeight = desc.dataset.collapsedHeight + 'px';
+            btn.textContent = 'see more...';
+            // Re-apply line clamp after transition finishes
+            desc.addEventListener('transitionend', () => {
+                if (!this.expanded) {
+                    desc.style.webkitLineClamp = '3';
+                }
+            }, { once: true });
+        }
     }
 
     render() {
@@ -241,16 +262,17 @@ class ProjectCard extends HTMLElement {
                 display: block;
             }
 
-            .desc { 
-                margin: 0; 
-                font-size: 12px; 
+            .desc {
+                margin: 0;
+                font-size: 12px;
                 font-weight: 400;
-                line-height: 1.5; 
+                line-height: 1.5;
                 color: #333;
-                display: -webkit-box; 
+                display: -webkit-box;
                 -webkit-box-orient: vertical;
-                -webkit-line-clamp: ${this.expanded ? 'unset' : '3'}; 
+                -webkit-line-clamp: 3;
                 overflow: hidden;
+                transition: max-height 300ms ease-in-out;
             }
 
             .toggle-btn {
@@ -258,7 +280,7 @@ class ProjectCard extends HTMLElement {
                 border: 1px solid rgba(0, 0, 0, 0.15);
                 padding: 6px 14px;
                 border-radius: 6px;
-                margin-top: 8px;
+                margin-top: 2px;
                 cursor: pointer;
                 font-family: 'Roboto', sans-serif;
                 font-size: 12px;
@@ -276,6 +298,7 @@ class ProjectCard extends HTMLElement {
                 border-color: rgba(0, 0, 0, 0.25);
             }
             .toggle-btn.hidden { display: none; }
+            .text-content:has(.toggle-btn:not(.hidden)) { padding-bottom: 8px; }
 
             /* 1. Create the container for the hover label */
             .card[onclick*="showConstructionDialog"] {
@@ -326,9 +349,16 @@ class ProjectCard extends HTMLElement {
         // Only show the toggle button when text is actually clamped
         const desc = this.shadowRoot.querySelector('.desc');
         const btn = this.shadowRoot.querySelector('.toggle-btn');
-        if (!this.expanded && desc.scrollHeight <= desc.clientHeight) {
-            btn.classList.add('hidden');
-        }
+
+        // Wait a frame so layout is computed
+        requestAnimationFrame(() => {
+            if (desc.scrollHeight <= desc.clientHeight) {
+                btn.classList.add('hidden');
+            }
+            // Store collapsed height and set initial max-height for transitions
+            desc.dataset.collapsedHeight = desc.clientHeight;
+            desc.style.maxHeight = desc.clientHeight + 'px';
+        });
     }
 }
 customElements.define('project-card', ProjectCard);
@@ -1290,4 +1320,16 @@ if (letter) {
         });
     }, { threshold: 0.2 });
     observer.observe(letter);
+}
+
+// Letter history inline expand
+const inlineExpand = document.getElementById('letterInlineExpand');
+const historyContent = document.getElementById('letterHistoryContent');
+if (inlineExpand && historyContent) {
+    inlineExpand.addEventListener('click', (e) => {
+        e.preventDefault();
+        historyContent.classList.add('expanded');
+        inlineExpand.classList.add('hidden');
+        inlineExpand.setAttribute('aria-expanded', 'true');
+    });
 }

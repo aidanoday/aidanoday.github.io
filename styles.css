@@ -528,13 +528,15 @@ section > * {
 section.bg-red { background: #f8d0d0; }
 section.bg-orange { background: #f8e0c8; }
 section.bg-yellow { background: #f8f0c0; }
-section.bg-green { background: #c8f0d0; perspective: 900px; }
+section.bg-green { background: #c8f0d0; perspective: 900px; overflow: hidden; }
 
 /* Letter on surface */
 .letter {
     background: #fffef8;
     padding: 40px 48px;
     max-width: 680px;
+    width: 100%;
+    box-sizing: border-box;
     margin: 0 auto;
     border-radius: 2px;
     box-shadow:
@@ -612,9 +614,63 @@ section.bg-green { background: #c8f0d0; perspective: 900px; }
     margin-bottom: 0;
 }
 
-@media only screen and (max-width: 600px) {
+/* Collapsible history — visible by default on desktop */
+.letter-history-content {
+    display: block;
+}
+
+
+/* Inline expand link — hidden on desktop */
+.letter-inline-expand {
+    display: none;
+}
+
+@media only screen and (max-width: 720px) {
+    /* Remove tilt animation on mobile */
     .letter {
-        padding: 28px 24px;
+        padding: 24px 20px;
+        transform: none;
+        opacity: 1;
+        box-sizing: border-box;
+        max-width: 100%;
+        width: 100%;
+    }
+    .letter.settled {
+        transform: none;
+    }
+    .letter:hover {
+        transform: none;
+        box-shadow:
+            0 2px 4px rgba(0,0,0,0.1),
+            0 12px 32px rgba(0,0,0,0.15),
+            inset 0 0 60px rgba(255,253,240,0.3);
+    }
+
+    /* Inline "how I got here" link on mobile */
+    .letter-inline-expand {
+        display: inline;
+        font-family: 'Courier New', Courier, monospace;
+        font-size: 15px;
+        color: #2a2a2a;
+        text-decoration: underline;
+        cursor: pointer;
+        transition: opacity 0.3s ease;
+    }
+    .letter-inline-expand.hidden {
+        display: none;
+    }
+
+    /* Collapsible history content */
+    .letter-history-content {
+        display: grid;
+        grid-template-rows: 0fr;
+        transition: grid-template-rows 0.4s ease;
+    }
+    .letter-history-inner {
+        overflow: hidden;
+    }
+    .letter-history-content.expanded {
+        grid-template-rows: 1fr;
     }
 }
 section.bg-blue { background: #c8d8f8; }
