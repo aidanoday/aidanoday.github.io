@@ -879,9 +879,10 @@ p.hero_text{
 
 .mobile_prototype{
     width:100%;
-    height:calc(100vh);
+    height:calc(60vh);
     border-radius: 24px;
     overscroll-behavior: auto;
+    border: 1px solid rgba(0, 0, 0, 0.1);
 }
 
 
