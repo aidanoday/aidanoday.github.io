@@ -699,28 +699,62 @@ img.spinner{
 
 /* Footer */
 site-footer {
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    gap: 32px;
-    padding: 24px 5%;
+    display: block;
+    padding: 40px 5% 48px;
     width: 100vw;
     box-sizing: border-box;
-    background: var(--Surface);
+    background: var(--Fill);
     font-family: 'Roboto', sans-serif;
     font-size: 14px;
-    padding-bottom: 20vh;
+    border-top: 1px solid var(--outline);
+}
+
+.footer-left {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 12px;
+}
+
+.footer-logo-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.footer-logo {
+    width: 28px;
+    height: 28px;
+    border-radius: 6px;
+}
+
+.footer-name {
+    font-weight: 700;
+    font-size: 16px;
+    color: var(--onSurface);
+}
+
+.footer-links {
+    display: flex;
+    gap: 24px;
 }
 
 site-footer a {
     color: var(--onSurface, #fff);
     text-decoration: none;
-    font-weight: 600;
+    font-weight: 500;
+    font-size: 14px;
     transition: opacity 0.2s;
 }
 
 site-footer a:hover {
     opacity: 0.6;
+}
+
+.footer-copyright {
+    margin: 4px 0 0;
+    font-size: 12px;
+    color: var(--outline);
 }
 
 /* Contact Modal Overlay */

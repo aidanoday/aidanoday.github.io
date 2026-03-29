@@ -66,14 +66,14 @@ const PROJECT_DATA = {
     image: "assets/Synq_Cover.png",
     link: "synq.html",
     subtitle: "Logo and Motion Design for Synq",
-    desc: "Autumn 2022 - A monolithic “S” revealed as just a part of the larger whole: a composite isometric cube.  A "
+    desc: "Autumn 2022 - A stylized “S” revealed as just a part of the larger whole: a composite isometric cube. I created this logo and animation for Synq, an app to facilitate spontaneous meetups between friends."
   },
   "jordache": {
     title: "👖 JORDACHE Home Page",
     image: "assets/Jordache_Cover.png",
     link: "jordache.html",
     subtitle: "Responsive Landing Page for JORDACHE",
-    desc: "Winter 2023 - Revamping JORDACHE's online storefront to communicate 'Sexy, Bold, and Timeless.'"
+    desc: "Winter 2023 - Revamping JORDACHE's online storefront to communicate 'Sexy, Bold, and Timeless,' for responsive web environment."
   },
   "stay-home": {
     title: "🏠 Stay Home App",
@@ -1237,9 +1237,18 @@ class SiteFooter extends HTMLElement {
         const linkedinUrl = this.getAttribute('linkedin') || 'https://www.linkedin.com/in/aidanoday/';
 
         this.innerHTML = `
-            <a href="index.html">Home</a>
-            <a href="#" class="footer-contact-link">Contact</a>
-            <a href="${linkedinUrl}" target="_blank" rel="noopener noreferrer">LinkedIn</a>
+            <div class="footer-left">
+                <div class="footer-logo-row">
+                    <img src="assets/apod.svg" alt="Aidan O'Day logo" class="footer-logo" />
+                    <span class="footer-name">Aidan O'Day</span>
+                </div>
+                <nav class="footer-links">
+                    <a href="index.html">Home</a>
+                    <a href="#" class="footer-contact-link">Contact</a>
+                    <a href="${linkedinUrl}" target="_blank" rel="noopener noreferrer">LinkedIn</a>
+                </nav>
+                <p class="footer-copyright">&copy; Aidan O'Day 2026</p>
+            </div>
         `;
 
         // Create modal backdrop (once, on body)
