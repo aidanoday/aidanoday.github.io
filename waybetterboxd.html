@@ -252,6 +252,7 @@
             z-index: 2000; transform: translateY(100%); transition: transform 0.3s;
         }
         .shared-banner.visible { transform: translateY(0); }
+        .shared-view app-footer { bottom: 60px; }
         .shared-text { color: #1967d2; font-size: 14px; font-weight: 500; }
         .shared-actions { display: flex; gap: 10px; }
 
@@ -877,7 +878,7 @@
     function showToast(msg) { const x = document.getElementById("toast"); x.innerText = msg; x.className = "show"; setTimeout(() => x.classList.remove("show"), 3000); }
 </script>
 
-    <site-footer></site-footer>
+    <app-footer></app-footer>
     <script src="js/unified.js" data-public-key="piJ-WyioNmFk3MpfB" data-service-id="service_10py5wb" data-template-id="template_fubshbp" data-backup-url="https://script.google.com/macros/s/AKfycbyuwdTjryvnQ24c59rV9h1vMW7IfIuY5yyyDYZ2bnaeboCW9P9BUY1DE36LehIR1u1E/exec"></script>
 </body>
 </html>

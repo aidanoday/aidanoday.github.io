@@ -1394,6 +1394,63 @@ function closeContactModal() {
 
 customElements.define('site-footer', SiteFooter);
 
+// ============ App Footer Component (floating bar variant) ============
+
+class AppFooter extends HTMLElement {
+    connectedCallback() {
+        const linkedinUrl = this.getAttribute('linkedin') || 'https://www.linkedin.com/in/aidanoday/';
+
+        this.innerHTML = `
+            <a class="onSurface" href="index.html"><img src="assets/apod.svg" alt="Home" class="footer-logo" />Home</a>
+            <a class="onSurface app-footer-contact-link" href="#"><svg class="footer-contact-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m22 4-10 8L2 4"/></svg>Contact</a>
+            <a class="onSurface" href="${linkedinUrl}" target="_blank" rel="noopener noreferrer"><svg class="footer-linkedin-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="#0A66C2"><path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433a2.062 2.062 0 01-2.063-2.065 2.064 2.064 0 112.063 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/></svg>LinkedIn</a>
+            <span class="app-footer-copyright">&copy; Aidan O'Day 2026</span>
+        `;
+
+        // Home link navigates with push-in animation
+        this.querySelector('a').addEventListener('click', (e) => {
+            e.preventDefault();
+            document.body.style.transition = 'transform 0.4s ease, opacity 0.4s ease';
+            document.body.style.transform = 'translateX(100%)';
+            document.body.style.opacity = '0';
+            setTimeout(() => { window.location.href = 'index.html'; }, 400);
+        });
+
+        // Create modal backdrop (once, on body)
+        if (!document.getElementById('contactModalBackdrop')) {
+            const backdrop = document.createElement('div');
+            backdrop.className = 'contact-modal-backdrop';
+            backdrop.id = 'contactModalBackdrop';
+            backdrop.innerHTML = `
+                <div class="contact-modal-inner">
+                    <button class="contact-modal-close" aria-label="Close">&times;</button>
+                    <div id="typewriter-contact-modal"></div>
+                </div>
+                <div class="contact-modal-plinth"></div>
+            `;
+            document.body.appendChild(backdrop);
+
+            backdrop.querySelector('.contact-modal-close').addEventListener('click', () => closeContactModal());
+            backdrop.addEventListener('click', (e) => {
+                if (e.target === backdrop) closeContactModal();
+            });
+            document.addEventListener('keydown', (e) => {
+                if (e.key === 'Escape' && backdrop.classList.contains('show')) {
+                    closeContactModal();
+                }
+            });
+        }
+
+        // Contact link opens modal
+        this.querySelector('.app-footer-contact-link').addEventListener('click', (e) => {
+            e.preventDefault();
+            openContactModal();
+        });
+    }
+}
+
+customElements.define('app-footer', AppFooter);
+
 // Letter scroll-settle animation
 const letter = document.getElementById('letter');
 if (letter) {

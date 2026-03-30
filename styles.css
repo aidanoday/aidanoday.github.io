@@ -770,6 +770,50 @@ site-footer a {
     color: color-mix(in srgb, var(--onSurfaceAlt) 60%, transparent);
 }
 
+/* App Footer (floating bar variant) */
+app-footer {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    transition: bottom 0.3s ease;
+    padding-left: 12px;
+    padding-right: 24px;
+    padding-top: 8px;
+    padding-bottom: 8px;
+    width: -webkit-calc(100% - 52px);
+    width: calc(100% - 52px);
+    margin: 8px;
+
+    display: flex;
+    flex-flow: row wrap;
+    gap: 10px 24px;
+    align-items: center;
+
+    font-family: "Helvetica", sans-serif;
+    font-style: normal;
+    font-weight: 300;
+    font-size: 18px;
+    line-height: 21px;
+
+    color: var(--onSurface);
+    background-color: var(--Surface);
+    border: solid 1px var(--outline);
+    border-radius: 8px;
+    z-index: 10;
+}
+
+app-footer a {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.app-footer-copyright {
+    margin-left: auto;
+    font-size: 12px;
+    color: var(--outline);
+}
+
 /* Contact Modal Overlay */
 .contact-modal-backdrop {
     position: fixed;
