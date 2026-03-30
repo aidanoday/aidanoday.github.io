@@ -1218,6 +1218,83 @@ createConstructionDialog();
     });
   }
 
+  // Expose a global initializer so the footer modal can create a standalone widget
+  window._initTypewriterIn = function(containerId) {
+    const container = document.getElementById(containerId);
+    if (!container || container.hasChildNodes()) return;
+    const now = new Date();
+    const months = ['January','February','March','April','May','June',
+                    'July','August','September','October','November','December'];
+    const dateStr = `${months[now.getMonth()]} ${now.getDate()}, ${now.getFullYear()}`;
+    injectStyles();
+    container.innerHTML = getWidgetHTML(dateStr);
+
+    const messageInput = container.querySelector('#twMessage');
+    const emailInput   = container.querySelector('#twEmail');
+    const sendBtn      = container.querySelector('#twSend');
+    const statusEl     = container.querySelector('#twStatus');
+    const modal        = container.querySelector('#twModal');
+    const modalClose   = container.querySelector('#twModalClose');
+    const twBody       = container.querySelector('.tw-body');
+
+    function autoExpand() {
+      const bodyRect = twBody.getBoundingClientRect();
+      const bodyViewportTop = bodyRect.top;
+      messageInput.style.height = 'auto';
+      messageInput.style.height = messageInput.scrollHeight + 'px';
+      requestAnimationFrame(() => {
+        const modalPaperWrap = container.closest('.contact-modal-inner')?.querySelector('.tw-paper-wrap');
+        if (modalPaperWrap) {
+          modalPaperWrap.scrollTop = modalPaperWrap.scrollHeight;
+        }
+      });
+    }
+    messageInput.addEventListener('input', autoExpand);
+    autoExpand();
+
+    function showModal() { modal.classList.add('show'); }
+    function hideModal() { modal.classList.remove('show'); }
+    modalClose.addEventListener('click', hideModal);
+    modal.addEventListener('click', (e) => { if (e.target === modal) hideModal(); });
+
+    async function backupMessage(data) {
+      if (!BACKUP_URL) return;
+      try {
+        await fetch(BACKUP_URL, { method: 'POST', mode: 'no-cors', headers: { 'Content-Type': 'text/plain' }, body: JSON.stringify(data) });
+      } catch (backupErr) { console.warn('Backup save also failed:', backupErr); }
+    }
+
+    async function handleSend() {
+      const email   = emailInput.value.trim();
+      const message = messageInput.value.trim();
+      if (!email || !message) { statusEl.textContent = 'Please fill in both fields.'; statusEl.className = 'tw-status error'; return; }
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { statusEl.textContent = 'Please enter a valid email.'; statusEl.className = 'tw-status error'; return; }
+      const payload = { from_email: email, message: message, date: dateStr, timestamp: new Date().toISOString() };
+      sendBtn.disabled = true; sendBtn.classList.add('pressed');
+      statusEl.textContent = 'Sending...'; statusEl.className = 'tw-status sending';
+      try {
+        if (window.emailjs) { await window.emailjs.send(EMAILJS_SERVICE_ID, EMAILJS_TEMPLATE_ID, payload); }
+        backupMessage(payload);
+        statusEl.textContent = ''; showModal();
+        emailInput.value = ''; messageInput.value = ''; autoExpand();
+        sendBtn.disabled = false; sendBtn.classList.remove('pressed');
+      } catch (err) {
+        console.error('EmailJS error:', err);
+        const backupSaved = await backupMessage(payload).then(() => !!BACKUP_URL).catch(() => false);
+        if (backupSaved) { statusEl.textContent = ''; showModal(); emailInput.value = ''; messageInput.value = ''; autoExpand(); }
+        else { statusEl.textContent = 'Failed to send. Try again.'; statusEl.className = 'tw-status error'; }
+        sendBtn.disabled = false; sendBtn.classList.remove('pressed');
+      }
+    }
+    sendBtn.addEventListener('click', handleSend);
+    container.addEventListener('keydown', (e) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+        if (document.activeElement === emailInput || document.activeElement === messageInput) handleSend();
+      }
+      if (e.key === 'Escape' && modal.classList.contains('show')) hideModal();
+    });
+  };
+
   // Load EmailJS then init
   loadEmailJS().then(() => {
     window.emailjs.init({ publicKey: EMAILJS_PUBLIC_KEY });
@@ -1299,13 +1376,10 @@ class SiteFooter extends HTMLElement {
 
 function openContactModal() {
     const backdrop = document.getElementById('contactModalBackdrop');
-    const modalTarget = document.getElementById('typewriter-contact-modal');
-    const widget = document.querySelector('.tw-widget');
 
-    if (widget && modalTarget && !modalTarget.hasChildNodes()) {
-        // Store original parent so we can move it back
-        widget._originalParent = widget.parentElement;
-        modalTarget.appendChild(widget);
+    // Initialize a standalone typewriter widget inside the modal if needed
+    if (window._initTypewriterIn) {
+        window._initTypewriterIn('typewriter-contact-modal');
     }
 
     backdrop.classList.add('show');
@@ -1314,14 +1388,6 @@ function openContactModal() {
 
 function closeContactModal() {
     const backdrop = document.getElementById('contactModalBackdrop');
-    const widget = document.querySelector('.tw-widget');
-
-    // Move widget back to its original location
-    if (widget && widget._originalParent) {
-        widget._originalParent.appendChild(widget);
-        delete widget._originalParent;
-    }
-
     backdrop.classList.remove('show');
     document.body.style.overflow = '';
 }
