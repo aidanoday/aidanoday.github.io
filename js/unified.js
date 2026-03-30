@@ -1236,20 +1236,32 @@ class SiteFooter extends HTMLElement {
     connectedCallback() {
         const linkedinUrl = this.getAttribute('linkedin') || 'https://www.linkedin.com/in/aidanoday/';
 
+        const isHome = window.location.pathname.endsWith('index.html') || window.location.pathname.endsWith('/');
+
         this.innerHTML = `
             <div class="footer-left">
-                <div class="footer-logo-row">
-                    <img src="assets/apod.svg" alt="Aidan O'Day logo" class="footer-logo" />
-                    <span class="footer-name">Aidan O'Day</span>
+                <div class="footer-links">
+                    <a class="alt footer-home-link" href="${isHome ? '#' : 'index.html'}"><img src="assets/apod.svg" alt="Home" class="footer-logo" />Home</a>
+                    <a class="alt footer-contact-link" href="#"><svg class="footer-contact-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m22 4-10 8L2 4"/></svg>Contact</a>
+                    <a class="alt" href="${linkedinUrl}" target="_blank" rel="noopener noreferrer"><svg class="footer-linkedin-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="#0A66C2"><path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433a2.062 2.062 0 01-2.063-2.065 2.064 2.064 0 112.063 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/></svg>LinkedIn</a>
                 </div>
-                <nav class="footer-links">
-                    <a href="index.html">Home</a>
-                    <a href="#" class="footer-contact-link">Contact</a>
-                    <a href="${linkedinUrl}" target="_blank" rel="noopener noreferrer">LinkedIn</a>
-                </nav>
                 <p class="footer-copyright">&copy; Aidan O'Day 2026</p>
             </div>
         `;
+
+        // Home link: scroll to top on home page, push-in navigate on others
+        this.querySelector('.footer-home-link').addEventListener('click', (e) => {
+            if (isHome) {
+                e.preventDefault();
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+            } else {
+                e.preventDefault();
+                document.body.style.transition = 'transform 0.4s ease, opacity 0.4s ease';
+                document.body.style.transform = 'translateX(100%)';
+                document.body.style.opacity = '0';
+                setTimeout(() => { window.location.href = 'index.html'; }, 400);
+            }
+        });
 
         // Create modal backdrop (once, on body)
         if (!document.getElementById('contactModalBackdrop')) {

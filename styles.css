@@ -21,7 +21,7 @@
             rgb(255, 153, 0),
             rgba(255, 60, 0, 1)
         );
-        --UnderlineSolid: 
+        --UnderlineSolid:
         linear-gradient(
             to right,
             rgb(0, 0, 0),
@@ -32,7 +32,8 @@
             rgb(0, 0, 0),
             rgb(0, 0, 0)
         );
-
+    --SurfaceAlt: #333;
+    --onSurfaceAlt: rgba(255, 255, 255, 0.85);
 }
 
 @import url('https://fonts.googleapis.com/css2?family=Inter&display=swap');
@@ -388,7 +389,7 @@ a.onSurface {
 a.onSurface:hover {
     background-size: 0 3px, 100% 3px;
     color: var(--onSurface);
-    font-weight: bolder;
+    font-weight: normal;
     font-size: 18px;
   }
 
@@ -418,8 +419,32 @@ a.subtle:hover {
     transform: scale(1.2);
 }
 
-a.alt{
-    color:var(--TextAlt)
+a.alt {
+    font-family: 'Helvetica';
+    font-style: normal;
+    font-weight: lighter;
+    font-size: 16px;
+    line-height: 30px;
+    color: var(--onSurfaceAlt);
+    text-decoration: none;
+    background:
+        linear-gradient(to right, var(--onSurfaceAlt), var(--onSurfaceAlt)),
+        linear-gradient(to right, #fff, #fff);
+    background-size: 100% 1px, 0 1px;
+    background-position: 100% 100%, 0 100%;
+    background-repeat: no-repeat;
+    transition: all 400ms;
+}
+
+a.alt:hover {
+    background-size: 0 3px, 100% 3px;
+    color: #fff;
+    font-weight: normal;
+    font-size: 18px;
+}
+
+a.alt:active {
+    opacity: 50%;
 }
 
 nav{
@@ -703,10 +728,9 @@ site-footer {
     padding: 40px 5% 48px;
     width: 100vw;
     box-sizing: border-box;
-    background: var(--Fill);
+    background-color: var(--SurfaceAlt);
     font-family: 'Roboto', sans-serif;
     font-size: 14px;
-    border-top: 1px solid var(--outline);
 }
 
 .footer-left {
@@ -716,45 +740,34 @@ site-footer {
     gap: 12px;
 }
 
-.footer-logo-row {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-}
-
 .footer-logo {
-    width: 28px;
-    height: 28px;
-    border-radius: 6px;
-}
-
-.footer-name {
-    font-weight: 700;
-    font-size: 16px;
-    color: var(--onSurface);
+    width: 18px;
+    height: 18px;
+    border-radius: 4px;
 }
 
 .footer-links {
     display: flex;
-    gap: 24px;
+    flex-direction: column;
+    gap: 8px;
 }
 
 site-footer a {
-    color: var(--onSurface, #fff);
-    text-decoration: none;
-    font-weight: 500;
-    font-size: 14px;
-    transition: opacity 0.2s;
+    display: flex;
+    align-items: center;
+    gap: 6px;
 }
 
-site-footer a:hover {
-    opacity: 0.6;
+.footer-linkedin-icon,
+.footer-contact-icon {
+    width: 18px;
+    height: 18px;
 }
 
 .footer-copyright {
     margin: 4px 0 0;
     font-size: 12px;
-    color: var(--outline);
+    color: color-mix(in srgb, var(--onSurfaceAlt) 60%, transparent);
 }
 
 /* Contact Modal Overlay */
