@@ -1,48 +1,24 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import ThreeBackground from "./ThreeBackground";
 
-// ── Storage helpers (simulates MongoDB persistence) ──────────────────────
-const DB = {
-  async getUsers() {
-    try {
-      const r = localStorage.getItem("waitlist:users");
-      return r ? JSON.parse(r) : [];
-    } catch { return []; }
-  },
-  async saveUsers(users) {
-    localStorage.setItem("waitlist:users", JSON.stringify(users));
-  },
-  async addUser(user) {
-    const users = await this.getUsers();
-    users.push({ ...user, position: users.length + 1, signupTime: new Date().toISOString() });
-    await this.saveUsers(users);
-    return users;
-  },
-  async authenticate(email, password) {
-    const users = await this.getUsers();
-    return users.find(u => u.email === email && u.password === password) || null;
-  }
-};
+// ── API helpers ──────────────────────────────────────────────────────────
+const API_URL = import.meta.env.VITE_API_URL || "https://waitlist-api.aidan-oday.workers.dev";
 
-const SEED_NAMES = [
-  "ghostpixel", "neondrift", "quietstorm", "velvetbyte", "cosmicdust",
-  "ironpetal", "glitchfawn", "mosscircuit", "lunarthread", "deepcoral",
-  "ashenvault", "prismwalker", "frostloom", "coppervine", "duskecho",
-  "solarflint", "mistweaver", "emberknot", "tidelock", "sparkgrain",
-  "hollowpine", "riftsong", "cloudanvil", "petalwire", "nightbloom"
-];
+let _token = localStorage.getItem("waitlist:token");
 
-async function ensureSeeded() {
-  const users = await DB.getUsers();
-  if (users.length >= 10) return;
-  const seeded = SEED_NAMES.map((name, i) => ({
-    displayName: name,
-    email: `${name}@demo.io`,
-    password: "demo",
-    position: i + 1,
-    signupTime: new Date(Date.now() - (SEED_NAMES.length - i) * 3600000).toISOString()
-  }));
-  await DB.saveUsers(seeded);
+function setToken(t) {
+  _token = t;
+  if (t) localStorage.setItem("waitlist:token", t);
+  else localStorage.removeItem("waitlist:token");
+}
+
+async function api(path, opts = {}) {
+  const headers = { "Content-Type": "application/json" };
+  if (_token) headers["Authorization"] = `Bearer ${_token}`;
+  const res = await fetch(`${API_URL}${path}`, { ...opts, headers });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || "Request failed");
+  return data;
 }
 
 // ── Palette ──────────────────────────────────────────────────────────────
@@ -118,18 +94,18 @@ function AuthScreen({ onAuth, bgRef }) {
       if (mode === "signup") {
         if (!displayName.trim() || !email.trim() || !password.trim()) { setError("All fields are required."); setLoading(false); return; }
         if (password.length < 4) { setError("Password must be at least 4 characters."); setLoading(false); return; }
-        const users = await DB.getUsers();
-        if (users.find(u => u.email === email)) { setError("This email is already registered."); setLoading(false); return; }
-        if (users.find(u => u.displayName.toLowerCase() === displayName.trim().toLowerCase())) { setError("This display name is taken."); setLoading(false); return; }
-        const updated = await DB.addUser({ displayName: displayName.trim(), email, password });
-        onAuth(updated[updated.length - 1], updated);
+        const { user, token } = await api("/signup", { method: "POST", body: JSON.stringify({ displayName: displayName.trim(), email: email.trim(), password }) });
+        setToken(token);
+        const queue = await api("/queue");
+        onAuth(user, queue);
       } else {
         if (!email.trim() || !password.trim()) { setError("Email and password are required."); setLoading(false); return; }
-        const user = await DB.authenticate(email, password);
-        if (!user) { setError("Invalid email or password."); setLoading(false); return; }
-        onAuth(user, await DB.getUsers());
+        const { user, token } = await api("/login", { method: "POST", body: JSON.stringify({ email: email.trim(), password }) });
+        setToken(token);
+        const queue = await api("/queue");
+        onAuth(user, queue);
       }
-    } catch { setError("Something went wrong."); }
+    } catch (err) { setError(err.message || "Something went wrong."); }
     setLoading(false);
   };
 
@@ -236,7 +212,7 @@ function Dashboard({ user, users, onLogout }) {
   const [tiptoeAnim, setTiptoeAnim] = useState(false);
   const listRef = useRef(null);
 
-  const myIndex = users.findIndex(u => u.email === user.email);
+  const myIndex = users.findIndex(u => u.displayName === user.displayName);
   const myPosition = myIndex + 1;
   const peopleBehind = users.length - myPosition;
 
@@ -342,7 +318,7 @@ function Dashboard({ user, users, onLogout }) {
           <div ref={listRef} style={{ maxHeight: 440, overflowY: "auto", scrollbarWidth: "thin", scrollbarColor: `${T.border} transparent` }}>
             {users.map((u, idx) => (
               <QueuePerson key={u.email} name={u.displayName} position={idx + 1}
-                blur={getBlur(idx)} isSelf={u.email === user.email} delay={Math.min(idx * 25, 500)} />
+                blur={getBlur(idx)} isSelf={u.displayName === user.displayName} delay={Math.min(idx * 25, 500)} />
             ))}
           </div>
         </div>
@@ -363,7 +339,16 @@ export default function App() {
   const [allUsers, setAllUsers] = useState([]);
   const bgRef = useRef(null);
 
-  useEffect(() => { ensureSeeded().then(() => setReady(true)); }, []);
+  useEffect(() => {
+    if (_token) {
+      Promise.all([api("/me"), api("/queue")])
+        .then(([user, queue]) => { setCurrentUser(user); setAllUsers(queue); })
+        .catch(() => { setToken(null); })
+        .finally(() => setReady(true));
+    } else {
+      setReady(true);
+    }
+  }, []);
 
   if (!ready) return (
     <div style={{ minHeight: "100vh", background: T.bg, display: "flex", alignItems: "center", justifyContent: "center" }}>
@@ -385,7 +370,7 @@ export default function App() {
         ::-webkit-scrollbar-thumb { background: #DDDBD7; border-radius: 3px; }
       `}</style>
       {currentUser
-        ? <Dashboard user={currentUser} users={allUsers} onLogout={() => { setCurrentUser(null); setAllUsers([]); }} />
+        ? <Dashboard user={currentUser} users={allUsers} onLogout={() => { setToken(null); setCurrentUser(null); setAllUsers([]); }} />
         : <>
             <ThreeBackground ref={bgRef} />
             <AuthScreen bgRef={bgRef} onAuth={(u, all) => { setCurrentUser(u); setAllUsers(all); }} />
