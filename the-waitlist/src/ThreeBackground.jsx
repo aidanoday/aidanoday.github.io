@@ -117,7 +117,7 @@ camera.lookAt(0, 1.5, 0);
 
     // Place pawns in a receding line
     const pawnCount = 40;
-    const startZ = 0;
+    const startZ = 32;
     const endZ = -32;
     const pawnGroups = [];
 
