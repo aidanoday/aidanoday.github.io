@@ -83,7 +83,6 @@ function QueuePerson({ name, position, blur, isSelf, delay }) {
 function AuthScreen({ onAuth, bgRef }) {
   const [mode, setMode] = useState("login");
   const [displayName, setDisplayName] = useState("");
-  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
@@ -91,16 +90,15 @@ function AuthScreen({ onAuth, bgRef }) {
   const handleSubmit = async () => {
     setError(""); setLoading(true);
     try {
+      if (!displayName.trim() || !password.trim()) { setError("All fields are required."); setLoading(false); return; }
       if (mode === "signup") {
-        if (!displayName.trim() || !email.trim() || !password.trim()) { setError("All fields are required."); setLoading(false); return; }
         if (password.length < 4) { setError("Password must be at least 4 characters."); setLoading(false); return; }
-        const { user, token } = await api("/signup", { method: "POST", body: JSON.stringify({ displayName: displayName.trim(), email: email.trim(), password }) });
+        const { user, token } = await api("/signup", { method: "POST", body: JSON.stringify({ displayName: displayName.trim(), password }) });
         setToken(token);
         const queue = await api("/queue");
         onAuth(user, queue);
       } else {
-        if (!email.trim() || !password.trim()) { setError("Email and password are required."); setLoading(false); return; }
-        const { user, token } = await api("/login", { method: "POST", body: JSON.stringify({ email: email.trim(), password }) });
+        const { user, token } = await api("/login", { method: "POST", body: JSON.stringify({ displayName: displayName.trim(), password }) });
         setToken(token);
         const queue = await api("/queue");
         onAuth(user, queue);
@@ -156,17 +154,9 @@ function AuthScreen({ onAuth, bgRef }) {
 
         {/* Fields */}
         <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-          {mode === "signup" && (
-            <div>
-              <label style={{ fontFamily: T.sans, fontSize: 12, color: T.textSecondary, fontWeight: 500, marginBottom: 5, display: "block", letterSpacing: 0.3 }}>Display name</label>
-              <input value={displayName} onChange={e => setDisplayName(e.target.value)} style={inputStyle}
-                onFocus={e => { e.target.style.borderColor = T.accent; e.target.style.boxShadow = `0 0 0 3px ${T.accentSoft}`; }}
-                onBlur={e => { e.target.style.borderColor = T.border; e.target.style.boxShadow = "none"; }} />
-            </div>
-          )}
           <div>
-            <label style={{ fontFamily: T.sans, fontSize: 12, color: T.textSecondary, fontWeight: 500, marginBottom: 5, display: "block", letterSpacing: 0.3 }}>Email</label>
-            <input type="email" value={email} onChange={e => setEmail(e.target.value)} style={inputStyle}
+            <label style={{ fontFamily: T.sans, fontSize: 12, color: T.textSecondary, fontWeight: 500, marginBottom: 5, display: "block", letterSpacing: 0.3 }}>Display name</label>
+            <input value={displayName} onChange={e => setDisplayName(e.target.value)} style={inputStyle}
               onFocus={e => { e.target.style.borderColor = T.accent; e.target.style.boxShadow = `0 0 0 3px ${T.accentSoft}`; }}
               onBlur={e => { e.target.style.borderColor = T.border; e.target.style.boxShadow = "none"; }} />
           </div>

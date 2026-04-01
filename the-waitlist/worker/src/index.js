@@ -70,24 +70,20 @@ async function getAuthUser(request, env) {
   if (!auth || !auth.startsWith("Bearer ")) return null;
   const payload = await verifyToken(auth.slice(7), env);
   if (!payload) return null;
-  return await env.DB.prepare("SELECT id, display_name, email, position, signup_time FROM users WHERE id = ?").bind(payload.sub).first();
+  return await env.DB.prepare("SELECT id, display_name, position, signup_time FROM users WHERE id = ?").bind(payload.sub).first();
 }
 
 // ── Routes ───────────────────────────────────────────────────────────────
 
 async function handleSignup(request, env) {
-  const { displayName, email, password } = await request.json();
+  const { displayName, password } = await request.json();
 
-  if (!displayName?.trim() || !email?.trim() || !password) {
+  if (!displayName?.trim() || !password) {
     return json({ error: "All fields are required." }, 400);
   }
   if (password.length < 4) {
     return json({ error: "Password must be at least 4 characters." }, 400);
   }
-
-  // Check duplicates
-  const existingEmail = await env.DB.prepare("SELECT id FROM users WHERE email = ?").bind(email.trim()).first();
-  if (existingEmail) return json({ error: "This email is already registered." }, 409);
 
   const existingName = await env.DB.prepare("SELECT id FROM users WHERE lower(display_name) = lower(?)").bind(displayName.trim()).first();
   if (existingName) return json({ error: "This display name is taken." }, 409);
@@ -100,27 +96,27 @@ async function handleSignup(request, env) {
   const signupTime = new Date().toISOString();
 
   await env.DB.prepare(
-    "INSERT INTO users (display_name, email, password_hash, position, signup_time) VALUES (?, ?, ?, ?, ?)"
-  ).bind(displayName.trim(), email.trim(), passwordHash, position, signupTime).run();
+    "INSERT INTO users (display_name, password_hash, position, signup_time) VALUES (?, ?, ?, ?)"
+  ).bind(displayName.trim(), passwordHash, position, signupTime).run();
 
-  const user = await env.DB.prepare("SELECT id, display_name, email, position, signup_time FROM users WHERE email = ?").bind(email.trim()).first();
+  const user = await env.DB.prepare("SELECT id, display_name, position, signup_time FROM users WHERE lower(display_name) = lower(?)").bind(displayName.trim()).first();
   const token = await createToken(user.id, env);
 
   return json({ user: formatUser(user), token });
 }
 
 async function handleLogin(request, env) {
-  const { email, password } = await request.json();
+  const { displayName, password } = await request.json();
 
-  if (!email?.trim() || !password) {
-    return json({ error: "Email and password are required." }, 400);
+  if (!displayName?.trim() || !password) {
+    return json({ error: "Display name and password are required." }, 400);
   }
 
-  const user = await env.DB.prepare("SELECT * FROM users WHERE email = ?").bind(email.trim()).first();
-  if (!user) return json({ error: "Invalid email or password." }, 401);
+  const user = await env.DB.prepare("SELECT * FROM users WHERE lower(display_name) = lower(?)").bind(displayName.trim()).first();
+  if (!user) return json({ error: "Invalid display name or password." }, 401);
 
   const valid = await verifyPassword(password, user.password_hash);
-  if (!valid) return json({ error: "Invalid email or password." }, 401);
+  if (!valid) return json({ error: "Invalid display name or password." }, 401);
 
   const token = await createToken(user.id, env);
   return json({
@@ -143,7 +139,6 @@ async function handleMe(request, env) {
 function formatUser(row) {
   return {
     displayName: row.display_name,
-    email: row.email,
     position: row.position,
     signupTime: row.signup_time,
   };
