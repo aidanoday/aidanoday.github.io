@@ -51,10 +51,6 @@ body {
     padding:0;
 }
 
-a{
-    text-decoration: none;
-}
-
 h1 {
     font-family: 'Roboto', sans-serif;
     font-weight: 500;
@@ -324,9 +320,9 @@ img.card_cover {
     box-shadow: 0px 0px 6px 6px var(--AccentShadowPressed);
 }
 
-a{
+a {
     color: var(--Text);
-    text-decoration: none;
+    text-decoration: underline;
 
 }
 
