@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from "react";
+import ThreeBackground from "./ThreeBackground";
 
 // ── Storage helpers (simulates MongoDB persistence) ──────────────────────
 const DB = {
@@ -103,7 +104,7 @@ function QueuePerson({ name, position, blur, isSelf, delay }) {
   );
 }
 
-function AuthScreen({ onAuth }) {
+function AuthScreen({ onAuth, bgRef }) {
   const [mode, setMode] = useState("login");
   const [displayName, setDisplayName] = useState("");
   const [email, setEmail] = useState("");
@@ -141,8 +142,21 @@ function AuthScreen({ onAuth }) {
   };
 
   return (
-    <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: T.bg, padding: 24 }}>
-      <div style={{ width: "100%", maxWidth: 380, animation: "fadeIn 0.5s ease both" }}>
+    <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", padding: 24, position: "relative", zIndex: 1, pointerEvents: "none" }}>
+      <div
+        onMouseOver={() => { if (bgRef?.current?.controls) bgRef.current.controls.enabled = false; }}
+        onMouseLeave={() => { if (bgRef?.current?.controls) bgRef.current.controls.enabled = true; }}
+        style={{
+        width: "100%", maxWidth: 380, animation: "fadeIn 0.5s ease both",
+        pointerEvents: "auto",
+        background: "rgba(255, 255, 255, 0.82)",
+        backdropFilter: "blur(20px)",
+        WebkitBackdropFilter: "blur(20px)",
+        borderRadius: 16,
+        border: "1px solid rgba(255, 255, 255, 0.5)",
+        boxShadow: "0 8px 32px rgba(0, 0, 0, 0.08), 0 2px 8px rgba(0, 0, 0, 0.04)",
+        padding: "40px 32px",
+      }}>
         {/* Masthead */}
         <div style={{ textAlign: "center", marginBottom: 48 }}>
           <div style={{ fontFamily: T.serif, fontSize: 13, fontStyle: "italic", color: T.textTertiary, letterSpacing: 0.5, marginBottom: 10 }}>est. 2026</div>
@@ -347,6 +361,7 @@ export default function App() {
   const [ready, setReady] = useState(false);
   const [currentUser, setCurrentUser] = useState(null);
   const [allUsers, setAllUsers] = useState([]);
+  const bgRef = useRef(null);
 
   useEffect(() => { ensureSeeded().then(() => setReady(true)); }, []);
 
@@ -371,7 +386,10 @@ export default function App() {
       `}</style>
       {currentUser
         ? <Dashboard user={currentUser} users={allUsers} onLogout={() => { setCurrentUser(null); setAllUsers([]); }} />
-        : <AuthScreen onAuth={(u, all) => { setCurrentUser(u); setAllUsers(all); }} />
+        : <>
+            <ThreeBackground ref={bgRef} />
+            <AuthScreen bgRef={bgRef} onAuth={(u, all) => { setCurrentUser(u); setAllUsers(all); }} />
+          </>
       }
     </>
   );
