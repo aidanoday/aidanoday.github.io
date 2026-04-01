@@ -21,6 +21,131 @@ async function api(path, opts = {}) {
   return data;
 }
 
+// ── Polite phrases ──────────────────────────────────────────────────────
+const POLITE_PHRASES = [
+  "Pardon me, might I scoot ahead?",
+  "So sorry, just need to slip by!",
+  "Excuse me, would you mind terribly?",
+  "After you — oh wait, before you. Sorry!",
+  "Terribly sorry, may I squeeze past?",
+  "I hate to be a bother, but...",
+  "Would it be alright if I just...",
+  "My sincerest apologies for the intrusion!",
+  "I promise I'll be quick about it!",
+  "A thousand pardons, dear friend.",
+  "Forgive the impertinence, but may I?",
+  "If it's not too much trouble...",
+  "I do beg your pardon!",
+  "So sorry to impose!",
+  "With your kind permission...",
+  "Please don't think me rude!",
+  "I wouldn't ask if it weren't urgent!",
+  "Just this once, I promise!",
+  "My grandmother is saving me a spot!",
+  "I left something up there, honest!",
+  "Oh! I think I see my friend up ahead...",
+  "Passing through, pardon the disruption!",
+  "Excuse me, coming through!",
+  "Sorry! Urgent business ahead!",
+  "Mind if I just shimmy past?",
+  "Beep beep! Just kidding. May I?",
+  "I'll make it up to you, I swear!",
+  "You're too kind — thank you!",
+  "I owe you one!",
+  "Would you be so gracious?",
+  "Pretty please with sugar on top?",
+  "If you'd be so kind...",
+  "I'll remember this generosity forever!",
+  "Bless your heart, may I pass?",
+  "What a lovely day to let someone by!",
+  "You look like someone who'd let me through!",
+  "I have a coupon that expires soon!",
+  "Quick question — can I also cut in line?",
+  "My horoscope said to move forward today.",
+  "Mercury is in retrograde, I must advance!",
+  "The universe is calling me forward!",
+  "Destiny awaits one spot ahead!",
+  "I was told there'd be no waiting!",
+  "Running late, so sorry!",
+  "My watch must be fast — or I'm slow!",
+  "I promise to pay it forward!",
+  "You'll barely notice I was here!",
+  "Scooting by like a gentle breeze!",
+  "Just a tiny little cut, barely counts!",
+  "This is a micro-cut, practically invisible!",
+  "Moving at the speed of politeness!",
+  "Shuffling forward with great respect!",
+  "Advancing with the utmost courtesy!",
+  "One small step for me, sorry about that!",
+  "Permission to come aboard... one spot up?",
+  "Houston, requesting clearance to advance!",
+  "Captain's log: attempting to cut in line.",
+  "Engaging warp drive — one spot forward!",
+  "Teleporting would be rude, so I'm asking!",
+  "If only I could teleport, but alas!",
+  "Science hasn't solved lines yet, so excuse me!",
+  "They really should invent a skip button — oh wait!",
+  "I've been standing here in spirit all along!",
+  "Technically I was here first, spiritually.",
+  "My astral projection was in this spot earlier!",
+  "I reserved this spot telepathically!",
+  "Pardon my eagerness!",
+  "Couldn't help myself — sorry!",
+  "The line looked shorter from back there!",
+  "I thought this was the express line!",
+  "Is this the fast lane? No? Sorry!",
+  "I'm in a bit of a pickle, you see...",
+  "Don't mind me, just passing through!",
+  "Like a polite little salmon, swimming upstream!",
+  "Upstream I go! Excuse me!",
+  "Navigating forward with care and respect!",
+  "Charting a course one spot north!",
+  "Headed north by northwest — one spot!",
+  "Just a gentle nudge forward, pardon!",
+  "Tiptoeing ahead ever so slightly!",
+  "Inching forward with great humility!",
+  "Creeping ahead, but in a nice way!",
+  "A respectful leap forward, if you will!",
+  "Gracefully gliding one spot up!",
+  "Excuse the shuffle!",
+  "Apologies for the queue disruption!",
+  "Terribly sorry for the line turbulence!",
+  "Please excuse this minor rearrangement!",
+  "Forgive the positional adjustment!",
+  "A minor logistical maneuver, pardon!",
+  "Strategic repositioning, please excuse me!",
+  "Optimizing my queue position — sorry!",
+  "Recalibrating my place in line!",
+  "Executing a polite overtake!",
+  "Performing a courtesy pass!",
+  "Initiating a gentle bypass!",
+  "Requesting a one-spot variance!",
+  "Filing a motion to advance!",
+  "Submitting a formal request to scoot!",
+  "Per my earlier request to move forward...",
+  "As discussed, I'll be moving up now!",
+  "Pursuant to section 4: excuse me!",
+  "In accordance with line protocol, may I?",
+  "Under article 7 of queue etiquette...",
+  "The committee has approved my advancement!",
+  "My therapist said I should be more forward!",
+  "I'm working on my assertiveness — excuse me!",
+  "Being brave today — pardon the cut!",
+  "Growth mindset: moving forward!",
+  "Manifesting a better position!",
+  "Visualizing myself one spot ahead!",
+  "The self-help book said to go for it!",
+  "Carpe diem! Also, excuse me!",
+  "YOLO — but politely!",
+  "Living my best life, one spot forward!",
+  "Making moves, with your permission!",
+  "Leveling up! Sorry about that!",
+  "Achievement unlocked: asking politely!",
+  "Pressing the skip button IRL — sorry!",
+  "Loading... one position forward!",
+  "Buffering complete — moving ahead!",
+];
+
 // ── Palette ──────────────────────────────────────────────────────────────
 const T = {
   bg: "#F7F6F4",
@@ -80,10 +205,61 @@ function QueuePerson({ name, position, blur, isSelf, delay }) {
   );
 }
 
+function SpeechBubble({ text, listRef, myIndex }) {
+  const [pos, setPos] = useState(null);
+
+  useEffect(() => {
+    if (!listRef.current || myIndex < 0) return;
+    const row = listRef.current.children[myIndex];
+    if (!row) return;
+    const listRect = listRef.current.getBoundingClientRect();
+    const rowRect = row.getBoundingClientRect();
+    setPos({
+      top: rowRect.top - listRect.top - 10,
+    });
+  }, [listRef, myIndex]);
+
+  if (!pos) return null;
+
+  return (
+    <div style={{
+      position: "absolute",left: "50%", top: pos.top,
+      translate: "-50%",
+      //transform: "translateX(-100%) translateY(-100%)",
+      background: "#FDFCFB", color: T.textPrimary,
+      fontFamily: T.serif, fontSize: 26,
+      padding: "12px 22px", borderRadius: 12,
+      lineHeight: 1.3,
+      boxShadow: "0 4px 20px rgba(0,0,0,0.08), 0 1px 4px rgba(0,0,0,0.04)",
+      border: `1px solid ${T.borderLight}`,
+      animation: "bubblePop 0.35s cubic-bezier(.34,1.56,.64,1) both",
+      zIndex: 30, whiteSpace: "nowrap", pointerEvents: "none",
+    }}>
+      &ldquo;{text}&rdquo;
+      <div style={{
+        position: "absolute", bottom: -7, left: "50%", marginLeft: -7,
+        width: 0, height: 0,
+        borderLeft: "7px solid transparent",
+        borderRight: "7px solid transparent",
+        borderTop: "7px solid #FDFCFB",
+      }} />
+      <div style={{
+        position: "absolute", bottom: -9, left: "50%", marginLeft: -8,
+        width: 0, height: 0,
+        borderLeft: "8px solid transparent",
+        borderRight: "8px solid transparent",
+        borderTop: `8px solid ${T.borderLight}`,
+        zIndex: -1,
+      }} />
+    </div>
+  );
+}
+
 function AuthScreen({ onAuth, bgRef }) {
   const [mode, setMode] = useState("login");
   const [displayName, setDisplayName] = useState("");
   const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
@@ -91,8 +267,11 @@ function AuthScreen({ onAuth, bgRef }) {
     setError(""); setLoading(true);
     try {
       if (!displayName.trim() || !password.trim()) { setError("All fields are required."); setLoading(false); return; }
+      if (!/^[a-zA-Z0-9]+$/.test(password)) { setError("Password must contain only letters and numbers."); setLoading(false); return; }
+      if (!/[a-zA-Z]/.test(password)) { setError("Password must contain at least 1 letter."); setLoading(false); return; }
       if (mode === "signup") {
         if (password.length < 4) { setError("Password must be at least 4 characters."); setLoading(false); return; }
+        if (password !== confirmPassword) { setError("Passwords do not match."); setLoading(false); return; }
         const { user, token } = await api("/signup", { method: "POST", body: JSON.stringify({ displayName: displayName.trim(), password }) });
         setToken(token);
         const queue = await api("/queue");
@@ -163,10 +342,22 @@ function AuthScreen({ onAuth, bgRef }) {
           <div>
             <label style={{ fontFamily: T.sans, fontSize: 12, color: T.textSecondary, fontWeight: 500, marginBottom: 5, display: "block", letterSpacing: 0.3 }}>Password</label>
             <input type="password" value={password} onChange={e => setPassword(e.target.value)} style={inputStyle}
-              onKeyDown={e => e.key === "Enter" && handleSubmit()}
+              onKeyDown={e => e.key === "Enter" && mode === "login" && handleSubmit()}
               onFocus={e => { e.target.style.borderColor = T.accent; e.target.style.boxShadow = `0 0 0 3px ${T.accentSoft}`; }}
               onBlur={e => { e.target.style.borderColor = T.border; e.target.style.boxShadow = "none"; }} />
+            <div style={{ fontFamily: T.sans, fontSize: 11, color: T.textTertiary, marginTop: 6, lineHeight: 1.4 }}>
+              At least 4 characters. Letters and numbers only — no spaces or special characters.
+            </div>
           </div>
+          {mode === "signup" && (
+            <div>
+              <label style={{ fontFamily: T.sans, fontSize: 12, color: T.textSecondary, fontWeight: 500, marginBottom: 5, display: "block", letterSpacing: 0.3 }}>Confirm password</label>
+              <input type="password" value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} style={inputStyle}
+                onKeyDown={e => e.key === "Enter" && handleSubmit()}
+                onFocus={e => { e.target.style.borderColor = T.accent; e.target.style.boxShadow = `0 0 0 3px ${T.accentSoft}`; }}
+                onBlur={e => { e.target.style.borderColor = T.border; e.target.style.boxShadow = "none"; }} />
+            </div>
+          )}
         </div>
 
         {error && (
@@ -197,10 +388,14 @@ function AuthScreen({ onAuth, bgRef }) {
   );
 }
 
-function Dashboard({ user, users, onLogout }) {
+function Dashboard({ user, users, onLogout, onUsersUpdate, onUserUpdate }) {
   const [tiptoe, setTiptoe] = useState(false);
   const [tiptoeAnim, setTiptoeAnim] = useState(false);
+  const [cutCooldown, setCutCooldown] = useState(0);
+  const [cutting, setCutting] = useState(false);
+  const [bubble, setBubble] = useState(null);
   const listRef = useRef(null);
+  const timerRef = useRef(null);
 
   const myIndex = users.findIndex(u => u.displayName === user.displayName);
   const myPosition = myIndex + 1;
@@ -221,6 +416,53 @@ function Dashboard({ user, users, onLogout }) {
       return 10;
     }
   }, [myIndex, tiptoe]);
+
+  const startCooldown = useCallback((seconds) => {
+    setCutCooldown(seconds);
+    clearInterval(timerRef.current);
+    timerRef.current = setInterval(() => {
+      setCutCooldown(prev => {
+        if (prev <= 1) { clearInterval(timerRef.current); return 0; }
+        return prev - 1;
+      });
+    }, 1000);
+  }, []);
+
+  useEffect(() => () => clearInterval(timerRef.current), []);
+
+  const handleCut = async () => {
+    if (cutCooldown > 0 || cutting || myPosition <= 1) return;
+    setCutting(true);
+
+    // Pick a random phrase and show the speech bubble
+    const phrase = POLITE_PHRASES[Math.floor(Math.random() * POLITE_PHRASES.length)];
+    setBubble(phrase);
+
+    // Fire the API call in parallel with the bubble display
+    const apiPromise = api("/cut", { method: "POST" })
+      .then(async ({ user: updatedUser }) => {
+        const queue = await api("/queue");
+        return { updatedUser, queue };
+      });
+
+    // Wait at least 1s for the bubble to display, then animate the reorder
+    const [result] = await Promise.allSettled([
+      apiPromise,
+      new Promise(r => setTimeout(r, 1000)),
+    ]);
+
+    setBubble(null);
+
+    if (result.status === "fulfilled") {
+      onUserUpdate(result.value.updatedUser);
+      onUsersUpdate(result.value.queue);
+      startCooldown(10);
+    } else {
+      const match = result.reason?.message?.match(/Wait (\d+)s/);
+      if (match) startCooldown(parseInt(match[1]));
+    }
+    setCutting(false);
+  };
 
   const handleTiptoe = () => {
     setTiptoe(t => !t);
@@ -288,29 +530,53 @@ function Dashboard({ user, users, onLogout }) {
         {/* Line header */}
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
           <div style={{ fontFamily: T.serif, fontSize: 20, color: T.charcoal, fontWeight: 400, letterSpacing: -0.3 }}>The line</div>
-          <button onClick={handleTiptoe} style={{
-            padding: "8px 16px", borderRadius: 6,
-            border: `1px solid ${tiptoe ? T.accentBorder : T.border}`,
-            background: tiptoe ? T.accentSoft : "transparent",
-            color: tiptoe ? T.accent : T.textSecondary,
-            fontFamily: T.sans, fontSize: 13, fontWeight: 500,
-            cursor: "pointer", transition: "all 0.25s ease",
-            transform: tiptoeAnim ? "translateY(-2px)" : "translateY(0)",
-          }}
-            onMouseEnter={e => { if (!tiptoe) e.target.style.color = T.charcoal; }}
-            onMouseLeave={e => { if (!tiptoe) e.target.style.color = T.textSecondary; }}>
-            {tiptoe ? "On tiptoes ↑" : "Stand on tiptoes"}
-          </button>
+          <div style={{ display: "flex", gap: 8 }}>
+            {myPosition > 1 && (
+              <button onClick={handleCut} disabled={cutCooldown > 0 || cutting} style={{
+                padding: "8px 16px", borderRadius: 6, position: "relative", overflow: "hidden",
+                border: `1px solid ${cutCooldown > 0 ? T.borderLight : T.accentBorder}`,
+                background: cutCooldown > 0 ? T.bg : T.accentSoft,
+                color: cutCooldown > 0 ? T.textTertiary : T.accent,
+                fontFamily: T.sans, fontSize: 13, fontWeight: 500,
+                cursor: cutCooldown > 0 || cutting ? "default" : "pointer",
+                transition: "all 0.25s ease", minWidth: 80,
+              }}>
+                {cutCooldown > 0 && (
+                  <div style={{
+                    position: "absolute", left: 0, bottom: 0, height: 2,
+                    background: T.accent, opacity: 0.3,
+                    width: `${(cutCooldown / 10) * 100}%`,
+                    transition: "width 1s linear",
+                  }} />
+                )}
+                {cutting ? "..." : cutCooldown > 0 ? `${cutCooldown}s` : "Cut"}
+              </button>
+            )}
+            <button onClick={handleTiptoe} style={{
+              padding: "8px 16px", borderRadius: 6,
+              border: `1px solid ${tiptoe ? T.accentBorder : T.border}`,
+              background: tiptoe ? T.accentSoft : "transparent",
+              color: tiptoe ? T.accent : T.textSecondary,
+              fontFamily: T.sans, fontSize: 13, fontWeight: 500,
+              cursor: "pointer", transition: "all 0.25s ease",
+              transform: tiptoeAnim ? "translateY(-2px)" : "translateY(0)",
+            }}
+              onMouseEnter={e => { if (!tiptoe) e.target.style.color = T.charcoal; }}
+              onMouseLeave={e => { if (!tiptoe) e.target.style.color = T.textSecondary; }}>
+              {tiptoe ? "On tiptoes ↑" : "Stand on tiptoes"}
+            </button>
+          </div>
         </div>
 
         {/* Queue */}
-        <div style={{ borderRadius: T.r, border: `1px solid ${T.border}`, background: T.surface, overflow: "hidden", marginBottom: 40 }}>
-          <div ref={listRef} style={{ maxHeight: 440, overflowY: "auto", scrollbarWidth: "thin", scrollbarColor: `${T.border} transparent` }}>
+        <div style={{ borderRadius: T.r, border: `1px solid ${T.border}`, background: T.surface, overflow: "visible", marginBottom: 40, position: "relative" }}>
+          <div ref={listRef} style={{ maxHeight: 440, overflowY: "auto", overflowX: "hidden", scrollbarWidth: "thin", scrollbarColor: `${T.border} transparent`, borderRadius: T.r }}>
             {users.map((u, idx) => (
-              <QueuePerson key={u.email} name={u.displayName} position={idx + 1}
+              <QueuePerson key={u.displayName} name={u.displayName} position={idx + 1}
                 blur={getBlur(idx)} isSelf={u.displayName === user.displayName} delay={Math.min(idx * 25, 500)} />
             ))}
           </div>
+          {bubble && <SpeechBubble text={bubble} listRef={listRef} myIndex={myIndex} />}
         </div>
 
         <div style={{ textAlign: "center", paddingBottom: 32 }}>
@@ -353,6 +619,8 @@ export default function App() {
         * { margin: 0; padding: 0; box-sizing: border-box; }
         ::selection { background: rgba(194,98,64,0.12); }
         @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+        @keyframes bubblePop { from { opacity: 0; transform: translateY(-100%) scale(0.6); } to { opacity: 1; transform: translateY(-100%) scale(1); } }
+        @keyframes bubbleFade { from { opacity: 1; transform: translateY(-100%) scale(1); } to { opacity: 0; transform: translateY(-100%) scale(0.8) translateY(4px); } }
         @keyframes pulse { 0%,100% { opacity: 0.4; } 50% { opacity: 0.8; } }
         input::placeholder { color: #B3B1A9; }
         ::-webkit-scrollbar { width: 3px; }
@@ -360,7 +628,10 @@ export default function App() {
         ::-webkit-scrollbar-thumb { background: #DDDBD7; border-radius: 3px; }
       `}</style>
       {currentUser
-        ? <Dashboard user={currentUser} users={allUsers} onLogout={() => { setToken(null); setCurrentUser(null); setAllUsers([]); }} />
+        ? <Dashboard user={currentUser} users={allUsers}
+            onLogout={() => { setToken(null); setCurrentUser(null); setAllUsers([]); }}
+            onUserUpdate={setCurrentUser}
+            onUsersUpdate={setAllUsers} />
         : <>
             <ThreeBackground ref={bgRef} />
             <AuthScreen bgRef={bgRef} onAuth={(u, all) => { setCurrentUser(u); setAllUsers(all); }} />

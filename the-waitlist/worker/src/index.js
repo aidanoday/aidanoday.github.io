@@ -130,6 +130,35 @@ async function handleQueue(env) {
   return json(results.map(r => ({ displayName: r.display_name, position: r.position })));
 }
 
+async function handleCut(request, env) {
+  const user = await getAuthUser(request, env);
+  if (!user) return json({ error: "Unauthorized" }, 401);
+
+  if (user.position <= 1) return json({ error: "You're already first in line." }, 400);
+
+  // Check cooldown (1 minute)
+  const lastCut = await env.DB.prepare("SELECT last_cut FROM users WHERE id = ?").bind(user.id).first();
+  if (lastCut?.last_cut) {
+    const elapsed = Date.now() - new Date(lastCut.last_cut).getTime();
+    if (elapsed < 10000) {
+      const remaining = Math.ceil((10000 - elapsed) / 1000);
+      return json({ error: `Wait ${remaining}s before cutting again.`, cooldown: remaining }, 429);
+    }
+  }
+
+  // Swap with the person ahead
+  const ahead = await env.DB.prepare("SELECT id, position FROM users WHERE position = ?").bind(user.position - 1).first();
+  if (!ahead) return json({ error: "No one ahead to cut." }, 400);
+
+  await env.DB.batch([
+    env.DB.prepare("UPDATE users SET position = ?, last_cut = ? WHERE id = ?").bind(user.position - 1, new Date().toISOString(), user.id),
+    env.DB.prepare("UPDATE users SET position = ? WHERE id = ?").bind(user.position, ahead.id),
+  ]);
+
+  const updated = await env.DB.prepare("SELECT id, display_name, position, signup_time FROM users WHERE id = ?").bind(user.id).first();
+  return json({ user: formatUser(updated) });
+}
+
 async function handleMe(request, env) {
   const user = await getAuthUser(request, env);
   if (!user) return json({ error: "Unauthorized" }, 401);
@@ -168,6 +197,8 @@ export default {
         response = await handleQueue(env);
       } else if (path === "/me" && request.method === "GET") {
         response = await handleMe(request, env);
+      } else if (path === "/cut" && request.method === "POST") {
+        response = await handleCut(request, env);
       } else {
         response = json({ error: "Not found" }, 404);
       }
