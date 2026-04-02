@@ -8,9 +8,9 @@ CREATE TABLE IF NOT EXISTS users (
 );
 
 CREATE TABLE IF NOT EXISTS high_fives (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  from_user_id INTEGER NOT NULL REFERENCES users(id),
-  to_user_id INTEGER NOT NULL REFERENCES users(id),
-  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  id INTEGER PRIMARY KEY AUTOINCREMENT, 
+  from_user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE, 
+  to_user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE, 
+  created_at TEXT NOT NULL DEFAULT (datetime('now')), 
   UNIQUE(from_user_id, to_user_id, created_at)
 );
