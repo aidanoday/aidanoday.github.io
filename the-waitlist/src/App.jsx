@@ -438,9 +438,10 @@ function AuthScreen({ onAuth, bgRef }) {
       }}>
         {/* Masthead */}
         <div style={{ textAlign: "center", marginBottom: 48 }}>
-          <div style={{ fontFamily: T.serif, fontSize: 13, fontStyle: "italic", color: T.textTertiary, letterSpacing: 0.5, marginBottom: 10 }}>est. 2026</div>
+          <div style={{ fontFamily: T.serif, fontSize: 12, fontStyle: "italic", color: T.textTertiary, letterSpacing: 0.5, marginBottom: 10 }}>est. 2026</div>
           <div style={{ fontFamily: T.serif, fontSize: 44, color: T.charcoal, fontWeight: 400, letterSpacing: -1.5, lineHeight: 1 }}>The Waitlist</div>
-          <div style={{ width: 40, height: 1, background: T.charcoal, margin: "16px auto 0", opacity: 0.15 }} />
+          <div style={{ width: 40, height: 1, background: T.charcoal, margin: "16px auto 16px", opacity: 0.15 }} />
+          <div style={{ fontFamily: T.serif, fontSize: 16, fontStyle: "italic", color: T.charcoal, letterSpacing: 0.5, lineHeight: 1 }}>Good things come to those who wait.</div>
         </div>
 
         {/* Tabs */}
