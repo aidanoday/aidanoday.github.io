@@ -146,6 +146,13 @@ const POLITE_PHRASES = [
   "Buffering complete — moving ahead!",
 ];
 
+// ── Helpers ──────────────────────────────────────────────────────────────
+function ordinal(n) {
+  const s = ["th", "st", "nd", "rd"];
+  const v = n % 100;
+  return n + (s[(v - 20) % 10] || s[v] || s[0]);
+}
+
 // ── Palette ──────────────────────────────────────────────────────────────
 const T = {
   bg: "#F7F6F4",
@@ -165,7 +172,121 @@ const T = {
   r: 8,
 };
 
-function QueuePerson({ name, position, blur, isSelf, delay }) {
+function HighFiveButton({ name, isSelf, highFiveCount }) {
+  const [count, setCount] = useState(highFiveCount);
+  const [fived, setFived] = useState(false);
+  const [bursting, setBursting] = useState(false);
+  const [tooltip, setTooltip] = useState(false);
+
+  useEffect(() => { setCount(highFiveCount); }, [highFiveCount]);
+
+  const handleClick = async (e) => {
+    e.stopPropagation();
+    if (isSelf) return;
+    if (fived) {
+      setTooltip(true);
+      setTimeout(() => setTooltip(false), 2500);
+      return;
+    }
+    setBursting(true);
+    setTimeout(() => setBursting(false), 600);
+    try {
+      const { highFiveCount: newCount } = await api("/high-five", { method: "POST", body: JSON.stringify({ displayName: name }) });
+      setCount(newCount);
+      setFived(true);
+    } catch (err) {
+      if (err.message?.includes("already")) {
+        setFived(true);
+        setTooltip(true);
+        setTimeout(() => setTooltip(false), 2500);
+      }
+    }
+  };
+
+  if (isSelf) {
+    return count > 0 ? (
+      <div style={{ display: "flex", alignItems: "center", gap: 6, flexShrink: 0 }}>
+        <span style={{ fontFamily: T.mono, fontSize: 11, color: T.textTertiary }}>{count} high five{count !== 1 ? "s" : ""}</span>
+      </div>
+    ) : null;
+  }
+
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 6, flexShrink: 0, position: "relative" }}>
+      {count > 0 && <span style={{ fontFamily: T.mono, fontSize: 11, color: T.textTertiary }}>{count}</span>}
+      <button onClick={handleClick}
+        onMouseEnter={() => setTooltip(true)}
+        onMouseLeave={() => setTooltip(false)}
+        style={{
+        border: "none", background: "transparent",
+        cursor: fived ? "default" : "pointer",
+        fontFamily: T.sans, fontSize: 12,
+        padding: 0,
+        color: fived ? T.textTertiary : T.accent,
+        textDecoration: "underline",
+        opacity: fived ? 0.5 : 1,
+        transition: "opacity 0.2s ease",
+        position: "relative", overflow: "visible",
+      }}>
+        + high five
+        {bursting && (
+          <div style={{ position: "absolute", inset: -4, pointerEvents: "none" }}>
+            {[...Array(8)].map((_, i) => (
+              <div key={i} style={{
+                position: "absolute", left: "50%", top: "50%", width: 2, height: 8,
+                background: T.accent, borderRadius: 1,
+                transform: `rotate(${i * 45}deg)`,
+                transformOrigin: "center center",
+                animation: `hfBurst 0.5s ease-out ${i * 25}ms both`,
+              }} />
+            ))}
+          </div>
+        )}
+      </button>
+      {tooltip && (
+        <div style={{
+          position: "absolute", right: 0, top: -32, whiteSpace: "nowrap",
+          background: T.charcoal, color: "#fff", fontFamily: T.sans, fontSize: 11,
+          padding: "5px 10px", borderRadius: 6, pointerEvents: "none",
+          animation: "fadeIn 0.15s ease both", zIndex: 40,
+        }}>
+          You can give a person a high five once a day
+        </div>
+      )}
+    </div>
+  );
+}
+
+function UserCard({ name, waitingFor, position, onClose }) {
+  const cardRef = useRef(null);
+
+  useEffect(() => {
+    const close = (e) => { if (cardRef.current && !cardRef.current.contains(e.target)) onClose(); };
+    document.addEventListener("mousedown", close);
+    return () => document.removeEventListener("mousedown", close);
+  }, [onClose]);
+
+  return (
+    <div ref={cardRef} style={{
+      position: "absolute", left: 50, top: -8, zIndex: 45,
+      ...CARD_STYLE, borderRadius: 12, padding: "16px 20px", minWidth: 220,
+      animation: "fadeIn 0.15s ease both",
+    }}>
+      <div style={{ fontFamily: T.sans, fontSize: 15, fontWeight: 600, color: T.charcoal, marginBottom: 4 }}>{name}</div>
+      <div style={{ fontFamily: T.mono, fontSize: 11, color: T.textTertiary, marginBottom: 10 }}>#{position} in line</div>
+      {waitingFor && (
+        <div>
+          <div style={{ fontFamily: T.sans, fontSize: 11, color: T.textTertiary, fontWeight: 500, letterSpacing: 0.3, marginBottom: 4 }}>Waiting for</div>
+          <div style={{ fontFamily: T.serif, fontSize: 14, color: T.textSecondary, fontStyle: "italic", lineHeight: 1.4 }}>&ldquo;{waitingFor}&rdquo;</div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function QueuePerson({ name, position, blur, isSelf, delay, highFiveCount, waitingFor }) {
+  const [showCard, setShowCard] = useState(false);
+
   return (
     <div style={{
       display: "flex", alignItems: "center", gap: 14,
@@ -177,6 +298,7 @@ function QueuePerson({ name, position, blur, isSelf, delay }) {
       background: isSelf ? T.accentSoft : "transparent",
       animation: `fadeIn 0.4s ease ${delay}ms both`,
       userSelect: blur > 0 ? "none" : "auto",
+      position: "relative",
     }}>
       <div style={{
         width: 30, textAlign: "right", flexShrink: 0,
@@ -190,8 +312,15 @@ function QueuePerson({ name, position, blur, isSelf, delay }) {
         flex: 1, fontFamily: T.sans, fontSize: 15,
         color: isSelf ? T.charcoal : T.textPrimary,
         fontWeight: isSelf ? 600 : 400, letterSpacing: -0.1,
+        minWidth: 0,
       }}>
-        {name}
+        <span
+          onClick={(e) => { if (!isSelf && blur === 0) { e.stopPropagation(); setShowCard(c => !c); } }}
+          style={{ cursor: (!isSelf && blur === 0) ? "pointer" : "default", transition: "color 0.15s ease" }}
+          onMouseEnter={e => { if (!isSelf && blur === 0) e.target.style.color = T.accent; }}
+          onMouseLeave={e => { if (!isSelf) e.target.style.color = isSelf ? T.charcoal : T.textPrimary; }}>
+          {name}
+        </span>
         {isSelf && (
           <span style={{
             marginLeft: 8, fontFamily: T.mono, fontSize: 10,
@@ -201,6 +330,8 @@ function QueuePerson({ name, position, blur, isSelf, delay }) {
           }}>YOU</span>
         )}
       </div>
+      {blur === 0 && <HighFiveButton name={name} isSelf={isSelf} highFiveCount={highFiveCount} />}
+      {showCard && <UserCard name={name} waitingFor={waitingFor} position={position} onClose={() => setShowCard(false)} />}
     </div>
   );
 }
@@ -302,12 +433,7 @@ function AuthScreen({ onAuth, bgRef }) {
         style={{
         width: "100%", maxWidth: 380, animation: "fadeIn 0.5s ease both",
         pointerEvents: "auto",
-        background: "rgba(255, 255, 255, 0.82)",
-        backdropFilter: "blur(20px)",
-        WebkitBackdropFilter: "blur(20px)",
-        borderRadius: 16,
-        border: "1px solid rgba(255, 255, 255, 0.5)",
-        boxShadow: "0 8px 32px rgba(0, 0, 0, 0.08), 0 2px 8px rgba(0, 0, 0, 0.04)",
+        ...CARD_STYLE,
         padding: "40px 32px",
       }}>
         {/* Masthead */}
@@ -388,12 +514,223 @@ function AuthScreen({ onAuth, bgRef }) {
   );
 }
 
-function Dashboard({ user, users, onLogout, onUsersUpdate, onUserUpdate }) {
+const CARD_STYLE = {
+  background: "rgba(255, 255, 255, 0.92)",
+  backdropFilter: "blur(20px)",
+  WebkitBackdropFilter: "blur(20px)",
+  borderRadius: 16,
+  border: "1px solid rgba(255, 255, 255, 0.5)",
+  boxShadow: "0 8px 32px rgba(0, 0, 0, 0.08), 0 2px 8px rgba(0, 0, 0, 0.04)",
+};
+
+function OnboardingScreen({ onComplete, bgRef }) {
+  const [answer, setAnswer] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  const handleSubmit = async () => {
+    setSaving(true);
+    try {
+      const updated = await api("/profile", { method: "PATCH", body: JSON.stringify({ waitingFor: answer.trim() || "nothing" }) });
+      onComplete(updated);
+    } catch { onComplete(null); }
+  };
+
+  const inputStyle = {
+    width: "100%", padding: "13px 16px", borderRadius: T.r,
+    border: `1px solid ${T.border}`, background: "rgba(247,246,244,0.6)",
+    color: T.charcoal, fontFamily: T.sans, fontSize: 15,
+    outline: "none", boxSizing: "border-box",
+    transition: "border-color 0.2s ease, box-shadow 0.2s ease",
+  };
+
+  return (
+    <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", padding: 24, position: "relative", zIndex: 1, pointerEvents: "none" }}>
+      <div
+        onMouseOver={() => { if (bgRef?.current?.controls) bgRef.current.controls.enabled = false; }}
+        onMouseLeave={() => { if (bgRef?.current?.controls) bgRef.current.controls.enabled = true; }}
+        style={{ ...CARD_STYLE, width: "100%", maxWidth: 420, padding: "48px 32px 40px", animation: "fadeIn 0.5s ease both", pointerEvents: "auto", textAlign: "center" }}>
+        <div style={{ fontFamily: T.serif, fontSize: 28, color: T.charcoal, fontWeight: 400, letterSpacing: -0.8, lineHeight: 1.2, marginBottom: 8 }}>
+          One more thing...
+        </div>
+        <div style={{ fontFamily: T.sans, fontSize: 14, color: T.textSecondary, marginBottom: 32, lineHeight: 1.5 }}>
+          You're in line now. But what for?
+        </div>
+
+        <label style={{ fontFamily: T.sans, fontSize: 12, color: T.textSecondary, fontWeight: 500, marginBottom: 6, display: "block", letterSpacing: 0.3, textAlign: "left" }}>
+          What are you waiting for?
+        </label>
+        <input value={answer} onChange={e => setAnswer(e.target.value)} style={inputStyle}
+          placeholder="'nothing' is a perfectly fine answer"
+          onKeyDown={e => e.key === "Enter" && handleSubmit()}
+          onFocus={e => { e.target.style.borderColor = T.accent; e.target.style.boxShadow = `0 0 0 3px ${T.accentSoft}`; }}
+          onBlur={e => { e.target.style.borderColor = T.border; e.target.style.boxShadow = "none"; }} />
+
+        <button onClick={handleSubmit} disabled={saving} style={{
+          width: "100%", marginTop: 20, padding: "14px 0", borderRadius: T.r,
+          border: "none", cursor: saving ? "wait" : "pointer",
+          background: T.charcoal, color: "#FFFFFF",
+          fontFamily: T.sans, fontSize: 15, fontWeight: 500, letterSpacing: 0.2,
+          transition: "opacity 0.15s ease, transform 0.1s ease",
+          opacity: saving ? 0.5 : 1,
+        }}
+          onMouseDown={e => !saving && (e.target.style.transform = "scale(0.985)")}
+          onMouseUp={e => e.target.style.transform = "scale(1)"}
+          onMouseLeave={e => e.target.style.transform = "scale(1)"}>
+          {saving ? "..." : "Continue"}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function ProfileScreen({ user, onBack, onUserUpdate, bgRef }) {
+  const [answer, setAnswer] = useState(user.waitingFor || "");
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      const updated = await api("/profile", { method: "PATCH", body: JSON.stringify({ waitingFor: answer.trim() }) });
+      onUserUpdate(updated);
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2000);
+    } catch {}
+    setSaving(false);
+  };
+
+  const inputStyle = {
+    width: "100%", padding: "13px 16px", borderRadius: T.r,
+    border: `1px solid ${T.border}`, background: "rgba(247,246,244,0.6)",
+    color: T.charcoal, fontFamily: T.sans, fontSize: 15,
+    outline: "none", boxSizing: "border-box",
+    transition: "border-color 0.2s ease, box-shadow 0.2s ease",
+  };
+
+  return (
+    <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", padding: 24, position: "relative", zIndex: 1, pointerEvents: "none" }}>
+      <div
+        onMouseOver={() => { if (bgRef?.current?.controls) bgRef.current.controls.enabled = false; }}
+        onMouseLeave={() => { if (bgRef?.current?.controls) bgRef.current.controls.enabled = true; }}
+        style={{ ...CARD_STYLE, width: "100%", maxWidth: 420, padding: "32px 32px 36px", animation: "fadeIn 0.5s ease both", pointerEvents: "auto" }}>
+
+        <button onClick={onBack} style={{
+          padding: "6px 12px", borderRadius: 6, border: "1px solid rgba(0,0,0,0.08)", background: "transparent",
+          color: T.textSecondary, fontFamily: T.sans, fontSize: 12, cursor: "pointer", fontWeight: 500,
+          marginBottom: 24, transition: "all 0.15s ease",
+        }}
+          onMouseEnter={e => { e.target.style.color = T.charcoal; }}
+          onMouseLeave={e => { e.target.style.color = T.textSecondary; }}>
+          &larr; Back
+        </button>
+
+        <div style={{ fontFamily: T.serif, fontSize: 24, color: T.charcoal, fontWeight: 400, letterSpacing: -0.5, marginBottom: 4 }}>Profile</div>
+        <div style={{ fontFamily: T.sans, fontSize: 13, color: T.textTertiary, marginBottom: 28 }}>
+          Joined {new Date(user.signupTime).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })}
+        </div>
+
+        <div style={{ marginBottom: 20 }}>
+          <label style={{ fontFamily: T.sans, fontSize: 12, color: T.textSecondary, fontWeight: 500, marginBottom: 6, display: "block", letterSpacing: 0.3 }}>Display name</label>
+          <div style={{ ...inputStyle, background: "rgba(0,0,0,0.03)", color: T.textTertiary }}>{user.displayName}</div>
+        </div>
+
+        <div style={{ marginBottom: 24 }}>
+          <label style={{ fontFamily: T.sans, fontSize: 12, color: T.textSecondary, fontWeight: 500, marginBottom: 6, display: "block", letterSpacing: 0.3 }}>What are you waiting for?</label>
+          <input value={answer} onChange={e => setAnswer(e.target.value)} style={inputStyle}
+            placeholder="'nothing' is a perfectly fine answer"
+            onKeyDown={e => e.key === "Enter" && handleSave()}
+            onFocus={e => { e.target.style.borderColor = T.accent; e.target.style.boxShadow = `0 0 0 3px ${T.accentSoft}`; }}
+            onBlur={e => { e.target.style.borderColor = T.border; e.target.style.boxShadow = "none"; }} />
+        </div>
+
+        <button onClick={handleSave} disabled={saving} style={{
+          width: "100%", padding: "14px 0", borderRadius: T.r,
+          border: "none", cursor: saving ? "wait" : "pointer",
+          background: T.charcoal, color: "#FFFFFF",
+          fontFamily: T.sans, fontSize: 15, fontWeight: 500, letterSpacing: 0.2,
+          transition: "opacity 0.15s ease, transform 0.1s ease",
+          opacity: saving ? 0.5 : 1,
+        }}
+          onMouseDown={e => !saving && (e.target.style.transform = "scale(0.985)")}
+          onMouseUp={e => e.target.style.transform = "scale(1)"}
+          onMouseLeave={e => e.target.style.transform = "scale(1)"}>
+          {saved ? "Saved!" : saving ? "..." : "Save"}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function AppBar({ user, onLogout, onProfile, bgRef }) {
+  const [menuOpen, setMenuOpen] = useState(false);
+  const menuRef = useRef(null);
+
+  useEffect(() => {
+    if (!menuOpen) return;
+    const close = (e) => { if (menuRef.current && !menuRef.current.contains(e.target)) setMenuOpen(false); };
+    document.addEventListener("mousedown", close);
+    return () => document.removeEventListener("mousedown", close);
+  }, [menuOpen]);
+
+  return (
+    <div
+      onMouseOver={() => { if (bgRef?.current?.controls) bgRef.current.controls.enabled = false; }}
+      onMouseLeave={() => { if (bgRef?.current?.controls) bgRef.current.controls.enabled = true; }}
+      style={{
+        ...CARD_STYLE, borderRadius: 12,
+        padding: "12px 20px", display: "flex", alignItems: "center", justifyContent: "space-between",
+        marginBottom: 16, pointerEvents: "auto", position: "relative", zIndex: 20,
+      }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+        <div style={{ fontFamily: T.serif, fontSize: 18, color: T.charcoal, fontWeight: 400, letterSpacing: -0.5 }}>The Waitlist</div>
+        <div style={{ width: 1, height: 16, background: T.border }} />
+        <div style={{ fontFamily: T.sans, fontSize: 13, color: T.textTertiary }}>Welcome back</div>
+      </div>
+      <div ref={menuRef} style={{ position: "relative" }}>
+        <button onClick={() => setMenuOpen(o => !o)} style={{
+          display: "flex", alignItems: "center", gap: 6, padding: "6px 10px", borderRadius: 6,
+          border: "1px solid rgba(0,0,0,0.08)", background: menuOpen ? "rgba(0,0,0,0.03)" : "transparent",
+          color: T.charcoal, fontFamily: T.sans, fontSize: 13, fontWeight: 500,
+          cursor: "pointer", transition: "all 0.15s ease",
+        }}>
+          {user.displayName}
+          <span style={{ fontSize: 10, color: T.textTertiary, transition: "transform 0.2s ease", transform: menuOpen ? "rotate(180deg)" : "rotate(0)" }}>&#9660;</span>
+        </button>
+        {menuOpen && (
+          <div style={{
+            position: "absolute", right: 0, top: "calc(100% + 6px)", minWidth: 160,
+            ...CARD_STYLE, borderRadius: 10, padding: "4px",
+            animation: "fadeIn 0.15s ease both", zIndex: 50,
+          }}>
+            {[
+              { label: "See profile", action: () => { onProfile(); setMenuOpen(false); } },
+              { label: "Log out", action: () => { onLogout(); setMenuOpen(false); } },
+            ].map((item, i) => (
+              <button key={i} onClick={item.action} style={{
+                display: "block", width: "100%", padding: "10px 14px", border: "none", borderRadius: 7,
+                background: "transparent", color: item.label === "Log out" ? T.accent : T.textPrimary,
+                fontFamily: T.sans, fontSize: 13, fontWeight: 400, cursor: "pointer",
+                textAlign: "left", transition: "background 0.1s ease",
+              }}
+                onMouseEnter={e => e.target.style.background = "rgba(0,0,0,0.04)"}
+                onMouseLeave={e => e.target.style.background = "transparent"}>
+                {item.label}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function Dashboard({ user, users, onLogout, onUsersUpdate, onUserUpdate, bgRef }) {
   const [tiptoe, setTiptoe] = useState(false);
   const [tiptoeAnim, setTiptoeAnim] = useState(false);
   const [cutCooldown, setCutCooldown] = useState(0);
   const [cutting, setCutting] = useState(false);
   const [bubble, setBubble] = useState(null);
+  const [screen, setScreen] = useState("queue");
   const listRef = useRef(null);
   const timerRef = useRef(null);
 
@@ -402,6 +739,8 @@ function Dashboard({ user, users, onLogout, onUsersUpdate, onUserUpdate }) {
   const peopleBehind = users.length - myPosition;
 
   const getBlur = useCallback((idx) => {
+    // Always show the first 3 spots clearly
+    if (idx <= 2) return 0;
     const dist = Math.abs(idx - myIndex);
     if (dist === 0) return 0;
     if (tiptoe) {
@@ -434,18 +773,15 @@ function Dashboard({ user, users, onLogout, onUsersUpdate, onUserUpdate }) {
     if (cutCooldown > 0 || cutting || myPosition <= 1) return;
     setCutting(true);
 
-    // Pick a random phrase and show the speech bubble
     const phrase = POLITE_PHRASES[Math.floor(Math.random() * POLITE_PHRASES.length)];
     setBubble(phrase);
 
-    // Fire the API call in parallel with the bubble display
     const apiPromise = api("/cut", { method: "POST" })
       .then(async ({ user: updatedUser }) => {
         const queue = await api("/queue");
         return { updatedUser, queue };
       });
 
-    // Wait at least 1s for the bubble to display, then animate the reorder
     const [result] = await Promise.allSettled([
       apiPromise,
       new Promise(r => setTimeout(r, 1000)),
@@ -477,113 +813,87 @@ function Dashboard({ user, users, onLogout, onUsersUpdate, onUserUpdate }) {
     }
   }, [myIndex]);
 
+  if (screen === "profile") {
+    return <ProfileScreen user={user} onBack={() => setScreen("queue")} onUserUpdate={onUserUpdate} bgRef={bgRef} />;
+  }
+
   return (
-    <div style={{ minHeight: "100vh", background: T.bg }}>
-      {/* Nav */}
-      <div style={{
-        padding: "16px 28px", display: "flex", alignItems: "center", justifyContent: "space-between",
-        borderBottom: `1px solid ${T.border}`, position: "sticky", top: 0, zIndex: 10, background: T.bg,
-      }}>
-        <div style={{ fontFamily: T.serif, fontSize: 20, color: T.charcoal, fontWeight: 400, letterSpacing: -0.5 }}>The Waitlist</div>
-        <button onClick={onLogout} style={{
-          padding: "6px 14px", borderRadius: 6, border: `1px solid ${T.border}`, background: "transparent",
-          color: T.textSecondary, fontFamily: T.sans, fontSize: 12, cursor: "pointer", fontWeight: 500, transition: "all 0.15s ease",
-        }}
-          onMouseEnter={e => { e.target.style.borderColor = T.textTertiary; e.target.style.color = T.charcoal; }}
-          onMouseLeave={e => { e.target.style.borderColor = T.border; e.target.style.color = T.textSecondary; }}>Log out</button>
-      </div>
+    <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", padding: 24, position: "relative", zIndex: 1, pointerEvents: "none" }}>
+      <div style={{ width: "100%", maxWidth: 520, animation: "fadeIn 0.5s ease both" }}>
 
-      <div style={{ maxWidth: 600, margin: "0 auto", padding: "40px 28px 0", animation: "fadeIn 0.5s ease both" }}>
-        <div style={{ fontFamily: T.sans, fontSize: 13, color: T.textTertiary, fontWeight: 500, letterSpacing: 0.5, marginBottom: 4 }}>Welcome back,</div>
-        <div style={{ fontFamily: T.serif, fontSize: 36, color: T.charcoal, fontWeight: 400, letterSpacing: -1, marginBottom: 32 }}>{user.displayName}</div>
+        <AppBar user={user} onLogout={onLogout} onProfile={() => setScreen("profile")} bgRef={bgRef} />
 
-        {/* Stats */}
-        <div style={{ display: "flex", gap: 1, borderRadius: T.r, overflow: "hidden", border: `1px solid ${T.border}`, marginBottom: 20 }}>
-          {[
-            { label: "Your position", value: myPosition },
-            { label: "In line", value: users.length },
-            { label: "Behind you", value: peopleBehind },
-          ].map((s, i) => (
-            <div key={i} style={{
-              flex: 1, padding: "20px 16px", background: T.surface,
-              borderRight: i < 2 ? `1px solid ${T.borderLight}` : "none", textAlign: "center",
-              animation: `fadeIn 0.4s ease ${150 + i * 80}ms both`,
-            }}>
-              <div style={{ fontFamily: T.sans, fontSize: 11, color: T.textTertiary, fontWeight: 500, letterSpacing: 0.8, textTransform: "uppercase", marginBottom: 6 }}>{s.label}</div>
-              <div style={{ fontFamily: T.serif, fontSize: 32, color: T.charcoal, fontWeight: 400, letterSpacing: -1 }}>{s.value}</div>
-            </div>
-          ))}
-        </div>
-
-        {/* Message */}
-        <div style={{
-          padding: "14px 18px", borderRadius: T.r, background: T.surface, border: `1px solid ${T.border}`,
-          fontFamily: T.sans, fontSize: 14, color: T.textSecondary, lineHeight: 1.5, marginBottom: 36,
-          animation: "fadeIn 0.4s ease 500ms both",
-        }}>
-          {peopleBehind > 0
-            ? <>There {peopleBehind === 1 ? "is" : "are"} <strong style={{ color: T.charcoal, fontWeight: 600 }}>{peopleBehind}</strong> {peopleBehind === 1 ? "person" : "people"} in line behind you.</>
-            : <>You're the last one in line — no one behind you yet.</>
-          }
-        </div>
-
-        {/* Line header */}
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
-          <div style={{ fontFamily: T.serif, fontSize: 20, color: T.charcoal, fontWeight: 400, letterSpacing: -0.3 }}>The line</div>
-          <div style={{ display: "flex", gap: 8 }}>
-            {myPosition > 1 && (
-              <button onClick={handleCut} disabled={cutCooldown > 0 || cutting} style={{
-                padding: "8px 16px", borderRadius: 6, position: "relative", overflow: "hidden",
-                border: `1px solid ${cutCooldown > 0 ? T.borderLight : T.accentBorder}`,
-                background: cutCooldown > 0 ? T.bg : T.accentSoft,
-                color: cutCooldown > 0 ? T.textTertiary : T.accent,
+        {/* Queue card */}
+        <div
+          onMouseOver={() => { if (bgRef?.current?.controls) bgRef.current.controls.enabled = false; }}
+          onMouseLeave={() => { if (bgRef?.current?.controls) bgRef.current.controls.enabled = true; }}
+          style={{ ...CARD_STYLE, padding: 0, overflow: "visible", position: "relative", pointerEvents: "auto" }}>
+          {/* Line header */}
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "18px 24px 14px" }}>
+            <div style={{ fontFamily: T.serif, fontSize: 20, color: T.charcoal, fontWeight: 400, letterSpacing: -0.3 }}>You are {ordinal(myPosition)} in line</div>
+            <div style={{ display: "flex", gap: 8 }}>
+              {myPosition > 1 && (
+                <button onClick={handleCut} disabled={cutCooldown > 0 || cutting} style={{
+                  padding: "8px 16px", borderRadius: 6, position: "relative", overflow: "hidden",
+                  border: `1px solid ${cutCooldown > 0 ? "rgba(0,0,0,0.06)" : T.accentBorder}`,
+                  background: cutCooldown > 0 ? "rgba(0,0,0,0.03)" : T.accentSoft,
+                  color: cutCooldown > 0 ? T.textTertiary : T.accent,
+                  fontFamily: T.sans, fontSize: 13, fontWeight: 500,
+                  cursor: cutCooldown > 0 || cutting ? "default" : "pointer",
+                  transition: "all 0.25s ease", minWidth: 80,
+                }}>
+                  {cutCooldown > 0 && (
+                    <div style={{
+                      position: "absolute", left: 0, bottom: 0, height: 2,
+                      background: T.accent, opacity: 0.3,
+                      width: `${(cutCooldown / 10) * 100}%`,
+                      transition: "width 1s linear",
+                    }} />
+                  )}
+                  {cutting ? "..." : cutCooldown > 0 ? `${cutCooldown}s` : "Cut"}
+                </button>
+              )}
+              <button onClick={handleTiptoe} style={{
+                padding: "8px 16px", borderRadius: 6,
+                border: `1px solid ${tiptoe ? T.accentBorder : "rgba(0,0,0,0.08)"}`,
+                background: tiptoe ? T.accentSoft : "transparent",
+                color: tiptoe ? T.accent : T.textSecondary,
                 fontFamily: T.sans, fontSize: 13, fontWeight: 500,
-                cursor: cutCooldown > 0 || cutting ? "default" : "pointer",
-                transition: "all 0.25s ease", minWidth: 80,
-              }}>
-                {cutCooldown > 0 && (
-                  <div style={{
-                    position: "absolute", left: 0, bottom: 0, height: 2,
-                    background: T.accent, opacity: 0.3,
-                    width: `${(cutCooldown / 10) * 100}%`,
-                    transition: "width 1s linear",
-                  }} />
-                )}
-                {cutting ? "..." : cutCooldown > 0 ? `${cutCooldown}s` : "Cut"}
+                cursor: "pointer", transition: "all 0.25s ease",
+                transform: tiptoeAnim ? "translateY(-2px)" : "translateY(0)",
+              }}
+                onMouseEnter={e => { if (!tiptoe) e.target.style.color = T.charcoal; }}
+                onMouseLeave={e => { if (!tiptoe) e.target.style.color = T.textSecondary; }}>
+                {tiptoe ? "On tiptoes ↑" : "Stand on tiptoes"}
               </button>
-            )}
-            <button onClick={handleTiptoe} style={{
-              padding: "8px 16px", borderRadius: 6,
-              border: `1px solid ${tiptoe ? T.accentBorder : T.border}`,
-              background: tiptoe ? T.accentSoft : "transparent",
-              color: tiptoe ? T.accent : T.textSecondary,
-              fontFamily: T.sans, fontSize: 13, fontWeight: 500,
-              cursor: "pointer", transition: "all 0.25s ease",
-              transform: tiptoeAnim ? "translateY(-2px)" : "translateY(0)",
-            }}
-              onMouseEnter={e => { if (!tiptoe) e.target.style.color = T.charcoal; }}
-              onMouseLeave={e => { if (!tiptoe) e.target.style.color = T.textSecondary; }}>
-              {tiptoe ? "On tiptoes ↑" : "Stand on tiptoes"}
-            </button>
+            </div>
           </div>
-        </div>
 
-        {/* Queue */}
-        <div style={{ borderRadius: T.r, border: `1px solid ${T.border}`, background: T.surface, overflow: "visible", marginBottom: 40, position: "relative" }}>
-          <div ref={listRef} style={{ maxHeight: 440, overflowY: "auto", overflowX: "hidden", scrollbarWidth: "thin", scrollbarColor: `${T.border} transparent`, borderRadius: T.r }}>
+          {/* Queue list */}
+          <div ref={listRef} style={{ maxHeight: 380, overflowY: "auto", overflowX: "hidden", scrollbarWidth: "thin", scrollbarColor: `${T.border} transparent` }}>
             {users.map((u, idx) => (
               <QueuePerson key={u.displayName} name={u.displayName} position={idx + 1}
-                blur={getBlur(idx)} isSelf={u.displayName === user.displayName} delay={Math.min(idx * 25, 500)} />
+                blur={getBlur(idx)} isSelf={u.displayName === user.displayName} delay={Math.min(idx * 25, 500)}
+                highFiveCount={u.highFiveCount || 0} waitingFor={u.waitingFor} />
             ))}
           </div>
           {bubble && <SpeechBubble text={bubble} listRef={listRef} myIndex={myIndex} />}
+
+          {/* Bottom stats bar */}
+          <div style={{
+            padding: "12px 24px", borderTop: `1px solid ${T.borderLight}`,
+            display: "flex", justifyContent: "space-between", alignItems: "center",
+            borderRadius: "0 0 16px 16px",
+          }}>
+            <span style={{ fontFamily: T.sans, fontSize: 12, color: T.textTertiary }}>
+              {users.length} {users.length === 1 ? "person" : "people"} in line
+            </span>
+            <span style={{ fontFamily: T.sans, fontSize: 12, color: T.textTertiary }}>
+              {peopleBehind} behind you
+            </span>
+          </div>
         </div>
 
-        <div style={{ textAlign: "center", paddingBottom: 32 }}>
-          <span style={{ fontFamily: T.sans, fontSize: 11, color: T.textTertiary, letterSpacing: 0.5 }}>
-            Joined {new Date(user.signupTime).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })}
-          </span>
-        </div>
       </div>
     </div>
   );
@@ -593,6 +903,7 @@ export default function App() {
   const [ready, setReady] = useState(false);
   const [currentUser, setCurrentUser] = useState(null);
   const [allUsers, setAllUsers] = useState([]);
+  const [onboarding, setOnboarding] = useState(false);
   const bgRef = useRef(null);
 
   useEffect(() => {
@@ -612,6 +923,30 @@ export default function App() {
     </div>
   );
 
+  const handleAuth = (u, all) => {
+    setCurrentUser(u);
+    setAllUsers(all);
+    if (!u.waitingFor) setOnboarding(true);
+  };
+
+  const handleOnboardingComplete = (updatedUser) => {
+    if (updatedUser) setCurrentUser(updatedUser);
+    setOnboarding(false);
+  };
+
+  let content;
+  if (!currentUser) {
+    content = <AuthScreen bgRef={bgRef} onAuth={handleAuth} />;
+  } else if (onboarding) {
+    content = <OnboardingScreen bgRef={bgRef} onComplete={handleOnboardingComplete} />;
+  } else {
+    content = <Dashboard user={currentUser} users={allUsers}
+      onLogout={() => { setToken(null); setCurrentUser(null); setAllUsers([]); setOnboarding(false); }}
+      onUserUpdate={setCurrentUser}
+      onUsersUpdate={setAllUsers}
+      bgRef={bgRef} />;
+  }
+
   return (
     <>
       <style>{`
@@ -622,21 +957,17 @@ export default function App() {
         @keyframes bubblePop { from { opacity: 0; transform: translateY(-100%) scale(0.6); } to { opacity: 1; transform: translateY(-100%) scale(1); } }
         @keyframes bubbleFade { from { opacity: 1; transform: translateY(-100%) scale(1); } to { opacity: 0; transform: translateY(-100%) scale(0.8) translateY(4px); } }
         @keyframes pulse { 0%,100% { opacity: 0.4; } 50% { opacity: 0.8; } }
+        @keyframes hfBurst {
+          0% { opacity: 1; height: 6px; translate: 0 0; }
+          100% { opacity: 0; height: 2px; translate: 0 -14px; }
+        }
         input::placeholder { color: #B3B1A9; }
         ::-webkit-scrollbar { width: 3px; }
         ::-webkit-scrollbar-track { background: transparent; }
         ::-webkit-scrollbar-thumb { background: #DDDBD7; border-radius: 3px; }
       `}</style>
-      {currentUser
-        ? <Dashboard user={currentUser} users={allUsers}
-            onLogout={() => { setToken(null); setCurrentUser(null); setAllUsers([]); }}
-            onUserUpdate={setCurrentUser}
-            onUsersUpdate={setAllUsers} />
-        : <>
-            <ThreeBackground ref={bgRef} />
-            <AuthScreen bgRef={bgRef} onAuth={(u, all) => { setCurrentUser(u); setAllUsers(all); }} />
-          </>
-      }
+      <ThreeBackground ref={bgRef} />
+      {content}
     </>
   );
 }

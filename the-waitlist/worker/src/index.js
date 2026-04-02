@@ -58,7 +58,7 @@ function cors(response, origin) {
   const allowed = ["https://www.aidanoday.me","https://aidanoday.me","https://aidanoday.github.io", "http://localhost:5173", "http://localhost:4173"];
   const allowOrigin = allowed.includes(origin) ? origin : allowed[0];
   response.headers.set("Access-Control-Allow-Origin", allowOrigin);
-  response.headers.set("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
+  response.headers.set("Access-Control-Allow-Methods", "GET, POST, PATCH, OPTIONS");
   response.headers.set("Access-Control-Allow-Headers", "Content-Type, Authorization");
   return response;
 }
@@ -70,7 +70,7 @@ async function getAuthUser(request, env) {
   if (!auth || !auth.startsWith("Bearer ")) return null;
   const payload = await verifyToken(auth.slice(7), env);
   if (!payload) return null;
-  return await env.DB.prepare("SELECT id, display_name, position, signup_time FROM users WHERE id = ?").bind(payload.sub).first();
+  return await env.DB.prepare("SELECT id, display_name, position, signup_time, waiting_for FROM users WHERE id = ?").bind(payload.sub).first();
 }
 
 // ── Routes ───────────────────────────────────────────────────────────────
@@ -99,7 +99,7 @@ async function handleSignup(request, env) {
     "INSERT INTO users (display_name, password_hash, position, signup_time) VALUES (?, ?, ?, ?)"
   ).bind(displayName.trim(), passwordHash, position, signupTime).run();
 
-  const user = await env.DB.prepare("SELECT id, display_name, position, signup_time FROM users WHERE lower(display_name) = lower(?)").bind(displayName.trim()).first();
+  const user = await env.DB.prepare("SELECT id, display_name, position, signup_time, waiting_for FROM users WHERE lower(display_name) = lower(?)").bind(displayName.trim()).first();
   const token = await createToken(user.id, env);
 
   return json({ user: formatUser(user), token });
@@ -126,8 +126,47 @@ async function handleLogin(request, env) {
 }
 
 async function handleQueue(env) {
-  const { results } = await env.DB.prepare("SELECT display_name, position FROM users ORDER BY position ASC").all();
-  return json(results.map(r => ({ displayName: r.display_name, position: r.position })));
+  const { results } = await env.DB.prepare(`
+    SELECT u.display_name, u.position, u.waiting_for,
+      (SELECT COUNT(*) FROM high_fives hf WHERE hf.to_user_id = u.id) as high_five_count
+    FROM users u ORDER BY u.position ASC
+  `).all();
+  return json(results.map(r => ({ displayName: r.display_name, position: r.position, waitingFor: r.waiting_for || null, highFiveCount: r.high_five_count || 0 })));
+}
+
+async function handleHighFive(request, env) {
+  const user = await getAuthUser(request, env);
+  if (!user) return json({ error: "Unauthorized" }, 401);
+
+  const { displayName } = await request.json();
+  if (!displayName) return json({ error: "displayName required" }, 400);
+
+  const target = await env.DB.prepare("SELECT id FROM users WHERE lower(display_name) = lower(?)").bind(displayName).first();
+  if (!target) return json({ error: "User not found" }, 404);
+  if (target.id === user.id) return json({ error: "You can't high-five yourself!" }, 400);
+
+  const today = new Date().toISOString().slice(0, 10);
+  const existing = await env.DB.prepare(
+    "SELECT id FROM high_fives WHERE from_user_id = ? AND to_user_id = ? AND created_at LIKE ?"
+  ).bind(user.id, target.id, `${today}%`).first();
+  if (existing) return json({ error: "You already high-fived this person today!" }, 429);
+
+  await env.DB.prepare("INSERT INTO high_fives (from_user_id, to_user_id, created_at) VALUES (?, ?, ?)")
+    .bind(user.id, target.id, new Date().toISOString()).run();
+
+  const { count } = await env.DB.prepare("SELECT COUNT(*) as count FROM high_fives WHERE to_user_id = ?").bind(target.id).first();
+  return json({ highFiveCount: count });
+}
+
+async function handleUserProfile(env, displayName) {
+  const user = await env.DB.prepare(
+    "SELECT display_name, position, signup_time, waiting_for FROM users WHERE lower(display_name) = lower(?)"
+  ).bind(displayName).first();
+  if (!user) return json({ error: "User not found" }, 404);
+  const { count } = await env.DB.prepare(
+    "SELECT COUNT(*) as count FROM high_fives WHERE to_user_id = (SELECT id FROM users WHERE lower(display_name) = lower(?))"
+  ).bind(displayName).first();
+  return json({ displayName: user.display_name, position: user.position, signupTime: user.signup_time, waitingFor: user.waiting_for || null, highFiveCount: count || 0 });
 }
 
 async function handleCut(request, env) {
@@ -155,7 +194,7 @@ async function handleCut(request, env) {
     env.DB.prepare("UPDATE users SET position = ? WHERE id = ?").bind(user.position, ahead.id),
   ]);
 
-  const updated = await env.DB.prepare("SELECT id, display_name, position, signup_time FROM users WHERE id = ?").bind(user.id).first();
+  const updated = await env.DB.prepare("SELECT id, display_name, position, signup_time, waiting_for FROM users WHERE id = ?").bind(user.id).first();
   return json({ user: formatUser(updated) });
 }
 
@@ -165,11 +204,24 @@ async function handleMe(request, env) {
   return json(formatUser(user));
 }
 
+async function handleProfileUpdate(request, env) {
+  const user = await getAuthUser(request, env);
+  if (!user) return json({ error: "Unauthorized" }, 401);
+
+  const { waitingFor } = await request.json();
+  const value = typeof waitingFor === "string" ? waitingFor.trim().slice(0, 200) : null;
+
+  await env.DB.prepare("UPDATE users SET waiting_for = ? WHERE id = ?").bind(value, user.id).run();
+  const updated = await env.DB.prepare("SELECT id, display_name, position, signup_time, waiting_for FROM users WHERE id = ?").bind(user.id).first();
+  return json(formatUser(updated));
+}
+
 function formatUser(row) {
   return {
     displayName: row.display_name,
     position: row.position,
     signupTime: row.signup_time,
+    waitingFor: row.waiting_for || null,
   };
 }
 
@@ -199,6 +251,12 @@ export default {
         response = await handleMe(request, env);
       } else if (path === "/cut" && request.method === "POST") {
         response = await handleCut(request, env);
+      } else if (path === "/profile" && request.method === "PATCH") {
+        response = await handleProfileUpdate(request, env);
+      } else if (path === "/high-five" && request.method === "POST") {
+        response = await handleHighFive(request, env);
+      } else if (path.startsWith("/user/") && request.method === "GET") {
+        response = await handleUserProfile(env, decodeURIComponent(path.slice(6)));
       } else {
         response = json({ error: "Not found" }, 404);
       }
