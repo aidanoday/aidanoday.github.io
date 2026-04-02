@@ -55,7 +55,7 @@ function json(data, status = 200) {
 }
 
 function cors(response, origin) {
-  const allowed = ["https://aidanoday.me", "https://aidanoday.github.io", "http://localhost:5173", "http://localhost:4173"];
+  const allowed = ["https://www.aidanoday.me","https://aidanoday.me","https://aidanoday.github.io", "http://localhost:5173", "http://localhost:4173"];
   const allowOrigin = allowed.includes(origin) ? origin : allowed[0];
   response.headers.set("Access-Control-Allow-Origin", allowOrigin);
   response.headers.set("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
