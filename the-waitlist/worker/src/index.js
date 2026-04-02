@@ -136,7 +136,7 @@ async function handleCut(request, env) {
 
   if (user.position <= 1) return json({ error: "You're already first in line." }, 400);
 
-  // Check cooldown (1 minute)
+  // Check cooldown (10 seconds)
   const lastCut = await env.DB.prepare("SELECT last_cut FROM users WHERE id = ?").bind(user.id).first();
   if (lastCut?.last_cut) {
     const elapsed = Date.now() - new Date(lastCut.last_cut).getTime();

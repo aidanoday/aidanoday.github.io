@@ -33,7 +33,7 @@ const POLITE_PHRASES = [
   "My sincerest apologies for the intrusion!",
   "I promise I'll be quick about it!",
   "A thousand pardons, dear friend.",
-  "Forgive the impertinence, but may I?",
+  "Forgive me, but may I?",
   "If it's not too much trouble...",
   "I do beg your pardon!",
   "So sorry to impose!",
