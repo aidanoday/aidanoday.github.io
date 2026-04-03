@@ -58,7 +58,7 @@ function cors(response, origin) {
   const allowed = ["https://www.aidanoday.me","https://aidanoday.me","https://aidanoday.github.io", "http://localhost:5173", "http://localhost:4173"];
   const allowOrigin = allowed.includes(origin) ? origin : allowed[0];
   response.headers.set("Access-Control-Allow-Origin", allowOrigin);
-  response.headers.set("Access-Control-Allow-Methods", "GET, POST, PATCH, OPTIONS");
+  response.headers.set("Access-Control-Allow-Methods", "GET, POST, PATCH, DELETE, OPTIONS");
   response.headers.set("Access-Control-Allow-Headers", "Content-Type, Authorization");
   return response;
 }
@@ -216,6 +216,19 @@ async function handleProfileUpdate(request, env) {
   return json(formatUser(updated));
 }
 
+async function handleDeleteAccount(request, env) {
+  const user = await getAuthUser(request, env);
+  if (!user) return json({ error: "Unauthorized" }, 401);
+
+  // Close the gap in positions left by the deleted user
+  await env.DB.batch([
+    env.DB.prepare("UPDATE users SET position = position - 1 WHERE position > ?").bind(user.position),
+    env.DB.prepare("DELETE FROM users WHERE id = ?").bind(user.id),
+  ]);
+
+  return json({ ok: true });
+}
+
 function formatUser(row) {
   return {
     displayName: row.display_name,
@@ -255,6 +268,8 @@ export default {
         response = await handleProfileUpdate(request, env);
       } else if (path === "/high-five" && request.method === "POST") {
         response = await handleHighFive(request, env);
+      } else if (path === "/account" && request.method === "DELETE") {
+        response = await handleDeleteAccount(request, env);
       } else if (path.startsWith("/user/") && request.method === "GET") {
         response = await handleUserProfile(env, decodeURIComponent(path.slice(6)));
       } else {

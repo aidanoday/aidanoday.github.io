@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from "react";
+import { createPortal } from "react-dom";
 import ThreeBackground from "./ThreeBackground";
 
 // ── API helpers ──────────────────────────────────────────────────────────
@@ -257,8 +258,16 @@ function HighFiveButton({ name, isSelf, highFiveCount }) {
   );
 }
 
-function UserCard({ name, waitingFor, position, onClose }) {
+function UserCard({ name, waitingFor, position, onClose, anchorRef }) {
   const cardRef = useRef(null);
+  const [coords, setCoords] = useState({ top: 0, left: 0 });
+
+  useEffect(() => {
+    if (anchorRef?.current) {
+      const r = anchorRef.current.getBoundingClientRect();
+      setCoords({ top: r.bottom + 6, left: r.left });
+    }
+  }, [anchorRef]);
 
   useEffect(() => {
     const close = (e) => { if (cardRef.current && !cardRef.current.contains(e.target)) onClose(); };
@@ -266,10 +275,10 @@ function UserCard({ name, waitingFor, position, onClose }) {
     return () => document.removeEventListener("mousedown", close);
   }, [onClose]);
 
-  return (
+  return createPortal(
     <div ref={cardRef} style={{
-      position: "absolute", left: 50, top: -8, zIndex: 45,
-      ...CARD_STYLE, borderRadius: 12, padding: "16px 20px", minWidth: 220,
+      position: "fixed", top: coords.top, left: coords.left, zIndex: 9999,
+      ...CARD_STYLE, background: "#ffffff", borderRadius: 12, padding: "16px 20px", minWidth: 220,
       animation: "fadeIn 0.15s ease both",
     }}>
       <div style={{ fontFamily: T.sans, fontSize: 15, fontWeight: 600, color: T.charcoal, marginBottom: 4 }}>{name}</div>
@@ -280,12 +289,14 @@ function UserCard({ name, waitingFor, position, onClose }) {
           <div style={{ fontFamily: T.serif, fontSize: 14, color: T.textSecondary, fontStyle: "italic", lineHeight: 1.4 }}>&ldquo;{waitingFor}&rdquo;</div>
         </div>
       )}
-    </div>
+    </div>,
+    document.body
   );
 }
 
 function QueuePerson({ name, position, blur, isSelf, delay, highFiveCount, waitingFor }) {
   const [showCard, setShowCard] = useState(false);
+  const nameRef = useRef(null);
 
   return (
     <div style={{
@@ -315,23 +326,25 @@ function QueuePerson({ name, position, blur, isSelf, delay, highFiveCount, waiti
         minWidth: 0,
       }}>
         <span
+          ref={nameRef}
           onClick={(e) => { if (!isSelf && blur === 0) { e.stopPropagation(); setShowCard(c => !c); } }}
           style={{ cursor: (!isSelf && blur === 0) ? "pointer" : "default", transition: "color 0.15s ease" }}
           onMouseEnter={e => { if (!isSelf && blur === 0) e.target.style.color = T.accent; }}
           onMouseLeave={e => { if (!isSelf) e.target.style.color = isSelf ? T.charcoal : T.textPrimary; }}>
           {name}
         </span>
-        {isSelf && (
-          <span style={{
-            marginLeft: 8, fontFamily: T.mono, fontSize: 10,
-            color: T.accent, fontWeight: 500,
-            background: T.accentSoft, padding: "2px 7px",
-            borderRadius: 4, verticalAlign: "middle",
-          }}>YOU</span>
-        )}
+        <span style={{
+          marginLeft: 8, fontFamily: T.mono, fontSize: 10,
+          color: T.accent, fontWeight: 500,
+          background: T.accentSoft, padding: "2px 7px",
+          borderRadius: 4, verticalAlign: "middle",
+          visibility: isSelf ? "visible" : "hidden",
+        }}>YOU</span>
       </div>
-      {blur === 0 && <HighFiveButton name={name} isSelf={isSelf} highFiveCount={highFiveCount} />}
-      {showCard && <UserCard name={name} waitingFor={waitingFor} position={position} onClose={() => setShowCard(false)} />}
+      <div style={{ visibility: blur === 0 ? "visible" : "hidden" }}>
+        <HighFiveButton name={name} isSelf={isSelf} highFiveCount={highFiveCount} />
+      </div>
+      {showCard && <UserCard name={name} waitingFor={waitingFor} position={position} onClose={() => setShowCard(false)} anchorRef={nameRef} />}
     </div>
   );
 }
@@ -516,11 +529,11 @@ function AuthScreen({ onAuth, bgRef }) {
 }
 
 const CARD_STYLE = {
-  background: "rgba(255, 255, 255, 0.92)",
+  background: "rgba(255, 255, 255, 0.97)",
   backdropFilter: "blur(20px)",
   WebkitBackdropFilter: "blur(20px)",
   borderRadius: 16,
-  border: "1px solid rgba(255, 255, 255, 0.5)",
+  border: "1px solid rgba(255, 255, 255, 0.6)",
   boxShadow: "0 8px 32px rgba(0, 0, 0, 0.08), 0 2px 8px rgba(0, 0, 0, 0.04)",
 };
 
@@ -584,10 +597,21 @@ function OnboardingScreen({ onComplete, bgRef }) {
   );
 }
 
-function ProfileScreen({ user, onBack, onUserUpdate, bgRef }) {
+function ProfileScreen({ user, onBack, onUserUpdate, onDelete, bgRef }) {
   const [answer, setAnswer] = useState(user.waitingFor || "");
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+
+  const handleDelete = async () => {
+    setDeleting(true);
+    try {
+      await api("/account", { method: "DELETE" });
+      onDelete();
+    } catch {}
+    setDeleting(false);
+  };
 
   const handleSave = async () => {
     setSaving(true);
@@ -609,24 +633,27 @@ function ProfileScreen({ user, onBack, onUserUpdate, bgRef }) {
   };
 
   return (
-    <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", padding: 24, position: "relative", zIndex: 1, pointerEvents: "none" }}>
+    <>
+    <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", padding: 24, paddingTop: 88, position: "relative", zIndex: 1, pointerEvents: "none" }}>
       <div
         onMouseOver={() => { if (bgRef?.current?.controls) bgRef.current.controls.enabled = false; }}
         onMouseLeave={() => { if (bgRef?.current?.controls) bgRef.current.controls.enabled = true; }}
         style={{ ...CARD_STYLE, width: "100%", maxWidth: 420, padding: "32px 32px 36px", animation: "fadeIn 0.5s ease both", pointerEvents: "auto" }}>
 
-        <button onClick={onBack} style={{
-          padding: "6px 12px", borderRadius: 6, border: "1px solid rgba(0,0,0,0.08)", background: "transparent",
-          color: T.textSecondary, fontFamily: T.sans, fontSize: 12, cursor: "pointer", fontWeight: 500,
-          marginBottom: 24, transition: "all 0.15s ease",
-        }}
-          onMouseEnter={e => { e.target.style.color = T.charcoal; }}
-          onMouseLeave={e => { e.target.style.color = T.textSecondary; }}>
-          &larr; Back
-        </button>
-
-        <div style={{ fontFamily: T.serif, fontSize: 24, color: T.charcoal, fontWeight: 400, letterSpacing: -0.5, marginBottom: 4 }}>Profile</div>
-        <div style={{ fontFamily: T.sans, fontSize: 13, color: T.textTertiary, marginBottom: 28 }}>
+        <div style={{ position: "relative", textAlign: "center", marginBottom: 4 }}>
+          <button onClick={onBack} style={{
+            position: "absolute", left: 0, top: "50%", transform: "translateY(-50%)",
+            padding: "6px 10px", borderRadius: 6, border: "1px solid rgba(0,0,0,0.08)", background: "transparent",
+            color: T.textSecondary, fontFamily: T.sans, fontSize: 12, cursor: "pointer", fontWeight: 500,
+            transition: "all 0.15s ease",
+          }}
+            onMouseEnter={e => { e.target.style.color = T.charcoal; }}
+            onMouseLeave={e => { e.target.style.color = T.textSecondary; }}>
+            &larr; Back
+          </button>
+          <div style={{ fontFamily: T.serif, fontSize: 24, color: T.charcoal, fontWeight: 400, letterSpacing: -0.5 }}>Profile</div>
+        </div>
+        <div style={{ fontFamily: T.sans, fontSize: 13, color: T.textTertiary, marginBottom: 28, textAlign: "center" }}>
           Joined {new Date(user.signupTime).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })}
         </div>
 
@@ -657,12 +684,70 @@ function ProfileScreen({ user, onBack, onUserUpdate, bgRef }) {
           onMouseLeave={e => e.target.style.transform = "scale(1)"}>
           {saved ? "Saved!" : saving ? "..." : "Save"}
         </button>
+
+        <div style={{ marginTop: 16, borderTop: `1px solid ${T.borderLight}`, paddingTop: 16 }}>
+          <button onClick={() => setConfirmDelete(true)} style={{
+            display: "flex", alignItems: "center", gap: 8,
+            background: "transparent", border: "none", cursor: "pointer", padding: 0,
+            fontFamily: T.sans, fontSize: 13, color: T.textTertiary, fontWeight: 500,
+            transition: "color 0.15s ease",
+          }}
+            onMouseEnter={e => e.currentTarget.style.color = "#C0392B"}
+            onMouseLeave={e => e.currentTarget.style.color = T.textTertiary}>
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <path d="M2 4h10M5 4V2.5A.5.5 0 0 1 5.5 2h3a.5.5 0 0 1 .5.5V4M5.5 6.5v4M8.5 6.5v4M3 4l.7 7.5A.5.5 0 0 0 4.2 12h5.6a.5.5 0 0 0 .5-.5L11 4" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/>
+            </svg>
+            Delete account
+          </button>
+        </div>
       </div>
     </div>
+
+    {confirmDelete && createPortal(
+      <div style={{
+        position: "fixed", inset: 0, zIndex: 9999,
+        background: "rgba(0,0,0,0.35)", display: "flex", alignItems: "center", justifyContent: "center",
+        padding: 24, animation: "fadeIn 0.15s ease both",
+      }} onClick={() => setConfirmDelete(false)}>
+        <div onClick={e => e.stopPropagation()} style={{
+          ...CARD_STYLE, background: "#ffffff", borderRadius: 16,
+          padding: "32px 28px", maxWidth: 400, width: "100%",
+        }}>
+          <div style={{ fontFamily: T.serif, fontSize: 22, color: T.charcoal, fontWeight: 400, letterSpacing: -0.5, marginBottom: 14 }}>Delete account?</div>
+          <div style={{ fontFamily: T.sans, fontSize: 14, color: T.textSecondary, lineHeight: 1.6, marginBottom: 28 }}>
+            If you delete your account, you will lose your place in line, your high five total, and your username will become available for others to claim. You can create a new account at any time.
+          </div>
+          <div style={{ display: "flex", gap: 10 }}>
+            <button onClick={() => setConfirmDelete(false)} style={{
+              flex: 1, padding: "12px 0", borderRadius: T.r,
+              border: `1px solid ${T.border}`, background: "transparent",
+              color: T.textSecondary, fontFamily: T.sans, fontSize: 14, fontWeight: 500, cursor: "pointer",
+              transition: "all 0.15s ease",
+            }}
+              onMouseEnter={e => { e.target.style.borderColor = T.charcoal; e.target.style.color = T.charcoal; }}
+              onMouseLeave={e => { e.target.style.borderColor = T.border; e.target.style.color = T.textSecondary; }}>
+              Cancel
+            </button>
+            <button onClick={handleDelete} disabled={deleting} style={{
+              flex: 1, padding: "12px 0", borderRadius: T.r,
+              border: "none", background: "#C0392B",
+              color: "#fff", fontFamily: T.sans, fontSize: 14, fontWeight: 500,
+              cursor: deleting ? "wait" : "pointer",
+              transition: "opacity 0.15s ease",
+              opacity: deleting ? 0.6 : 1,
+            }}>
+              {deleting ? "..." : "Delete my account"}
+            </button>
+          </div>
+        </div>
+      </div>,
+      document.body
+    )}
+    </>
   );
 }
 
-function AppBar({ user, onLogout, onProfile, bgRef }) {
+function AppBar({ user, onLogout, onProfile, onHome, bgRef }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef(null);
 
@@ -678,12 +763,13 @@ function AppBar({ user, onLogout, onProfile, bgRef }) {
       onMouseOver={() => { if (bgRef?.current?.controls) bgRef.current.controls.enabled = false; }}
       onMouseLeave={() => { if (bgRef?.current?.controls) bgRef.current.controls.enabled = true; }}
       style={{
-        ...CARD_STYLE, borderRadius: 12,
-        padding: "12px 20px", display: "flex", alignItems: "center", justifyContent: "space-between",
-        marginBottom: 16, pointerEvents: "auto", position: "relative", zIndex: 20,
+        ...CARD_STYLE, borderRadius: 0,
+        padding: "12px 24px", display: "flex", alignItems: "center", justifyContent: "space-between",
+        pointerEvents: "auto", position: "fixed", top: 0, left: 0, right: 0, zIndex: 100,
+        borderTop: "none", borderLeft: "none", borderRight: "none",
       }}>
       <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-        <div style={{ fontFamily: T.serif, fontSize: 18, color: T.charcoal, fontWeight: 400, letterSpacing: -0.5 }}>The Waitlist</div>
+        <div onClick={onHome} style={{ fontFamily: T.serif, fontSize: 18, color: T.charcoal, fontWeight: 400, letterSpacing: -0.5, cursor: onHome ? "pointer" : "default" }}>The Waitlist</div>
         <div style={{ width: 1, height: 16, background: T.border }} />
         <div style={{ fontFamily: T.sans, fontSize: 13, color: T.textTertiary }}>Welcome back</div>
       </div>
@@ -815,14 +901,19 @@ function Dashboard({ user, users, onLogout, onUsersUpdate, onUserUpdate, bgRef }
   }, [myIndex]);
 
   if (screen === "profile") {
-    return <ProfileScreen user={user} onBack={() => setScreen("queue")} onUserUpdate={onUserUpdate} bgRef={bgRef} />;
+    return (
+      <>
+        <AppBar user={user} onLogout={onLogout} onProfile={() => setScreen("profile")} onHome={() => setScreen("queue")} bgRef={bgRef} />
+        <ProfileScreen user={user} onBack={() => setScreen("queue")} onUserUpdate={onUserUpdate} onDelete={onLogout} bgRef={bgRef} />
+      </>
+    );
   }
 
   return (
-    <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", padding: 24, position: "relative", zIndex: 1, pointerEvents: "none" }}>
+    <>
+    <AppBar user={user} onLogout={onLogout} onProfile={() => setScreen("profile")} onHome={() => setScreen("queue")} bgRef={bgRef} />
+    <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", padding: 24, paddingTop: 88, position: "relative", zIndex: 1, pointerEvents: "none" }}>
       <div style={{ width: "100%", maxWidth: 520, animation: "fadeIn 0.5s ease both" }}>
-
-        <AppBar user={user} onLogout={onLogout} onProfile={() => setScreen("profile")} bgRef={bgRef} />
 
         {/* Queue card */}
         <div
@@ -897,6 +988,7 @@ function Dashboard({ user, users, onLogout, onUsersUpdate, onUserUpdate, bgRef }
 
       </div>
     </div>
+    </>
   );
 }
 
