@@ -11,6 +11,7 @@ const PROJECT_DATA = {
     subtitle: "AI-augmented Shipping Dashboard",
     desc: "Fall 2025 - How might a top 3 global athletics company leverage machine learning to optimize their downstream supply chain? Following a general call for innovative ways to leverage ai, I explored this question, developed a business plan, and used Claude to help make a prototype in react.js."
   },
+
   "store-portal": {
     title: "🗓️ Store Portal 2.1",
     image: "assets/store_portal_cover.png",
@@ -125,6 +126,14 @@ const PROJECT_DATA = {
     external: true,
     subtitle: "Build: Serverless Peer-to-Peer Movie Listing and Recommendation App",
     desc: "Spring 2025 - A friend sent me a link to a sprawling spreadsheet asking for movie recommendations. I asked why she didn't just use Letterboxd. For her, Letterboxd had too many features, and didn't allow for convenient list sharing. I made this app using google gemini as a tongue-in-cheek solution that more specifically generalizes her use case for others."
+  },
+  "thewaitlist": {
+    title: "The Waitlist",
+    image: "assets/thewaitlist_cover.png",
+    link: "https://www.aidanoday.me/thewaitlist/",
+    external: true,
+    subtitle: "Build: Full Stack Web App built in React and deployed with a Cloudflare D1 SQL backend",
+    desc: "Spring 2026 - Ever since I built waybetterboxd, I've been curious about pushing past the limits of serverless web apps and deploying a full stack app. I used Claude Code and Omma to explore the essentials of application deployment - identity management, account creation, backend calls, and account deletion - through this lightweight build that purports to be a premier wait list experience."
   }
   // ... (Keep the rest of your data here)
 };
