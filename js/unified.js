@@ -214,7 +214,8 @@ class ProjectCard extends HTMLElement {
                 background: var(--Surface, #FFF7F0);
                 border-radius: 12px; 
                 border:solid 1px #626262;
-                overflow: hidden; 
+                overflow: hidden;
+                transform: translateZ(0);
                 box-shadow: 0 2px 8px rgba(0, 43, 128, 0.08);
                 transition: transform 0.2s ease, box-shadow 0.2s ease; 
                 height: auto;
