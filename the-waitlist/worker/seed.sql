@@ -1,26 +1,17 @@
-INSERT OR IGNORE INTO users (display_name, email, password_hash, position, signup_time) VALUES
-  ('ghostpixel', 'ghostpixel@demo.io', '$2a$10$demo_hash_placeholder', 1, datetime('now', '-25 hours')),
-  ('neondrift', 'neondrift@demo.io', '$2a$10$demo_hash_placeholder', 2, datetime('now', '-24 hours')),
-  ('quietstorm', 'quietstorm@demo.io', '$2a$10$demo_hash_placeholder', 3, datetime('now', '-23 hours')),
-  ('velvetbyte', 'velvetbyte@demo.io', '$2a$10$demo_hash_placeholder', 4, datetime('now', '-22 hours')),
-  ('cosmicdust', 'cosmicdust@demo.io', '$2a$10$demo_hash_placeholder', 5, datetime('now', '-21 hours')),
-  ('ironpetal', 'ironpetal@demo.io', '$2a$10$demo_hash_placeholder', 6, datetime('now', '-20 hours')),
-  ('glitchfawn', 'glitchfawn@demo.io', '$2a$10$demo_hash_placeholder', 7, datetime('now', '-19 hours')),
-  ('mosscircuit', 'mosscircuit@demo.io', '$2a$10$demo_hash_placeholder', 8, datetime('now', '-18 hours')),
-  ('lunarthread', 'lunarthread@demo.io', '$2a$10$demo_hash_placeholder', 9, datetime('now', '-17 hours')),
-  ('deepcoral', 'deepcoral@demo.io', '$2a$10$demo_hash_placeholder', 10, datetime('now', '-16 hours')),
-  ('ashenvault', 'ashenvault@demo.io', '$2a$10$demo_hash_placeholder', 11, datetime('now', '-15 hours')),
-  ('prismwalker', 'prismwalker@demo.io', '$2a$10$demo_hash_placeholder', 12, datetime('now', '-14 hours')),
-  ('frostloom', 'frostloom@demo.io', '$2a$10$demo_hash_placeholder', 13, datetime('now', '-13 hours')),
-  ('coppervine', 'coppervine@demo.io', '$2a$10$demo_hash_placeholder', 14, datetime('now', '-12 hours')),
-  ('duskecho', 'duskecho@demo.io', '$2a$10$demo_hash_placeholder', 15, datetime('now', '-11 hours')),
-  ('solarflint', 'solarflint@demo.io', '$2a$10$demo_hash_placeholder', 16, datetime('now', '-10 hours')),
-  ('mistweaver', 'mistweaver@demo.io', '$2a$10$demo_hash_placeholder', 17, datetime('now', '-9 hours')),
-  ('emberknot', 'emberknot@demo.io', '$2a$10$demo_hash_placeholder', 18, datetime('now', '-8 hours')),
-  ('tidelock', 'tidelock@demo.io', '$2a$10$demo_hash_placeholder', 19, datetime('now', '-7 hours')),
-  ('sparkgrain', 'sparkgrain@demo.io', '$2a$10$demo_hash_placeholder', 20, datetime('now', '-6 hours')),
-  ('hollowpine', 'hollowpine@demo.io', '$2a$10$demo_hash_placeholder', 21, datetime('now', '-5 hours')),
-  ('riftsong', 'riftsong@demo.io', '$2a$10$demo_hash_placeholder', 22, datetime('now', '-4 hours')),
-  ('cloudanvil', 'cloudanvil@demo.io', '$2a$10$demo_hash_placeholder', 23, datetime('now', '-3 hours')),
-  ('petalwire', 'petalwire@demo.io', '$2a$10$demo_hash_placeholder', 24, datetime('now', '-2 hours')),
-  ('nightbloom', 'nightbloom@demo.io', '$2a$10$demo_hash_placeholder', 25, datetime('now', '-1 hours'));
+-- Dev seed data. Run with: npm run worker:dev:seed
+-- Passwords are 'password1' — use the signup endpoint in dev to create real accounts with real hashes.
+
+INSERT OR IGNORE INTO users (display_name, password_hash, position, signup_time, in_queue, current_wait_join_time, position_one_start_time) VALUES
+  ('ghostpixel',  'PLACEHOLDER', 1,  datetime('now', '-25 hours'), 1, datetime('now', '-25 hours'), datetime('now', '-59 minutes')),
+  ('neondrift',   'PLACEHOLDER', 2,  datetime('now', '-24 hours'), 1, datetime('now', '-24 hours'), NULL),
+  ('quietstorm',  'PLACEHOLDER', 3,  datetime('now', '-23 hours'), 1, datetime('now', '-23 hours'), NULL),
+  ('velvetbyte',  'PLACEHOLDER', 4,  datetime('now', '-22 hours'), 1, datetime('now', '-22 hours'), NULL),
+  ('cosmicdust',  'PLACEHOLDER', 5,  datetime('now', '-21 hours'), 1, datetime('now', '-21 hours'), NULL),
+  ('ironpetal',   'PLACEHOLDER', 6,  datetime('now', '-20 hours'), 1, datetime('now', '-20 hours'), NULL),
+  ('glitchfawn',  'PLACEHOLDER', 7,  datetime('now', '-19 hours'), 1, datetime('now', '-19 hours'), NULL),
+  ('mosscircuit', 'PLACEHOLDER', 8,  datetime('now', '-18 hours'), 1, datetime('now', '-18 hours'), NULL),
+  ('lunarthread', 'PLACEHOLDER', 9,  datetime('now', '-17 hours'), 1, datetime('now', '-17 hours'), NULL),
+  ('deepcoral',   'PLACEHOLDER', 10, datetime('now', '-16 hours'), 1, datetime('now', '-16 hours'), NULL);
+
+-- ghostpixel is at position 1 with 59 minutes elapsed — timer will expire in ~1 minute in dev
+-- (change '-59 minutes' to '-3600 seconds' to test immediate completion)

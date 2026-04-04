@@ -7,7 +7,16 @@
     "dev": "vite",
     "build": "vite build",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+
+    "worker:dev": "cd worker && npx wrangler dev --env dev --remote",
+    "worker:dev:local": "cd worker && npx wrangler dev",
+    "worker:dev:init": "cd worker && npx wrangler d1 execute waitlist-db-dev --remote --file=schema.sql && npx wrangler d1 execute waitlist-db-dev --remote --file=seed.sql",
+    "worker:dev:migrate": "cd worker && npx wrangler d1 execute waitlist-db-dev --remote --file=migration.sql",
+    "worker:local:init": "cd worker && npx wrangler d1 execute waitlist-db --local --file=schema.sql && npx wrangler d1 execute waitlist-db --local --file=seed.sql",
+    "worker:local:migrate": "cd worker && npx wrangler d1 execute waitlist-db --local --file=migration.sql",
+    "worker:deploy": "cd worker && npx wrangler deploy",
+    "worker:migrate:prod": "cd worker && npx wrangler d1 execute waitlist-db --remote --file=migration.sql"
   },
   "dependencies": {
     "react": "^19.2.4",
