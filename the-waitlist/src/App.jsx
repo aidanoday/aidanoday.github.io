@@ -1408,18 +1408,12 @@ function Dashboard({ user, users, onLogout, onUsersUpdate, onUserUpdate, onWaitC
   const myEntry = users.find(u => u.displayName === user.displayName);
   const [localAccumulated, setLocalAccumulated] = useState(myEntry?.accumulatedWaitSeconds || 0);
 
-  // Sync from server on every queue refresh.
-  // At position 1: take the max (local tick may be slightly ahead of server).
-  // Not at position 1: always trust the server — local may have over-counted
-  // if we were cut while the queue hadn't refreshed yet.
+  // Sync from server on every queue refresh — always take the higher value so
+  // users never see their wait time go backwards unexpectedly.
   useEffect(() => {
     const serverVal = myEntry?.accumulatedWaitSeconds || 0;
-    if (myPosition === 1) {
-      setLocalAccumulated(prev => Math.max(prev, serverVal));
-    } else {
-      setLocalAccumulated(serverVal);
-    }
-  }, [myEntry?.accumulatedWaitSeconds, myPosition]);
+    setLocalAccumulated(prev => Math.max(prev, serverVal));
+  }, [myEntry?.accumulatedWaitSeconds]);
 
   // Tick locally every second while at position 1
   useEffect(() => {
@@ -1495,6 +1489,16 @@ function Dashboard({ user, users, onLogout, onUsersUpdate, onUserUpdate, onWaitC
       }
     }
   }, [onWaitComplete]);
+
+  // At 5s remaining, do one early queue poll to confirm position before completion.
+  const earlyPollFiredRef = useRef(false);
+  useEffect(() => {
+    if (myPosition !== 1) { earlyPollFiredRef.current = false; return; }
+    if (localAccumulated >= TIMER_DURATION - 5 && !earlyPollFiredRef.current) {
+      earlyPollFiredRef.current = true;
+      api("/queue").then(onUsersUpdate).catch(() => {});
+    }
+  }, [localAccumulated, myPosition, onUsersUpdate]);
 
   // Fire completion when localAccumulated reaches the duration. Lives here in
   // Dashboard so it's immune to CountdownTimer unmounting or prop timing races.
