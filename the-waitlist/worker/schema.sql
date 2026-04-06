@@ -30,5 +30,6 @@ CREATE TABLE IF NOT EXISTS wait_completions (
   high_fives_given INTEGER NOT NULL DEFAULT 0,
   high_fives_received INTEGER NOT NULL DEFAULT 0,
   cuts_made INTEGER NOT NULL DEFAULT 0,
+  waiting_for TEXT,
   FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );

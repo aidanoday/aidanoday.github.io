@@ -185,6 +185,61 @@ const T = {
 // ── Constants ────────────────────────────────────────────────────────────
 const TIMER_DURATION = 2 * 60; // 2 minutes in seconds (active time only)
 
+// ── ZzzIcon ──────────────────────────────────────────────────────────────
+function ZzzIcon() {
+  return (
+    <span style={{ flexShrink: 0, display: "inline-flex", alignItems: "flex-end", gap: 1, lineHeight: 1 }}>
+      {["z", "z", "z"].map((z, i) => (
+        <span key={i} style={{
+          fontFamily: T.mono,
+          fontSize: 7 + i * 2,
+          color: T.textTertiary,
+          animation: `pulse 2s ease ${i * 0.4}s infinite`,
+          display: "inline-block",
+        }}>{z}</span>
+      ))}
+    </span>
+  );
+}
+
+// ── PixelHourglass ───────────────────────────────────────────────────────
+function PixelHourglass() {
+  const px = 2;
+  const c = T.accent;
+  const sand = "rgba(194,98,64,0.45)";
+  // 5-col × 7-row pixel hourglass (10×14px total)
+  const frame = [
+    [0,0],[0,1],[0,2],[0,3],[0,4],
+    [1,0],[1,4],
+    [2,1],[2,3],
+    [3,2],
+    [4,1],[4,3],
+    [5,0],[5,4],
+    [6,0],[6,1],[6,2],[6,3],[6,4],
+  ];
+  const topSand  = [[1,1],[1,2],[1,3],[2,2]];
+  const botSand  = [[4,2],[5,1],[5,2],[5,3]];
+  return (
+    <div style={{ flexShrink: 0, animation: "hourglassFlip 8s linear infinite", transformOrigin: "center", display: "inline-flex" }}>
+      <svg width={5*px} height={7*px} viewBox={`0 0 ${5*px} ${7*px}`} style={{ display: "block" }}>
+        {frame.map(([r,col],i)   => <rect key={`f${i}`}  x={col*px} y={r*px} width={px} height={px} fill={c} />)}
+        {topSand.map(([r,col],i) => <rect key={`ts${i}`} x={col*px} y={r*px} width={px} height={px} fill={sand} />)}
+        {botSand.map(([r,col],i) => <rect key={`bs${i}`} x={col*px} y={r*px} width={px} height={px} fill={sand} />)}
+        {/* dripping grain — downward when upright */}
+        <g style={{ animation: "showUpright 8s linear infinite" }}>
+          <rect x={2*px} y={3*px} width={px} height={px} fill={c}
+            style={{ animation: "sandDripDown 1s linear infinite" }} />
+        </g>
+        {/* dripping grain — upward in SVG space (= downward on screen) when flipped */}
+        <g style={{ animation: "showFlipped 8s linear infinite" }}>
+          <rect x={2*px} y={3*px} width={px} height={px} fill={c}
+            style={{ animation: "sandDripUp 1s linear infinite" }} />
+        </g>
+      </svg>
+    </div>
+  );
+}
+
 // ── CountdownTimer ───────────────────────────────────────────────────────
 // For the self/position-1 user: counts down locally each second (active time).
 // For everyone else: shows the server's last-known remaining time as a static value.
@@ -244,13 +299,25 @@ function CountdownTimer({ accumulatedWaitSeconds, isPosition1, isSelf, onExpire 
 }
 
 // ── HighFiveButton ───────────────────────────────────────────────────────
-function HighFiveButton({ name, isSelf, highFiveCount }) {
+function HighFiveButton({ name, isSelf, highFiveCount, hasFivedToday }) {
   const [count, setCount] = useState(highFiveCount);
-  const [fived, setFived] = useState(false);
+  const [fived, setFived] = useState(hasFivedToday || false);
   const [bursting, setBursting] = useState(false);
   const [tooltip, setTooltip] = useState(false);
 
   useEffect(() => { setCount(highFiveCount); }, [highFiveCount]);
+
+  // Sync fived state when the queue refreshes (covers page reload + next-day reset)
+  useEffect(() => { setFived(hasFivedToday || false); }, [hasFivedToday]);
+
+  // Auto-reset at UTC midnight so the button re-enables without a page reload
+  useEffect(() => {
+    if (!fived) return;
+    const now = new Date();
+    const midnight = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + 1));
+    const id = setTimeout(() => setFived(false), midnight - now);
+    return () => clearTimeout(id);
+  }, [fived]);
 
   const handleClick = async (e) => {
     e.stopPropagation();
@@ -367,7 +434,7 @@ function UserCard({ name, waitingFor, position, onClose, anchorRef }) {
 }
 
 // ── QueuePerson ──────────────────────────────────────────────────────────
-function QueuePerson({ name, position, blur, isSelf, delay, highFiveCount, waitingFor, accumulatedWaitSeconds, onTimerExpire }) {
+function QueuePerson({ name, position, blur, isSelf, delay, highFiveCount, hasFivedToday, waitingFor, accumulatedWaitSeconds, onTimerExpire }) {
   const [showCard, setShowCard] = useState(false);
   const nameRef = useRef(null);
 
@@ -391,7 +458,10 @@ function QueuePerson({ name, position, blur, isSelf, delay, highFiveCount, waiti
       }}>
         {position}
       </div>
-      <div style={{ width: 4, height: 4, borderRadius: "50%", flexShrink: 0, background: isSelf ? T.accent : T.border }} />
+      {position === 1
+        ? isSelf ? <PixelHourglass /> : <ZzzIcon />
+        : <div style={{ width: 4, height: 4, borderRadius: "50%", flexShrink: 0, background: isSelf ? T.accent : T.border }} />
+      }
       <CountdownTimer
         accumulatedWaitSeconds={accumulatedWaitSeconds}
         isPosition1={position === 1}
@@ -420,8 +490,8 @@ function QueuePerson({ name, position, blur, isSelf, delay, highFiveCount, waiti
           visibility: isSelf ? "visible" : "hidden",
         }}>YOU</span>
       </div>
-      <div style={{ visibility: blur === 0 ? "visible" : "hidden" }}>
-        <HighFiveButton name={name} isSelf={isSelf} highFiveCount={highFiveCount} />
+      <div style={{ visibility: blur === 0 ? "visible" : "hidden", minWidth: 80, flexShrink: 0, display: "flex", justifyContent: "flex-end" }}>
+        <HighFiveButton name={name} isSelf={isSelf} highFiveCount={highFiveCount} hasFivedToday={hasFivedToday} />
       </div>
       {showCard && <UserCard name={name} waitingFor={waitingFor} position={position} onClose={() => setShowCard(false)} anchorRef={nameRef} />}
     </div>
@@ -446,7 +516,7 @@ function SpeechBubble({ text, listRef, myIndex }) {
   return (
     <div style={{
       position: "absolute", left: "50%", top: pos.top,
-      translate: "-50%",
+      translate: "-50% 70px",
       background: "#FDFCFB", color: T.textPrimary,
       fontFamily: T.serif, fontSize: 26,
       padding: "12px 22px", borderRadius: 12,
@@ -617,13 +687,22 @@ const CARD_STYLE = {
 function OnboardingScreen({ onComplete, bgRef }) {
   const [answer, setAnswer] = useState("");
   const [saving, setSaving] = useState(false);
+  const [error, setError] = useState(null);
 
   const handleSubmit = async () => {
+    setError(null);
     setSaving(true);
     try {
       const updated = await api("/profile", { method: "PATCH", body: JSON.stringify({ waitingFor: answer.trim() || "nothing" }) });
       onComplete(updated);
-    } catch { onComplete(null); }
+    } catch (err) {
+      if (err.message?.includes("inappropriate")) {
+        setError(err.message);
+      } else {
+        onComplete(null);
+      }
+    }
+    setSaving(false);
   };
 
   const inputStyle = {
@@ -650,11 +729,20 @@ function OnboardingScreen({ onComplete, bgRef }) {
         <label style={{ fontFamily: T.sans, fontSize: 12, color: T.textSecondary, fontWeight: 500, marginBottom: 6, display: "block", letterSpacing: 0.3, textAlign: "left" }}>
           What are you waiting for?
         </label>
-        <input value={answer} onChange={e => setAnswer(e.target.value)} style={inputStyle}
+        <input value={answer} onChange={e => { setAnswer(e.target.value); setError(null); }} style={{
+          ...inputStyle,
+          borderColor: error ? "#C0392B" : T.border,
+          boxShadow: error ? "0 0 0 3px rgba(192,57,43,0.1)" : "none",
+        }}
           placeholder="'nothing' is a perfectly fine answer"
           onKeyDown={e => e.key === "Enter" && handleSubmit()}
-          onFocus={e => { e.target.style.borderColor = T.accent; e.target.style.boxShadow = `0 0 0 3px ${T.accentSoft}`; }}
-          onBlur={e => { e.target.style.borderColor = T.border; e.target.style.boxShadow = "none"; }} />
+          onFocus={e => { if (!error) { e.target.style.borderColor = T.accent; e.target.style.boxShadow = `0 0 0 3px ${T.accentSoft}`; } }}
+          onBlur={e => { if (!error) { e.target.style.borderColor = T.border; e.target.style.boxShadow = "none"; } }} />
+        {error && (
+          <div style={{ fontFamily: T.sans, fontSize: 12, color: "#C0392B", marginTop: 6, textAlign: "left", animation: "fadeIn 0.2s ease both" }}>
+            {error}
+          </div>
+        )}
 
         <button onClick={handleSubmit} disabled={saving} style={{
           width: "100%", marginTop: 20, padding: "14px 0", borderRadius: T.r,
@@ -679,9 +767,11 @@ function ProfileScreen({ user, onBack, onUserUpdate, onDelete, bgRef }) {
   const [answer, setAnswer] = useState(user.waitingFor || "");
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [saveError, setSaveError] = useState(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [waitHistory, setWaitHistory] = useState(null);
+  const [selectedRun, setSelectedRun] = useState(null);
 
   useEffect(() => {
     api("/wait-history")
@@ -699,13 +789,16 @@ function ProfileScreen({ user, onBack, onUserUpdate, onDelete, bgRef }) {
   };
 
   const handleSave = async () => {
+    setSaveError(null);
     setSaving(true);
     try {
       const updated = await api("/profile", { method: "PATCH", body: JSON.stringify({ waitingFor: answer.trim() }) });
       onUserUpdate(updated);
       setSaved(true);
       setTimeout(() => setSaved(false), 2000);
-    } catch {}
+    } catch (err) {
+      if (err.message?.includes("inappropriate")) setSaveError(err.message);
+    }
     setSaving(false);
   };
 
@@ -716,6 +809,53 @@ function ProfileScreen({ user, onBack, onUserUpdate, onDelete, bgRef }) {
     outline: "none", boxSizing: "border-box",
     transition: "border-color 0.2s ease, box-shadow 0.2s ease",
   };
+
+  if (selectedRun) {
+    return (
+      <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", padding: 24, paddingTop: 88, position: "relative", zIndex: 1, pointerEvents: "none" }}>
+        <div
+          onMouseOver={() => { if (bgRef?.current?.controls) bgRef.current.controls.enabled = false; }}
+          onMouseLeave={() => { if (bgRef?.current?.controls) bgRef.current.controls.enabled = true; }}
+          style={{ width: "100%", maxWidth: 420, animation: "fadeIn 0.35s ease both", pointerEvents: "auto" }}>
+          <div style={{ ...CARD_STYLE, padding: "28px 28px 32px" }}>
+            <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 20 }}>
+              <div>
+                <div style={{ fontFamily: T.serif, fontSize: 22, color: T.charcoal, letterSpacing: -0.4, fontWeight: 400 }}>
+                  {ordinal(selectedRun.waitNumber)} wait
+                </div>
+                {selectedRun.waitingFor && (
+                  <div style={{ fontFamily: T.sans, fontSize: 13, color: T.textTertiary, marginTop: 4 }}>
+                    Waiting for: <span style={{ color: T.textSecondary, fontWeight: 500 }}>{selectedRun.waitingFor}</span>
+                  </div>
+                )}
+                <div style={{ fontFamily: T.mono, fontSize: 11, color: T.textTertiary, marginTop: 6 }}>
+                  {new Date(selectedRun.completedAt).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })}
+                </div>
+              </div>
+              <button onClick={() => setSelectedRun(null)} style={{
+                padding: "6px 12px", borderRadius: 6, border: `1px solid ${T.border}`,
+                background: "transparent", color: T.textSecondary,
+                fontFamily: T.sans, fontSize: 12, cursor: "pointer", flexShrink: 0,
+              }}>← Back</button>
+            </div>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+              {[
+                { label: "High fives given",    value: selectedRun.highFivesGiven },
+                { label: "High fives received", value: selectedRun.highFivesReceived },
+                { label: "Total time",          value: formatDuration(selectedRun.totalTimeSeconds) },
+                { label: "Cuts made",           value: selectedRun.cutsMade },
+              ].map(({ label, value }) => (
+                <div key={label} style={{ padding: "14px 16px", borderRadius: T.r, border: `1px solid ${T.borderLight}`, background: T.bg }}>
+                  <div style={{ fontFamily: T.mono, fontSize: 22, color: T.charcoal, fontWeight: 600, marginBottom: 4 }}>{value}</div>
+                  <div style={{ fontFamily: T.sans, fontSize: 11, color: T.textTertiary, fontWeight: 500, letterSpacing: 0.2 }}>{label}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <>
@@ -749,11 +889,20 @@ function ProfileScreen({ user, onBack, onUserUpdate, onDelete, bgRef }) {
 
           <div style={{ marginBottom: 24 }}>
             <label style={{ fontFamily: T.sans, fontSize: 12, color: T.textSecondary, fontWeight: 500, marginBottom: 6, display: "block", letterSpacing: 0.3 }}>What are you waiting for?</label>
-            <input value={answer} onChange={e => setAnswer(e.target.value)} style={inputStyle}
+            <input value={answer} onChange={e => { setAnswer(e.target.value); setSaveError(null); }} style={{
+              ...inputStyle,
+              borderColor: saveError ? "#C0392B" : T.border,
+              boxShadow: saveError ? "0 0 0 3px rgba(192,57,43,0.1)" : "none",
+            }}
               placeholder="'nothing' is a perfectly fine answer"
               onKeyDown={e => e.key === "Enter" && handleSave()}
-              onFocus={e => { e.target.style.borderColor = T.accent; e.target.style.boxShadow = `0 0 0 3px ${T.accentSoft}`; }}
-              onBlur={e => { e.target.style.borderColor = T.border; e.target.style.boxShadow = "none"; }} />
+              onFocus={e => { if (!saveError) { e.target.style.borderColor = T.accent; e.target.style.boxShadow = `0 0 0 3px ${T.accentSoft}`; } }}
+              onBlur={e => { if (!saveError) { e.target.style.borderColor = T.border; e.target.style.boxShadow = "none"; } }} />
+            {saveError && (
+              <div style={{ fontFamily: T.sans, fontSize: 12, color: "#C0392B", marginTop: 6, animation: "fadeIn 0.2s ease both" }}>
+                {saveError}
+              </div>
+            )}
           </div>
 
           <button onClick={handleSave} disabled={saving} style={{
@@ -792,14 +941,33 @@ function ProfileScreen({ user, onBack, onUserUpdate, onDelete, bgRef }) {
                       borderRadius: T.r,
                       border: `1px solid ${T.borderLight}`,
                       background: T.bg,
-                      display: "flex", justifyContent: "space-between", alignItems: "center",
+                      display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10,
                     }}>
-                      <span style={{ fontFamily: T.sans, fontSize: 13, color: T.textPrimary, fontWeight: 500 }}>
-                        {ordinal(w.waitNumber)} wait
-                      </span>
-                      <span style={{ fontFamily: T.mono, fontSize: 11, color: T.textTertiary }}>
-                        {new Date(w.completedAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
-                      </span>
+                      <div style={{ minWidth: 0 }}>
+                        <div style={{ fontFamily: T.sans, fontSize: 13, color: T.textPrimary, fontWeight: 500 }}>
+                          {ordinal(w.waitNumber)} wait
+                        </div>
+                        {w.waitingFor && (
+                          <div style={{ fontFamily: T.sans, fontSize: 11, color: T.textTertiary, marginTop: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                            {w.waitingFor}
+                          </div>
+                        )}
+                      </div>
+                      <div style={{ display: "flex", alignItems: "center", gap: 10, flexShrink: 0 }}>
+                        <span style={{ fontFamily: T.mono, fontSize: 11, color: T.textTertiary }}>
+                          {new Date(w.completedAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
+                        </span>
+                        <button onClick={() => setSelectedRun(w)} style={{
+                          padding: "4px 10px", borderRadius: 5,
+                          border: `1px solid ${T.border}`, background: "transparent",
+                          color: T.textSecondary, fontFamily: T.sans, fontSize: 11,
+                          cursor: "pointer", transition: "all 0.15s ease",
+                        }}
+                          onMouseEnter={e => { e.target.style.color = T.charcoal; e.target.style.borderColor = T.textSecondary; }}
+                          onMouseLeave={e => { e.target.style.color = T.textSecondary; e.target.style.borderColor = T.border; }}>
+                          Details
+                        </button>
+                      </div>
                     </div>
                   ))}
                 </div>
@@ -870,7 +1038,7 @@ function ProfileScreen({ user, onBack, onUserUpdate, onDelete, bgRef }) {
 }
 
 // ── AppBar ────────────────────────────────────────────────────────────────
-function AppBar({ user, onLogout, onProfile, onHome, bgRef }) {
+function AppBar({ user, onLogout, onProfile, onLeaderboard, onHome, bgRef }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef(null);
 
@@ -883,6 +1051,7 @@ function AppBar({ user, onLogout, onProfile, onHome, bgRef }) {
 
   const menuItems = [
     onProfile && { label: "See profile", action: () => { onProfile(); setMenuOpen(false); } },
+    onLeaderboard && { label: "Leaderboards", action: () => { onLeaderboard(); setMenuOpen(false); } },
     { label: "Log out", action: () => { onLogout(); setMenuOpen(false); } },
   ].filter(Boolean);
 
@@ -940,6 +1109,15 @@ function AppBar({ user, onLogout, onProfile, onHome, bgRef }) {
 function CongratulationsScreen({ data, user, onRejoin, onLogout, onUserUpdate, bgRef }) {
   const [screen, setScreen] = useState("main");
   const [rejoining, setRejoining] = useState(false);
+  const [spectatorUsers, setSpectatorUsers] = useState([]);
+
+  useEffect(() => {
+    if (screen !== "queue") return;
+    const load = () => api("/queue").then(setSpectatorUsers).catch(() => {});
+    load();
+    const id = setInterval(load, 15000);
+    return () => clearInterval(id);
+  }, [screen]);
 
   const handleRejoin = async () => {
     setRejoining(true);
@@ -952,6 +1130,57 @@ function CongratulationsScreen({ data, user, onRejoin, onLogout, onUserUpdate, b
       <>
         <AppBar user={user} onLogout={onLogout} onProfile={() => setScreen("profile")} onHome={() => setScreen("main")} bgRef={bgRef} />
         <ProfileScreen user={user} onBack={() => setScreen("main")} onUserUpdate={onUserUpdate} onDelete={onLogout} bgRef={bgRef} />
+      </>
+    );
+  }
+
+  if (screen === "queue") {
+    return (
+      <>
+        <AppBar user={user} onLogout={onLogout} onProfile={() => setScreen("profile")} onHome={() => setScreen("main")} bgRef={bgRef} />
+        <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", padding: 24, paddingTop: 88, position: "relative", zIndex: 1, pointerEvents: "none" }}>
+          <div style={{ width: "100%", maxWidth: 520, animation: "fadeIn 0.5s ease both" }}>
+            <div
+              onMouseOver={() => { if (bgRef?.current?.controls) bgRef.current.controls.enabled = false; }}
+              onMouseLeave={() => { if (bgRef?.current?.controls) bgRef.current.controls.enabled = true; }}
+              style={{ ...CARD_STYLE, padding: 0, overflow: "visible", position: "relative", pointerEvents: "auto" }}>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "18px 24px 14px" }}>
+                <div style={{ fontFamily: T.serif, fontSize: 20, color: T.charcoal, fontWeight: 400, letterSpacing: -0.3 }}>The queue</div>
+                <button onClick={handleRejoin} disabled={rejoining} style={{
+                  padding: "8px 16px", borderRadius: 6, border: `1px solid ${T.accentBorder}`,
+                  background: T.accentSoft, color: T.accent,
+                  fontFamily: T.sans, fontSize: 13, fontWeight: 500,
+                  cursor: rejoining ? "wait" : "pointer", opacity: rejoining ? 0.6 : 1,
+                }}>
+                  {rejoining ? "..." : "Join the list"}
+                </button>
+              </div>
+              <div style={{ maxHeight: 380, overflowY: "auto", overflowX: "hidden", scrollbarWidth: "thin", scrollbarColor: `${T.border} transparent` }}>
+                {spectatorUsers.length === 0 ? (
+                  <div style={{ padding: "32px 24px", textAlign: "center", fontFamily: T.sans, fontSize: 13, color: T.textTertiary }}>Nobody in line.</div>
+                ) : spectatorUsers.map((u, idx) => (
+                  <QueuePerson
+                    key={u.displayName}
+                    name={u.displayName}
+                    position={idx + 1}
+                    blur={0}
+                    isSelf={false}
+                    delay={Math.min(idx * 25, 500)}
+                    highFiveCount={u.highFiveCount || 0}
+                    hasFivedToday={u.hasFivedToday || false}
+                    waitingFor={u.waitingFor}
+                    accumulatedWaitSeconds={u.accumulatedWaitSeconds || 0}
+                  />
+                ))}
+              </div>
+              <div style={{ padding: "12px 24px", borderTop: `1px solid ${T.borderLight}`, borderRadius: "0 0 16px 16px" }}>
+                <span style={{ fontFamily: T.sans, fontSize: 12, color: T.textTertiary }}>
+                  {spectatorUsers.length} {spectatorUsers.length === 1 ? "person" : "people"} in line
+                </span>
+              </div>
+            </div>
+          </div>
+        </div>
       </>
     );
   }
@@ -969,7 +1198,7 @@ function CongratulationsScreen({ data, user, onRejoin, onLogout, onUserUpdate, b
           {data && (
             <div style={{
               width: 180, height: 180, borderRadius: "50%",
-              background: `linear-gradient(145deg, ${T.accent} 0%, #8B3A22 100%)`,
+              background: `linear-gradient(145deg, ${T.accent} 0%, #44fff3 100%)`,
               display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
               margin: "0 auto 36px",
               animation: "float 3s ease-in-out infinite",
@@ -979,9 +1208,9 @@ function CongratulationsScreen({ data, user, onRejoin, onLogout, onUserUpdate, b
               padding: 24,
               willChange: "transform",
             }}>
-              <div style={{ fontFamily: T.serif, fontSize: 14, fontStyle: "italic", opacity: 0.8, marginBottom: 2 }}>Your</div>
-              <div style={{ fontFamily: T.serif, fontSize: 40, fontWeight: 400, lineHeight: 1 }}>{ordinal(data.waitNumber)}</div>
-              <div style={{ fontFamily: T.serif, fontSize: 14, fontStyle: "italic", opacity: 0.8, marginTop: 4 }}>wait is over</div>
+              <div style={{ fontFamily: T.serif, fontSize: 14, opacity: 0.8, marginBottom: 2 }}>Your</div>
+              <div style={{ fontFamily: T.serif, fontSize: 40, fontStyle: "italic",fontWeight: 400, lineHeight: 1 }}>{ordinal(data.waitNumber)}</div>
+              <div style={{ fontFamily: T.serif, fontSize: 14, opacity: 0.8, marginTop: 4 }}>wait is over</div>
             </div>
           )}
 
@@ -1033,12 +1262,136 @@ function CongratulationsScreen({ data, user, onRejoin, onLogout, onUserUpdate, b
               onMouseDown={e => !rejoining && (e.target.style.transform = "scale(0.985)")}
               onMouseUp={e => e.target.style.transform = "scale(1)"}
               onMouseLeave={e => e.target.style.transform = "scale(1)"}>
-              {rejoining ? "..." : "Get back on the list"}
+              {rejoining ? "..." : "Rejoin the list"}
+            </button>
+            <button onClick={() => setScreen("queue")} style={{
+              width: "100%", padding: "12px 0", marginTop: 10, borderRadius: T.r,
+              border: `1px solid ${T.border}`, cursor: "pointer",
+              background: "transparent", color: T.textSecondary,
+              fontFamily: T.sans, fontSize: 14, fontWeight: 400,
+              transition: "color 0.15s ease, border-color 0.15s ease",
+            }}
+              onMouseEnter={e => { e.target.style.color = T.charcoal; e.target.style.borderColor = T.textSecondary; }}
+              onMouseLeave={e => { e.target.style.color = T.textSecondary; e.target.style.borderColor = T.border; }}>
+              Watch the queue
             </button>
           </div>
         </div>
       </div>
     </>
+  );
+}
+
+// ── LeaderboardsScreen ───────────────────────────────────────────────────
+const LEADERBOARD_CONFIGS = [
+  { key: "runsCompleted",     title: "Most runs completed",                 hasToggle: false, sub: "all time", unit: "runs" },
+  { key: "highFivesGiven",    cumulativeKey: "highFivesGivenCumulative",    title: "Most high-fives given",    hasToggle: true,  unit: "given" },
+  { key: "highFivesReceived", cumulativeKey: "highFivesReceivedCumulative", title: "Most high-fives received", hasToggle: true,  unit: "received" },
+];
+
+function LeaderboardsScreen({ user, onBack, bgRef }) {
+  const [boards, setBoards] = useState(null);
+  const [hfMode, setHfMode] = useState("cumulative");
+
+  useEffect(() => {
+    api("/leaderboards")
+      .then(setBoards)
+      .catch(() => setBoards({ highFivesGiven: [], highFivesReceived: [], runsCompleted: [], highFivesGivenCumulative: [], highFivesReceivedCumulative: [] }));
+  }, []);
+
+  return (
+    <div style={{ minHeight: "100vh", display: "flex", justifyContent: "center", padding: 24, paddingTop: 88, position: "relative", zIndex: 1, pointerEvents: "none" }}>
+      <div
+        onMouseOver={() => { if (bgRef?.current?.controls) bgRef.current.controls.enabled = false; }}
+        onMouseLeave={() => { if (bgRef?.current?.controls) bgRef.current.controls.enabled = true; }}
+        style={{ width: "100%", maxWidth: 480, animation: "fadeIn 0.5s ease both", pointerEvents: "auto" }}>
+
+        {/* Header */}
+        <div style={{ ...CARD_STYLE, display: "flex", alignItems: "center", gap: 14, marginBottom: 20, padding: "14px 20px" }}>
+          <button onClick={onBack} style={{
+            padding: "6px 10px", borderRadius: 6, border: "1px solid rgba(0,0,0,0.08)", background: "transparent",
+            color: T.textSecondary, fontFamily: T.sans, fontSize: 12, cursor: "pointer", fontWeight: 500,
+            transition: "all 0.15s ease",
+          }}
+            onMouseEnter={e => e.target.style.color = T.charcoal}
+            onMouseLeave={e => e.target.style.color = T.textSecondary}>
+            &larr; Back
+          </button>
+          <div style={{ fontFamily: T.serif, fontSize: 22, color: T.charcoal, fontWeight: 400, letterSpacing: -0.5 }}>Leaderboards</div>
+        </div>
+
+        {/* Three boards */}
+        <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+          {LEADERBOARD_CONFIGS.map(({ key, cumulativeKey, title, sub, hasToggle }) => {
+            const activeKey = hasToggle ? (hfMode === "cumulative" ? cumulativeKey : key) : key;
+            const activeSub = hasToggle ? (hfMode === "cumulative" ? "all time total" : "best single run") : sub;
+            const entries = boards?.[activeKey] ?? null;
+            return (
+              <div key={key} style={{ ...CARD_STYLE, padding: 0, overflow: "hidden" }}>
+                {/* Board header */}
+                <div style={{ padding: "16px 20px 12px", borderBottom: `1px solid ${T.borderLight}`, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
+                  <div>
+                    <div style={{ fontFamily: T.serif, fontSize: 17, color: T.charcoal, fontWeight: 400, letterSpacing: -0.3 }}>{title}</div>
+                    <div style={{ fontFamily: T.sans, fontSize: 11, color: T.textTertiary, marginTop: 2 }}>{activeSub}</div>
+                  </div>
+                  {hasToggle && (
+                    <div style={{ display: "flex", background: "rgba(0,0,0,0.04)", borderRadius: 7, padding: 2, flexShrink: 0 }}>
+                      {[{ label: "Cumulative", value: "cumulative" }, { label: "Single run", value: "single" }].map(opt => (
+                        <button key={opt.value} onClick={() => setHfMode(opt.value)} style={{
+                          padding: "5px 10px", borderRadius: 5, border: "none",
+                          background: hfMode === opt.value ? "#fff" : "transparent",
+                          color: hfMode === opt.value ? T.charcoal : T.textTertiary,
+                          fontFamily: T.sans, fontSize: 11, fontWeight: hfMode === opt.value ? 500 : 400,
+                          cursor: "pointer", transition: "all 0.15s ease",
+                          boxShadow: hfMode === opt.value ? "0 1px 3px rgba(0,0,0,0.1)" : "none",
+                        }}>
+                          {opt.label}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* Entries */}
+                {entries === null ? (
+                  <div style={{ padding: "14px 20px", fontFamily: T.sans, fontSize: 13, color: T.textTertiary }}>Loading...</div>
+                ) : entries.length === 0 ? (
+                  <div style={{ padding: "14px 20px", fontFamily: T.sans, fontSize: 13, color: T.textTertiary }}>No entries yet.</div>
+                ) : entries.map((entry, idx) => {
+                  const isMe = entry.displayName === user.displayName;
+                  return (
+                    <div key={idx} style={{
+                      display: "flex", alignItems: "center", gap: 14,
+                      padding: "11px 20px",
+                      borderBottom: idx < entries.length - 1 ? `1px solid ${T.borderLight}` : "none",
+                      background: isMe ? T.accentSoft : "transparent",
+                    }}>
+                      <div style={{ width: 22, textAlign: "right", flexShrink: 0, fontFamily: T.mono, fontSize: 11, color: T.textTertiary }}>
+                        {idx + 1}
+                      </div>
+                      <div style={{ flex: 1, fontFamily: T.sans, fontSize: 14, color: isMe ? T.charcoal : T.textPrimary, fontWeight: isMe ? 600 : 400, minWidth: 0 }}>
+                        {entry.displayName}
+                        {isMe && (
+                          <span style={{ marginLeft: 8, fontFamily: T.mono, fontSize: 10, color: T.accent, background: T.accentSoft, padding: "2px 7px", borderRadius: 4, verticalAlign: "middle" }}>YOU</span>
+                        )}
+                      </div>
+                      <div style={{ fontFamily: T.mono, fontSize: 14, color: isMe ? T.accent : T.textSecondary, fontWeight: 600, flexShrink: 0 }}>
+                        {entry.value}
+                        {entry.waitNumber && (
+                          <span style={{ fontFamily: T.sans, fontSize: 11, color: T.textTertiary, fontWeight: 400, marginLeft: 4 }}>
+                            ({ordinal(entry.waitNumber)} run)
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -1131,7 +1484,7 @@ function Dashboard({ user, users, onLogout, onUsersUpdate, onUserUpdate, onWaitC
     if (result.status === "fulfilled") {
       onUserUpdate(result.value.updatedUser);
       onUsersUpdate(result.value.queue);
-      startCooldown(10);
+      startCooldown(3);
     } else {
       const match = result.reason?.message?.match(/Wait (\d+)s/);
       if (match) startCooldown(parseInt(match[1]));
@@ -1155,15 +1508,24 @@ function Dashboard({ user, users, onLogout, onUsersUpdate, onUserUpdate, onWaitC
   if (screen === "profile") {
     return (
       <>
-        <AppBar user={user} onLogout={onLogout} onProfile={() => setScreen("profile")} onHome={() => setScreen("queue")} bgRef={bgRef} />
+        <AppBar user={user} onLogout={onLogout} onProfile={() => setScreen("profile")} onLeaderboard={() => setScreen("leaderboard")} onHome={() => setScreen("queue")} bgRef={bgRef} />
         <ProfileScreen user={user} onBack={() => setScreen("queue")} onUserUpdate={onUserUpdate} onDelete={onLogout} bgRef={bgRef} />
+      </>
+    );
+  }
+
+  if (screen === "leaderboard") {
+    return (
+      <>
+        <AppBar user={user} onLogout={onLogout} onProfile={() => setScreen("profile")} onLeaderboard={() => setScreen("leaderboard")} onHome={() => setScreen("queue")} bgRef={bgRef} />
+        <LeaderboardsScreen user={user} onBack={() => setScreen("queue")} bgRef={bgRef} />
       </>
     );
   }
 
   return (
     <>
-      <AppBar user={user} onLogout={onLogout} onProfile={() => setScreen("profile")} onHome={() => setScreen("queue")} bgRef={bgRef} />
+      <AppBar user={user} onLogout={onLogout} onProfile={() => setScreen("profile")} onLeaderboard={() => setScreen("leaderboard")} onHome={() => setScreen("queue")} bgRef={bgRef} />
       <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", padding: 24, paddingTop: 88, position: "relative", zIndex: 1, pointerEvents: "none" }}>
         <div style={{ width: "100%", maxWidth: 520, animation: "fadeIn 0.5s ease both" }}>
 
@@ -1189,7 +1551,7 @@ function Dashboard({ user, users, onLogout, onUsersUpdate, onUserUpdate, onWaitC
                       <div style={{
                         position: "absolute", left: 0, bottom: 0, height: 2,
                         background: T.accent, opacity: 0.3,
-                        width: `${(cutCooldown / 10) * 100}%`,
+                        width: `${(cutCooldown / 3) * 100}%`,
                         transition: "width 1s linear",
                       }} />
                     )}
@@ -1223,6 +1585,7 @@ function Dashboard({ user, users, onLogout, onUsersUpdate, onUserUpdate, onWaitC
                   isSelf={u.displayName === user.displayName}
                   delay={Math.min(idx * 25, 500)}
                   highFiveCount={u.highFiveCount || 0}
+                  hasFivedToday={u.hasFivedToday || false}
                   waitingFor={u.waitingFor}
                   accumulatedWaitSeconds={u.accumulatedWaitSeconds || 0}
                   onTimerExpire={u.displayName === user.displayName && idx === 0 ? handleWaitExpire : undefined}
@@ -1364,6 +1727,34 @@ export default function App() {
         @keyframes float {
           0%, 100% { transform: translateY(0px); }
           50% { transform: translateY(-12px); }
+        }
+        @keyframes hourglassFlip {
+          0%    { transform: rotate(0deg);   }
+          37.5% { transform: rotate(0deg);   }
+          50%   { transform: rotate(180deg); }
+          87.5% { transform: rotate(180deg); }
+          100%  { transform: rotate(360deg); }
+        }
+        @keyframes sandDripDown {
+          0%   { transform: translateY(0px); opacity: 1; }
+          70%  { transform: translateY(6px); opacity: 1; }
+          85%  { transform: translateY(6px); opacity: 0; }
+          100% { transform: translateY(0px); opacity: 0; }
+        }
+        @keyframes sandDripUp {
+          0%   { transform: translateY(0px);  opacity: 1; }
+          70%  { transform: translateY(-6px); opacity: 1; }
+          85%  { transform: translateY(-6px); opacity: 0; }
+          100% { transform: translateY(0px);  opacity: 0; }
+        }
+        @keyframes showUpright {
+          0%,  35%  { opacity: 1; }
+          38%, 100% { opacity: 0; }
+        }
+        @keyframes showFlipped {
+          0%,  52%  { opacity: 0; }
+          55%, 85%  { opacity: 1; }
+          88%, 100% { opacity: 0; }
         }
         input::placeholder { color: #B3B1A9; }
         ::-webkit-scrollbar { width: 3px; }
