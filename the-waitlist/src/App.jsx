@@ -154,6 +154,15 @@ function ordinal(n) {
   return n + (s[(v - 20) % 10] || s[v] || s[0]);
 }
 
+function formatDuration(secs) {
+  const h = Math.floor(secs / 3600);
+  const m = Math.floor((secs % 3600) / 60);
+  const s = secs % 60;
+  if (h > 0) return `${h}h ${m}m ${s}s`;
+  if (m > 0) return `${m}m ${s}s`;
+  return `${s}s`;
+}
+
 // ── Palette ──────────────────────────────────────────────────────────────
 const T = {
   bg: "#F7F6F4",
@@ -173,13 +182,142 @@ const T = {
   r: 8,
 };
 
-function HighFiveButton({ name, isSelf, highFiveCount }) {
+// ── Constants ────────────────────────────────────────────────────────────
+const TIMER_DURATION = 2 * 60; // 2 minutes in seconds (active time only)
+
+// ── ZzzIcon ──────────────────────────────────────────────────────────────
+function ZzzIcon() {
+  return (
+    <span style={{ flexShrink: 0, display: "inline-flex", alignItems: "flex-end", gap: 1, lineHeight: 1 }}>
+      {["z", "z", "z"].map((z, i) => (
+        <span key={i} style={{
+          fontFamily: T.mono,
+          fontSize: 7 + i * 2,
+          color: T.textTertiary,
+          animation: `pulse 2s ease ${i * 0.4}s infinite`,
+          display: "inline-block",
+        }}>{z}</span>
+      ))}
+    </span>
+  );
+}
+
+// ── PixelHourglass ───────────────────────────────────────────────────────
+function PixelHourglass() {
+  const px = 2;
+  const c = T.accent;
+  const sand = "rgba(194,98,64,0.45)";
+  // 5-col × 7-row pixel hourglass (10×14px total)
+  const frame = [
+    [0,0],[0,1],[0,2],[0,3],[0,4],
+    [1,0],[1,4],
+    [2,1],[2,3],
+    [3,2],
+    [4,1],[4,3],
+    [5,0],[5,4],
+    [6,0],[6,1],[6,2],[6,3],[6,4],
+  ];
+  const topSand  = [[1,1],[1,2],[1,3],[2,2]];
+  const botSand  = [[4,2],[5,1],[5,2],[5,3]];
+  return (
+    <div style={{ flexShrink: 0, animation: "hourglassFlip 8s linear infinite", transformOrigin: "center", display: "inline-flex" }}>
+      <svg width={5*px} height={7*px} viewBox={`0 0 ${5*px} ${7*px}`} style={{ display: "block" }}>
+        {frame.map(([r,col],i)   => <rect key={`f${i}`}  x={col*px} y={r*px} width={px} height={px} fill={c} />)}
+        {topSand.map(([r,col],i) => <rect key={`ts${i}`} x={col*px} y={r*px} width={px} height={px} fill={sand} />)}
+        {botSand.map(([r,col],i) => <rect key={`bs${i}`} x={col*px} y={r*px} width={px} height={px} fill={sand} />)}
+        {/* dripping grain — downward when upright */}
+        <g style={{ animation: "showUpright 8s linear infinite" }}>
+          <rect x={2*px} y={3*px} width={px} height={px} fill={c}
+            style={{ animation: "sandDripDown 1s linear infinite" }} />
+        </g>
+        {/* dripping grain — upward in SVG space (= downward on screen) when flipped */}
+        <g style={{ animation: "showFlipped 8s linear infinite" }}>
+          <rect x={2*px} y={3*px} width={px} height={px} fill={c}
+            style={{ animation: "sandDripUp 1s linear infinite" }} />
+        </g>
+      </svg>
+    </div>
+  );
+}
+
+// ── CountdownTimer ───────────────────────────────────────────────────────
+// For the self/position-1 user: counts down locally each second (active time).
+// For everyone else: shows the server's last-known remaining time as a static value.
+function CountdownTimer({ accumulatedWaitSeconds, isPosition1, isSelf, onExpire }) {
+  const [secs, setSecs] = useState(
+    Math.max(0, TIMER_DURATION - (accumulatedWaitSeconds || 0))
+  );
+  const expiredRef = useRef(false);
+  const onExpireRef = useRef(onExpire);
+  onExpireRef.current = onExpire;
+
+  // Re-sync to the server value whenever it changes (e.g. after queue refresh)
+  useEffect(() => {
+    if (!isPosition1 || !isSelf) {
+      setSecs(Math.max(0, TIMER_DURATION - (accumulatedWaitSeconds || 0)));
+      expiredRef.current = false;
+      return;
+    }
+    setSecs(Math.max(0, TIMER_DURATION - (accumulatedWaitSeconds || 0)));
+    expiredRef.current = false;
+  }, [accumulatedWaitSeconds, isPosition1, isSelf]);
+
+  // Local tick — only for the logged-in user at position 1
+  useEffect(() => {
+    if (!isPosition1 || !isSelf) return;
+    const id = setInterval(() => {
+      setSecs(prev => {
+        const next = prev - 1;
+        if (next <= 0 && !expiredRef.current) {
+          expiredRef.current = true;
+          setTimeout(() => onExpireRef.current?.(), 0);
+          return 0;
+        }
+        return Math.max(0, next);
+      });
+    }, 1000);
+    return () => clearInterval(id);
+  }, [isPosition1, isSelf]);
+
+  const h = Math.floor(secs / 3600);
+  const m = Math.floor((secs % 3600) / 60);
+  const s = secs % 60;
+
+  return (
+    <span style={{
+      fontFamily: T.mono,
+      fontSize: 11,
+      color: isPosition1 ? (isSelf ? T.accent : T.textSecondary) : T.textTertiary,
+      opacity: isPosition1 ? 1 : 0.45,
+      flexShrink: 0,
+      minWidth: 52,
+      letterSpacing: 0,
+    }}>
+      {h}:{String(m).padStart(2, "0")}:{String(s).padStart(2, "0")}
+    </span>
+  );
+}
+
+// ── HighFiveButton ───────────────────────────────────────────────────────
+function HighFiveButton({ name, isSelf, highFiveCount, hasFivedToday }) {
   const [count, setCount] = useState(highFiveCount);
-  const [fived, setFived] = useState(false);
+  const [fived, setFived] = useState(hasFivedToday || false);
   const [bursting, setBursting] = useState(false);
   const [tooltip, setTooltip] = useState(false);
 
   useEffect(() => { setCount(highFiveCount); }, [highFiveCount]);
+
+  // Sync fived state when the queue refreshes (covers page reload + next-day reset)
+  useEffect(() => { setFived(hasFivedToday || false); }, [hasFivedToday]);
+
+  // Auto-reset at UTC midnight so the button re-enables without a page reload
+  useEffect(() => {
+    if (!fived) return;
+    const now = new Date();
+    const midnight = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + 1));
+    const id = setTimeout(() => setFived(false), midnight - now);
+    return () => clearTimeout(id);
+  }, [fived]);
 
   const handleClick = async (e) => {
     e.stopPropagation();
@@ -219,16 +357,16 @@ function HighFiveButton({ name, isSelf, highFiveCount }) {
         onMouseEnter={() => setTooltip(true)}
         onMouseLeave={() => setTooltip(false)}
         style={{
-        border: "none", background: "transparent",
-        cursor: fived ? "default" : "pointer",
-        fontFamily: T.sans, fontSize: 12,
-        padding: 0,
-        color: fived ? T.textTertiary : T.accent,
-        textDecoration: "underline",
-        opacity: fived ? 0.5 : 1,
-        transition: "opacity 0.2s ease",
-        position: "relative", overflow: "visible",
-      }}>
+          border: "none", background: "transparent",
+          cursor: fived ? "default" : "pointer",
+          fontFamily: T.sans, fontSize: 12,
+          padding: 0,
+          color: fived ? T.textTertiary : T.accent,
+          textDecoration: "underline",
+          opacity: fived ? 0.5 : 1,
+          transition: "opacity 0.2s ease",
+          position: "relative", overflow: "visible",
+        }}>
         + high five
         {bursting && (
           <div style={{ position: "absolute", inset: -4, pointerEvents: "none" }}>
@@ -258,6 +396,7 @@ function HighFiveButton({ name, isSelf, highFiveCount }) {
   );
 }
 
+// ── UserCard ─────────────────────────────────────────────────────────────
 function UserCard({ name, waitingFor, position, onClose, anchorRef }) {
   const cardRef = useRef(null);
   const [coords, setCoords] = useState({ top: 0, left: 0 });
@@ -294,7 +433,8 @@ function UserCard({ name, waitingFor, position, onClose, anchorRef }) {
   );
 }
 
-function QueuePerson({ name, position, blur, isSelf, delay, highFiveCount, waitingFor }) {
+// ── QueuePerson ──────────────────────────────────────────────────────────
+function QueuePerson({ name, position, blur, isSelf, delay, highFiveCount, hasFivedToday, waitingFor, accumulatedWaitSeconds, onTimerExpire }) {
   const [showCard, setShowCard] = useState(false);
   const nameRef = useRef(null);
 
@@ -318,7 +458,16 @@ function QueuePerson({ name, position, blur, isSelf, delay, highFiveCount, waiti
       }}>
         {position}
       </div>
-      <div style={{ width: 4, height: 4, borderRadius: "50%", flexShrink: 0, background: isSelf ? T.accent : T.border }} />
+      {position === 1
+        ? isSelf ? <PixelHourglass /> : <ZzzIcon />
+        : <div style={{ width: 4, height: 4, borderRadius: "50%", flexShrink: 0, background: isSelf ? T.accent : T.border }} />
+      }
+      <CountdownTimer
+        accumulatedWaitSeconds={accumulatedWaitSeconds}
+        isPosition1={position === 1}
+        isSelf={isSelf}
+        onExpire={onTimerExpire}
+      />
       <div style={{
         flex: 1, fontFamily: T.sans, fontSize: 15,
         color: isSelf ? T.charcoal : T.textPrimary,
@@ -341,14 +490,15 @@ function QueuePerson({ name, position, blur, isSelf, delay, highFiveCount, waiti
           visibility: isSelf ? "visible" : "hidden",
         }}>YOU</span>
       </div>
-      <div style={{ visibility: blur === 0 ? "visible" : "hidden" }}>
-        <HighFiveButton name={name} isSelf={isSelf} highFiveCount={highFiveCount} />
+      <div style={{ visibility: blur === 0 ? "visible" : "hidden", minWidth: 80, flexShrink: 0, display: "flex", justifyContent: "flex-end" }}>
+        <HighFiveButton name={name} isSelf={isSelf} highFiveCount={highFiveCount} hasFivedToday={hasFivedToday} />
       </div>
       {showCard && <UserCard name={name} waitingFor={waitingFor} position={position} onClose={() => setShowCard(false)} anchorRef={nameRef} />}
     </div>
   );
 }
 
+// ── SpeechBubble ─────────────────────────────────────────────────────────
 function SpeechBubble({ text, listRef, myIndex }) {
   const [pos, setPos] = useState(null);
 
@@ -358,18 +508,15 @@ function SpeechBubble({ text, listRef, myIndex }) {
     if (!row) return;
     const listRect = listRef.current.getBoundingClientRect();
     const rowRect = row.getBoundingClientRect();
-    setPos({
-      top: rowRect.top - listRect.top - 10,
-    });
+    setPos({ top: rowRect.top - listRect.top - 10 });
   }, [listRef, myIndex]);
 
   if (!pos) return null;
 
   return (
     <div style={{
-      position: "absolute",left: "50%", top: pos.top,
-      translate: "-50%",
-      //transform: "translateX(-100%) translateY(-100%)",
+      position: "absolute", left: "50%", top: pos.top,
+      translate: "-50% 70px",
       background: "#FDFCFB", color: T.textPrimary,
       fontFamily: T.serif, fontSize: 26,
       padding: "12px 22px", borderRadius: 12,
@@ -399,6 +546,7 @@ function SpeechBubble({ text, listRef, myIndex }) {
   );
 }
 
+// ── AuthScreen ───────────────────────────────────────────────────────────
 function AuthScreen({ onAuth, bgRef }) {
   const [mode, setMode] = useState("login");
   const [displayName, setDisplayName] = useState("");
@@ -444,12 +592,11 @@ function AuthScreen({ onAuth, bgRef }) {
         onMouseOver={() => { if (bgRef?.current?.controls) bgRef.current.controls.enabled = false; }}
         onMouseLeave={() => { if (bgRef?.current?.controls) bgRef.current.controls.enabled = true; }}
         style={{
-        width: "100%", maxWidth: 380, animation: "fadeIn 0.5s ease both",
-        pointerEvents: "auto",
-        ...CARD_STYLE,
-        padding: "40px 32px",
-      }}>
-        {/* Masthead */}
+          width: "100%", maxWidth: 380, animation: "fadeIn 0.5s ease both",
+          pointerEvents: "auto",
+          ...CARD_STYLE,
+          padding: "40px 32px",
+        }}>
         <div style={{ textAlign: "center", marginBottom: 48 }}>
           <div style={{ fontFamily: T.serif, fontSize: 12, fontStyle: "italic", color: T.textTertiary, letterSpacing: 0.5, marginBottom: 10 }}>est. 2026</div>
           <div style={{ fontFamily: T.serif, fontSize: 44, color: T.charcoal, fontWeight: 400, letterSpacing: -1.5, lineHeight: 1 }}>The Waitlist</div>
@@ -457,7 +604,6 @@ function AuthScreen({ onAuth, bgRef }) {
           <div style={{ fontFamily: T.serif, fontSize: 16, fontStyle: "italic", color: T.charcoal, letterSpacing: 0.5, lineHeight: 1 }}>Good things come to those who wait.</div>
         </div>
 
-        {/* Tabs */}
         <div style={{ display: "flex", marginBottom: 28, borderBottom: `1px solid ${T.border}` }}>
           {["login", "signup"].map(m => (
             <button key={m} onClick={() => { setMode(m); setError(""); }} style={{
@@ -471,7 +617,6 @@ function AuthScreen({ onAuth, bgRef }) {
           ))}
         </div>
 
-        {/* Fields */}
         <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
           <div>
             <label style={{ fontFamily: T.sans, fontSize: 12, color: T.textSecondary, fontWeight: 500, marginBottom: 5, display: "block", letterSpacing: 0.3 }}>Display name</label>
@@ -528,6 +673,7 @@ function AuthScreen({ onAuth, bgRef }) {
   );
 }
 
+// ── CARD_STYLE ────────────────────────────────────────────────────────────
 const CARD_STYLE = {
   background: "rgba(255, 255, 255, 0.97)",
   backdropFilter: "blur(20px)",
@@ -537,16 +683,26 @@ const CARD_STYLE = {
   boxShadow: "0 8px 32px rgba(0, 0, 0, 0.08), 0 2px 8px rgba(0, 0, 0, 0.04)",
 };
 
+// ── OnboardingScreen ──────────────────────────────────────────────────────
 function OnboardingScreen({ onComplete, bgRef }) {
   const [answer, setAnswer] = useState("");
   const [saving, setSaving] = useState(false);
+  const [error, setError] = useState(null);
 
   const handleSubmit = async () => {
+    setError(null);
     setSaving(true);
     try {
       const updated = await api("/profile", { method: "PATCH", body: JSON.stringify({ waitingFor: answer.trim() || "nothing" }) });
       onComplete(updated);
-    } catch { onComplete(null); }
+    } catch (err) {
+      if (err.message?.includes("inappropriate")) {
+        setError(err.message);
+      } else {
+        onComplete(null);
+      }
+    }
+    setSaving(false);
   };
 
   const inputStyle = {
@@ -573,11 +729,20 @@ function OnboardingScreen({ onComplete, bgRef }) {
         <label style={{ fontFamily: T.sans, fontSize: 12, color: T.textSecondary, fontWeight: 500, marginBottom: 6, display: "block", letterSpacing: 0.3, textAlign: "left" }}>
           What are you waiting for?
         </label>
-        <input value={answer} onChange={e => setAnswer(e.target.value)} style={inputStyle}
+        <input value={answer} onChange={e => { setAnswer(e.target.value); setError(null); }} style={{
+          ...inputStyle,
+          borderColor: error ? "#C0392B" : T.border,
+          boxShadow: error ? "0 0 0 3px rgba(192,57,43,0.1)" : "none",
+        }}
           placeholder="'nothing' is a perfectly fine answer"
           onKeyDown={e => e.key === "Enter" && handleSubmit()}
-          onFocus={e => { e.target.style.borderColor = T.accent; e.target.style.boxShadow = `0 0 0 3px ${T.accentSoft}`; }}
-          onBlur={e => { e.target.style.borderColor = T.border; e.target.style.boxShadow = "none"; }} />
+          onFocus={e => { if (!error) { e.target.style.borderColor = T.accent; e.target.style.boxShadow = `0 0 0 3px ${T.accentSoft}`; } }}
+          onBlur={e => { if (!error) { e.target.style.borderColor = T.border; e.target.style.boxShadow = "none"; } }} />
+        {error && (
+          <div style={{ fontFamily: T.sans, fontSize: 12, color: "#C0392B", marginTop: 6, textAlign: "left", animation: "fadeIn 0.2s ease both" }}>
+            {error}
+          </div>
+        )}
 
         <button onClick={handleSubmit} disabled={saving} style={{
           width: "100%", marginTop: 20, padding: "14px 0", borderRadius: T.r,
@@ -597,12 +762,22 @@ function OnboardingScreen({ onComplete, bgRef }) {
   );
 }
 
+// ── ProfileScreen ─────────────────────────────────────────────────────────
 function ProfileScreen({ user, onBack, onUserUpdate, onDelete, bgRef }) {
   const [answer, setAnswer] = useState(user.waitingFor || "");
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [saveError, setSaveError] = useState(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [waitHistory, setWaitHistory] = useState(null);
+  const [selectedRun, setSelectedRun] = useState(null);
+
+  useEffect(() => {
+    api("/wait-history")
+      .then(setWaitHistory)
+      .catch(() => setWaitHistory([]));
+  }, []);
 
   const handleDelete = async () => {
     setDeleting(true);
@@ -614,13 +789,16 @@ function ProfileScreen({ user, onBack, onUserUpdate, onDelete, bgRef }) {
   };
 
   const handleSave = async () => {
+    setSaveError(null);
     setSaving(true);
     try {
       const updated = await api("/profile", { method: "PATCH", body: JSON.stringify({ waitingFor: answer.trim() }) });
       onUserUpdate(updated);
       setSaved(true);
       setTimeout(() => setSaved(false), 2000);
-    } catch {}
+    } catch (err) {
+      if (err.message?.includes("inappropriate")) setSaveError(err.message);
+    }
     setSaving(false);
   };
 
@@ -632,122 +810,235 @@ function ProfileScreen({ user, onBack, onUserUpdate, onDelete, bgRef }) {
     transition: "border-color 0.2s ease, box-shadow 0.2s ease",
   };
 
-  return (
-    <>
-    <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", padding: 24, paddingTop: 88, position: "relative", zIndex: 1, pointerEvents: "none" }}>
-      <div
-        onMouseOver={() => { if (bgRef?.current?.controls) bgRef.current.controls.enabled = false; }}
-        onMouseLeave={() => { if (bgRef?.current?.controls) bgRef.current.controls.enabled = true; }}
-        style={{ ...CARD_STYLE, width: "100%", maxWidth: 420, padding: "32px 32px 36px", animation: "fadeIn 0.5s ease both", pointerEvents: "auto" }}>
-
-        <div style={{ position: "relative", textAlign: "center", marginBottom: 4 }}>
-          <button onClick={onBack} style={{
-            position: "absolute", left: 0, top: "50%", transform: "translateY(-50%)",
-            padding: "6px 10px", borderRadius: 6, border: "1px solid rgba(0,0,0,0.08)", background: "transparent",
-            color: T.textSecondary, fontFamily: T.sans, fontSize: 12, cursor: "pointer", fontWeight: 500,
-            transition: "all 0.15s ease",
-          }}
-            onMouseEnter={e => { e.target.style.color = T.charcoal; }}
-            onMouseLeave={e => { e.target.style.color = T.textSecondary; }}>
-            &larr; Back
-          </button>
-          <div style={{ fontFamily: T.serif, fontSize: 24, color: T.charcoal, fontWeight: 400, letterSpacing: -0.5 }}>Profile</div>
-        </div>
-        <div style={{ fontFamily: T.sans, fontSize: 13, color: T.textTertiary, marginBottom: 28, textAlign: "center" }}>
-          Joined {new Date(user.signupTime).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })}
-        </div>
-
-        <div style={{ marginBottom: 20 }}>
-          <label style={{ fontFamily: T.sans, fontSize: 12, color: T.textSecondary, fontWeight: 500, marginBottom: 6, display: "block", letterSpacing: 0.3 }}>Display name</label>
-          <div style={{ ...inputStyle, background: "rgba(0,0,0,0.03)", color: T.textTertiary }}>{user.displayName}</div>
-        </div>
-
-        <div style={{ marginBottom: 24 }}>
-          <label style={{ fontFamily: T.sans, fontSize: 12, color: T.textSecondary, fontWeight: 500, marginBottom: 6, display: "block", letterSpacing: 0.3 }}>What are you waiting for?</label>
-          <input value={answer} onChange={e => setAnswer(e.target.value)} style={inputStyle}
-            placeholder="'nothing' is a perfectly fine answer"
-            onKeyDown={e => e.key === "Enter" && handleSave()}
-            onFocus={e => { e.target.style.borderColor = T.accent; e.target.style.boxShadow = `0 0 0 3px ${T.accentSoft}`; }}
-            onBlur={e => { e.target.style.borderColor = T.border; e.target.style.boxShadow = "none"; }} />
-        </div>
-
-        <button onClick={handleSave} disabled={saving} style={{
-          width: "100%", padding: "14px 0", borderRadius: T.r,
-          border: "none", cursor: saving ? "wait" : "pointer",
-          background: T.charcoal, color: "#FFFFFF",
-          fontFamily: T.sans, fontSize: 15, fontWeight: 500, letterSpacing: 0.2,
-          transition: "opacity 0.15s ease, transform 0.1s ease",
-          opacity: saving ? 0.5 : 1,
-        }}
-          onMouseDown={e => !saving && (e.target.style.transform = "scale(0.985)")}
-          onMouseUp={e => e.target.style.transform = "scale(1)"}
-          onMouseLeave={e => e.target.style.transform = "scale(1)"}>
-          {saved ? "Saved!" : saving ? "..." : "Save"}
-        </button>
-
-        <div style={{ marginTop: 16, borderTop: `1px solid ${T.borderLight}`, paddingTop: 16 }}>
-          <button onClick={() => setConfirmDelete(true)} style={{
-            display: "flex", alignItems: "center", gap: 8,
-            background: "transparent", border: "none", cursor: "pointer", padding: 0,
-            fontFamily: T.sans, fontSize: 13, color: T.textTertiary, fontWeight: 500,
-            transition: "color 0.15s ease",
-          }}
-            onMouseEnter={e => e.currentTarget.style.color = "#C0392B"}
-            onMouseLeave={e => e.currentTarget.style.color = T.textTertiary}>
-            <svg width="14" height="14" viewBox="0 0 14 14" fill="none" xmlns="http://www.w3.org/2000/svg">
-              <path d="M2 4h10M5 4V2.5A.5.5 0 0 1 5.5 2h3a.5.5 0 0 1 .5.5V4M5.5 6.5v4M8.5 6.5v4M3 4l.7 7.5A.5.5 0 0 0 4.2 12h5.6a.5.5 0 0 0 .5-.5L11 4" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/>
-            </svg>
-            Delete account
-          </button>
+  if (selectedRun) {
+    return (
+      <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", padding: 24, paddingTop: 88, position: "relative", zIndex: 1, pointerEvents: "none" }}>
+        <div
+          onMouseOver={() => { if (bgRef?.current?.controls) bgRef.current.controls.enabled = false; }}
+          onMouseLeave={() => { if (bgRef?.current?.controls) bgRef.current.controls.enabled = true; }}
+          style={{ width: "100%", maxWidth: 420, animation: "fadeIn 0.35s ease both", pointerEvents: "auto" }}>
+          <div style={{ ...CARD_STYLE, padding: "28px 28px 32px" }}>
+            <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 20 }}>
+              <div>
+                <div style={{ fontFamily: T.serif, fontSize: 22, color: T.charcoal, letterSpacing: -0.4, fontWeight: 400 }}>
+                  {ordinal(selectedRun.waitNumber)} wait
+                </div>
+                {selectedRun.waitingFor && (
+                  <div style={{ fontFamily: T.sans, fontSize: 13, color: T.textTertiary, marginTop: 4 }}>
+                    Waiting for: <span style={{ color: T.textSecondary, fontWeight: 500 }}>{selectedRun.waitingFor}</span>
+                  </div>
+                )}
+                <div style={{ fontFamily: T.mono, fontSize: 11, color: T.textTertiary, marginTop: 6 }}>
+                  {new Date(selectedRun.completedAt).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })}
+                </div>
+              </div>
+              <button onClick={() => setSelectedRun(null)} style={{
+                padding: "6px 12px", borderRadius: 6, border: `1px solid ${T.border}`,
+                background: "transparent", color: T.textSecondary,
+                fontFamily: T.sans, fontSize: 12, cursor: "pointer", flexShrink: 0,
+              }}>← Back</button>
+            </div>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+              {[
+                { label: "High fives given",    value: selectedRun.highFivesGiven },
+                { label: "High fives received", value: selectedRun.highFivesReceived },
+                { label: "Total time",          value: formatDuration(selectedRun.totalTimeSeconds) },
+                { label: "Cuts made",           value: selectedRun.cutsMade },
+              ].map(({ label, value }) => (
+                <div key={label} style={{ padding: "14px 16px", borderRadius: T.r, border: `1px solid ${T.borderLight}`, background: T.bg }}>
+                  <div style={{ fontFamily: T.mono, fontSize: 22, color: T.charcoal, fontWeight: 600, marginBottom: 4 }}>{value}</div>
+                  <div style={{ fontFamily: T.sans, fontSize: 11, color: T.textTertiary, fontWeight: 500, letterSpacing: 0.2 }}>{label}</div>
+                </div>
+              ))}
+            </div>
+          </div>
         </div>
       </div>
-    </div>
+    );
+  }
 
-    {confirmDelete && createPortal(
-      <div style={{
-        position: "fixed", inset: 0, zIndex: 9999,
-        background: "rgba(0,0,0,0.35)", display: "flex", alignItems: "center", justifyContent: "center",
-        padding: 24, animation: "fadeIn 0.15s ease both",
-      }} onClick={() => setConfirmDelete(false)}>
-        <div onClick={e => e.stopPropagation()} style={{
-          ...CARD_STYLE, background: "#ffffff", borderRadius: 16,
-          padding: "32px 28px", maxWidth: 400, width: "100%",
-        }}>
-          <div style={{ fontFamily: T.serif, fontSize: 22, color: T.charcoal, fontWeight: 400, letterSpacing: -0.5, marginBottom: 14 }}>Delete account?</div>
-          <div style={{ fontFamily: T.sans, fontSize: 14, color: T.textSecondary, lineHeight: 1.6, marginBottom: 28 }}>
-            If you delete your account, you will lose your place in line, your high five total, and your username will become available for others to claim. You can create a new account at any time.
-          </div>
-          <div style={{ display: "flex", gap: 10 }}>
-            <button onClick={() => setConfirmDelete(false)} style={{
-              flex: 1, padding: "12px 0", borderRadius: T.r,
-              border: `1px solid ${T.border}`, background: "transparent",
-              color: T.textSecondary, fontFamily: T.sans, fontSize: 14, fontWeight: 500, cursor: "pointer",
+  return (
+    <>
+      <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", padding: 24, paddingTop: 88, position: "relative", zIndex: 1, pointerEvents: "none" }}>
+        <div
+          onMouseOver={() => { if (bgRef?.current?.controls) bgRef.current.controls.enabled = false; }}
+          onMouseLeave={() => { if (bgRef?.current?.controls) bgRef.current.controls.enabled = true; }}
+          style={{ ...CARD_STYLE, width: "100%", maxWidth: 420, padding: "32px 32px 36px", animation: "fadeIn 0.5s ease both", pointerEvents: "auto" }}>
+
+          <div style={{ position: "relative", textAlign: "center", marginBottom: 4 }}>
+            <button onClick={onBack} style={{
+              position: "absolute", left: 0, top: "50%", transform: "translateY(-50%)",
+              padding: "6px 10px", borderRadius: 6, border: "1px solid rgba(0,0,0,0.08)", background: "transparent",
+              color: T.textSecondary, fontFamily: T.sans, fontSize: 12, cursor: "pointer", fontWeight: 500,
               transition: "all 0.15s ease",
             }}
-              onMouseEnter={e => { e.target.style.borderColor = T.charcoal; e.target.style.color = T.charcoal; }}
-              onMouseLeave={e => { e.target.style.borderColor = T.border; e.target.style.color = T.textSecondary; }}>
-              Cancel
+              onMouseEnter={e => { e.target.style.color = T.charcoal; }}
+              onMouseLeave={e => { e.target.style.color = T.textSecondary; }}>
+              &larr; Back
             </button>
-            <button onClick={handleDelete} disabled={deleting} style={{
-              flex: 1, padding: "12px 0", borderRadius: T.r,
-              border: "none", background: "#C0392B",
-              color: "#fff", fontFamily: T.sans, fontSize: 14, fontWeight: 500,
-              cursor: deleting ? "wait" : "pointer",
-              transition: "opacity 0.15s ease",
-              opacity: deleting ? 0.6 : 1,
-            }}>
-              {deleting ? "..." : "Delete my account"}
+            <div style={{ fontFamily: T.serif, fontSize: 24, color: T.charcoal, fontWeight: 400, letterSpacing: -0.5 }}>Profile</div>
+          </div>
+          <div style={{ fontFamily: T.sans, fontSize: 13, color: T.textTertiary, marginBottom: 28, textAlign: "center" }}>
+            Joined {new Date(user.signupTime).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })}
+          </div>
+
+          <div style={{ marginBottom: 20 }}>
+            <label style={{ fontFamily: T.sans, fontSize: 12, color: T.textSecondary, fontWeight: 500, marginBottom: 6, display: "block", letterSpacing: 0.3 }}>Display name</label>
+            <div style={{ ...inputStyle, background: "rgba(0,0,0,0.03)", color: T.textTertiary }}>{user.displayName}</div>
+          </div>
+
+          <div style={{ marginBottom: 24 }}>
+            <label style={{ fontFamily: T.sans, fontSize: 12, color: T.textSecondary, fontWeight: 500, marginBottom: 6, display: "block", letterSpacing: 0.3 }}>What are you waiting for?</label>
+            <input value={answer} onChange={e => { setAnswer(e.target.value); setSaveError(null); }} style={{
+              ...inputStyle,
+              borderColor: saveError ? "#C0392B" : T.border,
+              boxShadow: saveError ? "0 0 0 3px rgba(192,57,43,0.1)" : "none",
+            }}
+              placeholder="'nothing' is a perfectly fine answer"
+              onKeyDown={e => e.key === "Enter" && handleSave()}
+              onFocus={e => { if (!saveError) { e.target.style.borderColor = T.accent; e.target.style.boxShadow = `0 0 0 3px ${T.accentSoft}`; } }}
+              onBlur={e => { if (!saveError) { e.target.style.borderColor = T.border; e.target.style.boxShadow = "none"; } }} />
+            {saveError && (
+              <div style={{ fontFamily: T.sans, fontSize: 12, color: "#C0392B", marginTop: 6, animation: "fadeIn 0.2s ease both" }}>
+                {saveError}
+              </div>
+            )}
+          </div>
+
+          <button onClick={handleSave} disabled={saving} style={{
+            width: "100%", padding: "14px 0", borderRadius: T.r,
+            border: "none", cursor: saving ? "wait" : "pointer",
+            background: T.charcoal, color: "#FFFFFF",
+            fontFamily: T.sans, fontSize: 15, fontWeight: 500, letterSpacing: 0.2,
+            transition: "opacity 0.15s ease, transform 0.1s ease",
+            opacity: saving ? 0.5 : 1,
+          }}
+            onMouseDown={e => !saving && (e.target.style.transform = "scale(0.985)")}
+            onMouseUp={e => e.target.style.transform = "scale(1)"}
+            onMouseLeave={e => e.target.style.transform = "scale(1)"}>
+            {saved ? "Saved!" : saving ? "..." : "Save"}
+          </button>
+
+          {/* Stats section */}
+          <div style={{ marginTop: 28, borderTop: `1px solid ${T.borderLight}`, paddingTop: 24 }}>
+            <div style={{ fontFamily: T.sans, fontSize: 11, color: T.textSecondary, fontWeight: 600, letterSpacing: 0.8, textTransform: "uppercase", marginBottom: 14 }}>
+              Stats
+            </div>
+            {waitHistory === null ? (
+              <div style={{ fontFamily: T.sans, fontSize: 13, color: T.textTertiary }}>Loading...</div>
+            ) : waitHistory.length === 0 ? (
+              <div style={{ fontFamily: T.sans, fontSize: 13, color: T.textTertiary }}>No waits completed yet.</div>
+            ) : (
+              <>
+                <div style={{ fontFamily: T.sans, fontSize: 14, color: T.textSecondary, marginBottom: 12 }}>
+                  <span style={{ fontFamily: T.mono, fontWeight: 600, color: T.charcoal, fontSize: 15 }}>{waitHistory.length}</span>
+                  {" "}wait{waitHistory.length !== 1 ? "s" : ""} completed
+                </div>
+                <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                  {waitHistory.map(w => (
+                    <div key={w.waitNumber} style={{
+                      padding: "10px 14px",
+                      borderRadius: T.r,
+                      border: `1px solid ${T.borderLight}`,
+                      background: T.bg,
+                      display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10,
+                    }}>
+                      <div style={{ minWidth: 0 }}>
+                        <div style={{ fontFamily: T.sans, fontSize: 13, color: T.textPrimary, fontWeight: 500 }}>
+                          {ordinal(w.waitNumber)} wait
+                        </div>
+                        {w.waitingFor && (
+                          <div style={{ fontFamily: T.sans, fontSize: 11, color: T.textTertiary, marginTop: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                            {w.waitingFor}
+                          </div>
+                        )}
+                      </div>
+                      <div style={{ display: "flex", alignItems: "center", gap: 10, flexShrink: 0 }}>
+                        <span style={{ fontFamily: T.mono, fontSize: 11, color: T.textTertiary }}>
+                          {new Date(w.completedAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
+                        </span>
+                        <button onClick={() => setSelectedRun(w)} style={{
+                          padding: "4px 10px", borderRadius: 5,
+                          border: `1px solid ${T.border}`, background: "transparent",
+                          color: T.textSecondary, fontFamily: T.sans, fontSize: 11,
+                          cursor: "pointer", transition: "all 0.15s ease",
+                        }}
+                          onMouseEnter={e => { e.target.style.color = T.charcoal; e.target.style.borderColor = T.textSecondary; }}
+                          onMouseLeave={e => { e.target.style.color = T.textSecondary; e.target.style.borderColor = T.border; }}>
+                          Details
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </>
+            )}
+          </div>
+
+          <div style={{ marginTop: 20, borderTop: `1px solid ${T.borderLight}`, paddingTop: 16 }}>
+            <button onClick={() => setConfirmDelete(true)} style={{
+              display: "flex", alignItems: "center", gap: 8,
+              background: "transparent", border: "none", cursor: "pointer", padding: 0,
+              fontFamily: T.sans, fontSize: 13, color: T.textTertiary, fontWeight: 500,
+              transition: "color 0.15s ease",
+            }}
+              onMouseEnter={e => e.currentTarget.style.color = "#C0392B"}
+              onMouseLeave={e => e.currentTarget.style.color = T.textTertiary}>
+              <svg width="14" height="14" viewBox="0 0 14 14" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M2 4h10M5 4V2.5A.5.5 0 0 1 5.5 2h3a.5.5 0 0 1 .5.5V4M5.5 6.5v4M8.5 6.5v4M3 4l.7 7.5A.5.5 0 0 0 4.2 12h5.6a.5.5 0 0 0 .5-.5L11 4" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+              Delete account
             </button>
           </div>
         </div>
-      </div>,
-      document.body
-    )}
+      </div>
+
+      {confirmDelete && createPortal(
+        <div style={{
+          position: "fixed", inset: 0, zIndex: 9999,
+          background: "rgba(0,0,0,0.35)", display: "flex", alignItems: "center", justifyContent: "center",
+          padding: 24, animation: "fadeIn 0.15s ease both",
+        }} onClick={() => setConfirmDelete(false)}>
+          <div onClick={e => e.stopPropagation()} style={{
+            ...CARD_STYLE, background: "#ffffff", borderRadius: 16,
+            padding: "32px 28px", maxWidth: 400, width: "100%",
+          }}>
+            <div style={{ fontFamily: T.serif, fontSize: 22, color: T.charcoal, fontWeight: 400, letterSpacing: -0.5, marginBottom: 14 }}>Delete account?</div>
+            <div style={{ fontFamily: T.sans, fontSize: 14, color: T.textSecondary, lineHeight: 1.6, marginBottom: 28 }}>
+              If you delete your account, you will lose your place in line, your wait history, your high five totals, and your username will become available for others to claim. You can create a new account at any time.
+            </div>
+            <div style={{ display: "flex", gap: 10 }}>
+              <button onClick={() => setConfirmDelete(false)} style={{
+                flex: 1, padding: "12px 0", borderRadius: T.r,
+                border: `1px solid ${T.border}`, background: "transparent",
+                color: T.textSecondary, fontFamily: T.sans, fontSize: 14, fontWeight: 500, cursor: "pointer",
+                transition: "all 0.15s ease",
+              }}
+                onMouseEnter={e => { e.target.style.borderColor = T.charcoal; e.target.style.color = T.charcoal; }}
+                onMouseLeave={e => { e.target.style.borderColor = T.border; e.target.style.color = T.textSecondary; }}>
+                Cancel
+              </button>
+              <button onClick={handleDelete} disabled={deleting} style={{
+                flex: 1, padding: "12px 0", borderRadius: T.r,
+                border: "none", background: "#C0392B",
+                color: "#fff", fontFamily: T.sans, fontSize: 14, fontWeight: 500,
+                cursor: deleting ? "wait" : "pointer",
+                transition: "opacity 0.15s ease",
+                opacity: deleting ? 0.6 : 1,
+              }}>
+                {deleting ? "..." : "Delete my account"}
+              </button>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
     </>
   );
 }
 
-function AppBar({ user, onLogout, onProfile, onHome, bgRef }) {
+// ── AppBar ────────────────────────────────────────────────────────────────
+function AppBar({ user, onLogout, onProfile, onLeaderboard, onHome, bgRef }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef(null);
 
@@ -757,6 +1048,12 @@ function AppBar({ user, onLogout, onProfile, onHome, bgRef }) {
     document.addEventListener("mousedown", close);
     return () => document.removeEventListener("mousedown", close);
   }, [menuOpen]);
+
+  const menuItems = [
+    onProfile && { label: "See profile", action: () => { onProfile(); setMenuOpen(false); } },
+    onLeaderboard && { label: "Leaderboards", action: () => { onLeaderboard(); setMenuOpen(false); } },
+    { label: "Log out", action: () => { onLogout(); setMenuOpen(false); } },
+  ].filter(Boolean);
 
   return (
     <div
@@ -789,10 +1086,7 @@ function AppBar({ user, onLogout, onProfile, onHome, bgRef }) {
             ...CARD_STYLE, borderRadius: 10, padding: "4px",
             animation: "fadeIn 0.15s ease both", zIndex: 50,
           }}>
-            {[
-              { label: "See profile", action: () => { onProfile(); setMenuOpen(false); } },
-              { label: "Log out", action: () => { onLogout(); setMenuOpen(false); } },
-            ].map((item, i) => (
+            {menuItems.map((item, i) => (
               <button key={i} onClick={item.action} style={{
                 display: "block", width: "100%", padding: "10px 14px", border: "none", borderRadius: 7,
                 background: "transparent", color: item.label === "Log out" ? T.accent : T.textPrimary,
@@ -811,7 +1105,298 @@ function AppBar({ user, onLogout, onProfile, onHome, bgRef }) {
   );
 }
 
-function Dashboard({ user, users, onLogout, onUsersUpdate, onUserUpdate, bgRef }) {
+// ── CongratulationsScreen ─────────────────────────────────────────────────
+function CongratulationsScreen({ data, user, onRejoin, onLogout, onUserUpdate, bgRef }) {
+  const [screen, setScreen] = useState("main");
+  const [rejoining, setRejoining] = useState(false);
+  const [spectatorUsers, setSpectatorUsers] = useState([]);
+
+  useEffect(() => {
+    if (screen !== "queue") return;
+    const load = () => api("/queue").then(setSpectatorUsers).catch(() => {});
+    load();
+    const id = setInterval(load, 15000);
+    return () => clearInterval(id);
+  }, [screen]);
+
+  const handleRejoin = async () => {
+    setRejoining(true);
+    try { await onRejoin(); } catch {}
+    setRejoining(false);
+  };
+
+  if (screen === "profile") {
+    return (
+      <>
+        <AppBar user={user} onLogout={onLogout} onProfile={() => setScreen("profile")} onHome={() => setScreen("main")} bgRef={bgRef} />
+        <ProfileScreen user={user} onBack={() => setScreen("main")} onUserUpdate={onUserUpdate} onDelete={onLogout} bgRef={bgRef} />
+      </>
+    );
+  }
+
+  if (screen === "queue") {
+    return (
+      <>
+        <AppBar user={user} onLogout={onLogout} onProfile={() => setScreen("profile")} onHome={() => setScreen("main")} bgRef={bgRef} />
+        <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", padding: 24, paddingTop: 88, position: "relative", zIndex: 1, pointerEvents: "none" }}>
+          <div style={{ width: "100%", maxWidth: 520, animation: "fadeIn 0.5s ease both" }}>
+            <div
+              onMouseOver={() => { if (bgRef?.current?.controls) bgRef.current.controls.enabled = false; }}
+              onMouseLeave={() => { if (bgRef?.current?.controls) bgRef.current.controls.enabled = true; }}
+              style={{ ...CARD_STYLE, padding: 0, overflow: "visible", position: "relative", pointerEvents: "auto" }}>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "18px 24px 14px" }}>
+                <div style={{ fontFamily: T.serif, fontSize: 20, color: T.charcoal, fontWeight: 400, letterSpacing: -0.3 }}>The queue</div>
+                <button onClick={handleRejoin} disabled={rejoining} style={{
+                  padding: "8px 16px", borderRadius: 6, border: `1px solid ${T.accentBorder}`,
+                  background: T.accentSoft, color: T.accent,
+                  fontFamily: T.sans, fontSize: 13, fontWeight: 500,
+                  cursor: rejoining ? "wait" : "pointer", opacity: rejoining ? 0.6 : 1,
+                }}>
+                  {rejoining ? "..." : "Join the list"}
+                </button>
+              </div>
+              <div style={{ maxHeight: 380, overflowY: "auto", overflowX: "hidden", scrollbarWidth: "thin", scrollbarColor: `${T.border} transparent` }}>
+                {spectatorUsers.length === 0 ? (
+                  <div style={{ padding: "32px 24px", textAlign: "center", fontFamily: T.sans, fontSize: 13, color: T.textTertiary }}>Nobody in line.</div>
+                ) : spectatorUsers.map((u, idx) => (
+                  <QueuePerson
+                    key={u.displayName}
+                    name={u.displayName}
+                    position={idx + 1}
+                    blur={0}
+                    isSelf={false}
+                    delay={Math.min(idx * 25, 500)}
+                    highFiveCount={u.highFiveCount || 0}
+                    hasFivedToday={u.hasFivedToday || false}
+                    waitingFor={u.waitingFor}
+                    accumulatedWaitSeconds={u.accumulatedWaitSeconds || 0}
+                  />
+                ))}
+              </div>
+              <div style={{ padding: "12px 24px", borderTop: `1px solid ${T.borderLight}`, borderRadius: "0 0 16px 16px" }}>
+                <span style={{ fontFamily: T.sans, fontSize: 12, color: T.textTertiary }}>
+                  {spectatorUsers.length} {spectatorUsers.length === 1 ? "person" : "people"} in line
+                </span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </>
+    );
+  }
+
+  return (
+    <>
+      <AppBar user={user} onLogout={onLogout} onProfile={() => setScreen("profile")} onHome={null} bgRef={bgRef} />
+      <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", padding: 24, paddingTop: 88, position: "relative", zIndex: 1, pointerEvents: "none" }}>
+        <div
+          onMouseOver={() => { if (bgRef?.current?.controls) bgRef.current.controls.enabled = false; }}
+          onMouseLeave={() => { if (bgRef?.current?.controls) bgRef.current.controls.enabled = true; }}
+          style={{ width: "100%", maxWidth: 420, animation: "fadeIn 0.5s ease both", pointerEvents: "auto" }}>
+
+          {/* Floating token */}
+          {data && (
+            <div style={{
+              width: 180, height: 180, borderRadius: "50%",
+              background: `linear-gradient(145deg, ${T.accent} 0%, #44fff3 100%)`,
+              display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
+              margin: "0 auto 36px",
+              animation: "float 3s ease-in-out infinite",
+              boxShadow: "0 20px 60px rgba(194,98,64,0.28), 0 6px 20px rgba(194,98,64,0.15)",
+              color: "#fff",
+              textAlign: "center",
+              padding: 24,
+              willChange: "transform",
+            }}>
+              <div style={{ fontFamily: T.serif, fontSize: 14, opacity: 0.8, marginBottom: 2 }}>Your</div>
+              <div style={{ fontFamily: T.serif, fontSize: 40, fontStyle: "italic",fontWeight: 400, lineHeight: 1 }}>{ordinal(data.waitNumber)}</div>
+              <div style={{ fontFamily: T.serif, fontSize: 14, opacity: 0.8, marginTop: 4 }}>wait is over</div>
+            </div>
+          )}
+
+          {/* Stats + button card */}
+          <div style={{ ...CARD_STYLE, padding: "28px 28px 32px" }}>
+            {data ? (
+              <>
+                <div style={{ fontFamily: T.serif, fontSize: 20, color: T.charcoal, letterSpacing: -0.3, marginBottom: 20, textAlign: "center" }}>
+                  How did you do?
+                </div>
+
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 28 }}>
+                  {[
+                    { label: "High fives given", value: data.highFivesGiven },
+                    { label: "High fives received", value: data.highFivesReceived },
+                    { label: "Total time", value: formatDuration(data.totalTimeSeconds) },
+                    { label: "Cuts made", value: data.cutsMade },
+                  ].map(({ label, value }) => (
+                    <div key={label} style={{
+                      padding: "14px 16px",
+                      borderRadius: T.r,
+                      border: `1px solid ${T.borderLight}`,
+                      background: T.bg,
+                    }}>
+                      <div style={{ fontFamily: T.mono, fontSize: 22, color: T.charcoal, fontWeight: 600, marginBottom: 4 }}>
+                        {value}
+                      </div>
+                      <div style={{ fontFamily: T.sans, fontSize: 11, color: T.textTertiary, fontWeight: 500, letterSpacing: 0.2 }}>
+                        {label}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </>
+            ) : (
+              <div style={{ fontFamily: T.serif, fontSize: 20, color: T.charcoal, letterSpacing: -0.3, marginBottom: 28, textAlign: "center" }}>
+                Your wait is complete.
+              </div>
+            )}
+
+            <button onClick={handleRejoin} disabled={rejoining} style={{
+              width: "100%", padding: "14px 0", borderRadius: T.r,
+              border: "none", cursor: rejoining ? "wait" : "pointer",
+              background: T.charcoal, color: "#FFFFFF",
+              fontFamily: T.sans, fontSize: 15, fontWeight: 500, letterSpacing: 0.2,
+              transition: "opacity 0.15s ease, transform 0.1s ease",
+              opacity: rejoining ? 0.5 : 1,
+            }}
+              onMouseDown={e => !rejoining && (e.target.style.transform = "scale(0.985)")}
+              onMouseUp={e => e.target.style.transform = "scale(1)"}
+              onMouseLeave={e => e.target.style.transform = "scale(1)"}>
+              {rejoining ? "..." : "Rejoin the list"}
+            </button>
+            <button onClick={() => setScreen("queue")} style={{
+              width: "100%", padding: "12px 0", marginTop: 10, borderRadius: T.r,
+              border: `1px solid ${T.border}`, cursor: "pointer",
+              background: "transparent", color: T.textSecondary,
+              fontFamily: T.sans, fontSize: 14, fontWeight: 400,
+              transition: "color 0.15s ease, border-color 0.15s ease",
+            }}
+              onMouseEnter={e => { e.target.style.color = T.charcoal; e.target.style.borderColor = T.textSecondary; }}
+              onMouseLeave={e => { e.target.style.color = T.textSecondary; e.target.style.borderColor = T.border; }}>
+              Watch the queue
+            </button>
+          </div>
+        </div>
+      </div>
+    </>
+  );
+}
+
+// ── LeaderboardsScreen ───────────────────────────────────────────────────
+const LEADERBOARD_CONFIGS = [
+  { key: "runsCompleted",     title: "Most runs completed",                 hasToggle: false, sub: "all time", unit: "runs" },
+  { key: "highFivesGiven",    cumulativeKey: "highFivesGivenCumulative",    title: "Most high-fives given",    hasToggle: true,  unit: "given" },
+  { key: "highFivesReceived", cumulativeKey: "highFivesReceivedCumulative", title: "Most high-fives received", hasToggle: true,  unit: "received" },
+];
+
+function LeaderboardsScreen({ user, onBack, bgRef }) {
+  const [boards, setBoards] = useState(null);
+  const [hfMode, setHfMode] = useState("cumulative");
+
+  useEffect(() => {
+    api("/leaderboards")
+      .then(setBoards)
+      .catch(() => setBoards({ highFivesGiven: [], highFivesReceived: [], runsCompleted: [], highFivesGivenCumulative: [], highFivesReceivedCumulative: [] }));
+  }, []);
+
+  return (
+    <div style={{ minHeight: "100vh", display: "flex", justifyContent: "center", padding: 24, paddingTop: 88, position: "relative", zIndex: 1, pointerEvents: "none" }}>
+      <div
+        onMouseOver={() => { if (bgRef?.current?.controls) bgRef.current.controls.enabled = false; }}
+        onMouseLeave={() => { if (bgRef?.current?.controls) bgRef.current.controls.enabled = true; }}
+        style={{ width: "100%", maxWidth: 480, animation: "fadeIn 0.5s ease both", pointerEvents: "auto" }}>
+
+        {/* Header */}
+        <div style={{ ...CARD_STYLE, display: "flex", alignItems: "center", gap: 14, marginBottom: 20, padding: "14px 20px" }}>
+          <button onClick={onBack} style={{
+            padding: "6px 10px", borderRadius: 6, border: "1px solid rgba(0,0,0,0.08)", background: "transparent",
+            color: T.textSecondary, fontFamily: T.sans, fontSize: 12, cursor: "pointer", fontWeight: 500,
+            transition: "all 0.15s ease",
+          }}
+            onMouseEnter={e => e.target.style.color = T.charcoal}
+            onMouseLeave={e => e.target.style.color = T.textSecondary}>
+            &larr; Back
+          </button>
+          <div style={{ fontFamily: T.serif, fontSize: 22, color: T.charcoal, fontWeight: 400, letterSpacing: -0.5 }}>Leaderboards</div>
+        </div>
+
+        {/* Three boards */}
+        <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+          {LEADERBOARD_CONFIGS.map(({ key, cumulativeKey, title, sub, hasToggle }) => {
+            const activeKey = hasToggle ? (hfMode === "cumulative" ? cumulativeKey : key) : key;
+            const activeSub = hasToggle ? (hfMode === "cumulative" ? "all time total" : "best single run") : sub;
+            const entries = boards?.[activeKey] ?? null;
+            return (
+              <div key={key} style={{ ...CARD_STYLE, padding: 0, overflow: "hidden" }}>
+                {/* Board header */}
+                <div style={{ padding: "16px 20px 12px", borderBottom: `1px solid ${T.borderLight}`, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
+                  <div>
+                    <div style={{ fontFamily: T.serif, fontSize: 17, color: T.charcoal, fontWeight: 400, letterSpacing: -0.3 }}>{title}</div>
+                    <div style={{ fontFamily: T.sans, fontSize: 11, color: T.textTertiary, marginTop: 2 }}>{activeSub}</div>
+                  </div>
+                  {hasToggle && (
+                    <div style={{ display: "flex", background: "rgba(0,0,0,0.04)", borderRadius: 7, padding: 2, flexShrink: 0 }}>
+                      {[{ label: "Cumulative", value: "cumulative" }, { label: "Single run", value: "single" }].map(opt => (
+                        <button key={opt.value} onClick={() => setHfMode(opt.value)} style={{
+                          padding: "5px 10px", borderRadius: 5, border: "none",
+                          background: hfMode === opt.value ? "#fff" : "transparent",
+                          color: hfMode === opt.value ? T.charcoal : T.textTertiary,
+                          fontFamily: T.sans, fontSize: 11, fontWeight: hfMode === opt.value ? 500 : 400,
+                          cursor: "pointer", transition: "all 0.15s ease",
+                          boxShadow: hfMode === opt.value ? "0 1px 3px rgba(0,0,0,0.1)" : "none",
+                        }}>
+                          {opt.label}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* Entries */}
+                {entries === null ? (
+                  <div style={{ padding: "14px 20px", fontFamily: T.sans, fontSize: 13, color: T.textTertiary }}>Loading...</div>
+                ) : entries.length === 0 ? (
+                  <div style={{ padding: "14px 20px", fontFamily: T.sans, fontSize: 13, color: T.textTertiary }}>No entries yet.</div>
+                ) : entries.map((entry, idx) => {
+                  const isMe = entry.displayName === user.displayName;
+                  return (
+                    <div key={idx} style={{
+                      display: "flex", alignItems: "center", gap: 14,
+                      padding: "11px 20px",
+                      borderBottom: idx < entries.length - 1 ? `1px solid ${T.borderLight}` : "none",
+                      background: isMe ? T.accentSoft : "transparent",
+                    }}>
+                      <div style={{ width: 22, textAlign: "right", flexShrink: 0, fontFamily: T.mono, fontSize: 11, color: T.textTertiary }}>
+                        {idx + 1}
+                      </div>
+                      <div style={{ flex: 1, fontFamily: T.sans, fontSize: 14, color: isMe ? T.charcoal : T.textPrimary, fontWeight: isMe ? 600 : 400, minWidth: 0 }}>
+                        {entry.displayName}
+                        {isMe && (
+                          <span style={{ marginLeft: 8, fontFamily: T.mono, fontSize: 10, color: T.accent, background: T.accentSoft, padding: "2px 7px", borderRadius: 4, verticalAlign: "middle" }}>YOU</span>
+                        )}
+                      </div>
+                      <div style={{ fontFamily: T.mono, fontSize: 14, color: isMe ? T.accent : T.textSecondary, fontWeight: 600, flexShrink: 0 }}>
+                        {entry.value}
+                        {entry.waitNumber && (
+                          <span style={{ fontFamily: T.sans, fontSize: 11, color: T.textTertiary, fontWeight: 400, marginLeft: 4 }}>
+                            ({ordinal(entry.waitNumber)} run)
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Dashboard ─────────────────────────────────────────────────────────────
+function Dashboard({ user, users, onLogout, onUsersUpdate, onUserUpdate, onWaitComplete, bgRef }) {
   const [tiptoe, setTiptoe] = useState(false);
   const [tiptoeAnim, setTiptoeAnim] = useState(false);
   const [cutCooldown, setCutCooldown] = useState(0);
@@ -826,7 +1411,6 @@ function Dashboard({ user, users, onLogout, onUsersUpdate, onUserUpdate, bgRef }
   const peopleBehind = users.length - myPosition;
 
   const getBlur = useCallback((idx) => {
-    // Always show the first 3 spots clearly
     if (idx <= 2) return 0;
     const dist = Math.abs(idx - myIndex);
     if (dist === 0) return 0;
@@ -856,6 +1440,27 @@ function Dashboard({ user, users, onLogout, onUsersUpdate, onUserUpdate, bgRef }
 
   useEffect(() => () => clearInterval(timerRef.current), []);
 
+  // Heartbeat: advance the server-side active-time counter while logged in at position 1
+  useEffect(() => {
+    const myEntry = users.find(u => u.displayName === user.displayName);
+    if (!myEntry || myEntry.position !== 1) return;
+    const id = setInterval(() => {
+      api("/heartbeat", { method: "POST", body: JSON.stringify({ seconds: 10 }) }).catch(() => {});
+    }, 10000);
+    return () => clearInterval(id);
+  }, [users, user.displayName]);
+
+  const handleWaitExpire = useCallback(async () => {
+    try {
+      const data = await api("/complete-wait", { method: "POST" });
+      onWaitComplete(data);
+    } catch (err) {
+      // If the server rejects (e.g. timer not quite expired), do nothing —
+      // the next tick will retry automatically.
+      console.warn("complete-wait rejected:", err.message);
+    }
+  }, [onWaitComplete]);
+
   const handleCut = async () => {
     if (cutCooldown > 0 || cutting || myPosition <= 1) return;
     setCutting(true);
@@ -879,7 +1484,7 @@ function Dashboard({ user, users, onLogout, onUsersUpdate, onUserUpdate, bgRef }
     if (result.status === "fulfilled") {
       onUserUpdate(result.value.updatedUser);
       onUsersUpdate(result.value.queue);
-      startCooldown(10);
+      startCooldown(3);
     } else {
       const match = result.reason?.message?.match(/Wait (\d+)s/);
       if (match) startCooldown(parseInt(match[1]));
@@ -903,107 +1508,134 @@ function Dashboard({ user, users, onLogout, onUsersUpdate, onUserUpdate, bgRef }
   if (screen === "profile") {
     return (
       <>
-        <AppBar user={user} onLogout={onLogout} onProfile={() => setScreen("profile")} onHome={() => setScreen("queue")} bgRef={bgRef} />
+        <AppBar user={user} onLogout={onLogout} onProfile={() => setScreen("profile")} onLeaderboard={() => setScreen("leaderboard")} onHome={() => setScreen("queue")} bgRef={bgRef} />
         <ProfileScreen user={user} onBack={() => setScreen("queue")} onUserUpdate={onUserUpdate} onDelete={onLogout} bgRef={bgRef} />
+      </>
+    );
+  }
+
+  if (screen === "leaderboard") {
+    return (
+      <>
+        <AppBar user={user} onLogout={onLogout} onProfile={() => setScreen("profile")} onLeaderboard={() => setScreen("leaderboard")} onHome={() => setScreen("queue")} bgRef={bgRef} />
+        <LeaderboardsScreen user={user} onBack={() => setScreen("queue")} bgRef={bgRef} />
       </>
     );
   }
 
   return (
     <>
-    <AppBar user={user} onLogout={onLogout} onProfile={() => setScreen("profile")} onHome={() => setScreen("queue")} bgRef={bgRef} />
-    <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", padding: 24, paddingTop: 88, position: "relative", zIndex: 1, pointerEvents: "none" }}>
-      <div style={{ width: "100%", maxWidth: 520, animation: "fadeIn 0.5s ease both" }}>
+      <AppBar user={user} onLogout={onLogout} onProfile={() => setScreen("profile")} onLeaderboard={() => setScreen("leaderboard")} onHome={() => setScreen("queue")} bgRef={bgRef} />
+      <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", padding: 24, paddingTop: 88, position: "relative", zIndex: 1, pointerEvents: "none" }}>
+        <div style={{ width: "100%", maxWidth: 520, animation: "fadeIn 0.5s ease both" }}>
 
-        {/* Queue card */}
-        <div
-          onMouseOver={() => { if (bgRef?.current?.controls) bgRef.current.controls.enabled = false; }}
-          onMouseLeave={() => { if (bgRef?.current?.controls) bgRef.current.controls.enabled = true; }}
-          style={{ ...CARD_STYLE, padding: 0, overflow: "visible", position: "relative", pointerEvents: "auto" }}>
-          {/* Line header */}
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "18px 24px 14px" }}>
-            <div style={{ fontFamily: T.serif, fontSize: 20, color: T.charcoal, fontWeight: 400, letterSpacing: -0.3 }}>You are {ordinal(myPosition)} in line</div>
-            <div style={{ display: "flex", gap: 8 }}>
-              {myPosition > 1 && (
-                <button onClick={handleCut} disabled={cutCooldown > 0 || cutting} style={{
-                  padding: "8px 16px", borderRadius: 6, position: "relative", overflow: "hidden",
-                  border: `1px solid ${cutCooldown > 0 ? "rgba(0,0,0,0.06)" : T.accentBorder}`,
-                  background: cutCooldown > 0 ? "rgba(0,0,0,0.03)" : T.accentSoft,
-                  color: cutCooldown > 0 ? T.textTertiary : T.accent,
+          <div
+            onMouseOver={() => { if (bgRef?.current?.controls) bgRef.current.controls.enabled = false; }}
+            onMouseLeave={() => { if (bgRef?.current?.controls) bgRef.current.controls.enabled = true; }}
+            style={{ ...CARD_STYLE, padding: 0, overflow: "visible", position: "relative", pointerEvents: "auto" }}>
+            {/* Header */}
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "18px 24px 14px" }}>
+              <div style={{ fontFamily: T.serif, fontSize: 20, color: T.charcoal, fontWeight: 400, letterSpacing: -0.3 }}>You are {ordinal(myPosition)} in line</div>
+              <div style={{ display: "flex", gap: 8 }}>
+                {myPosition > 1 && (
+                  <button onClick={handleCut} disabled={cutCooldown > 0 || cutting} style={{
+                    padding: "8px 16px", borderRadius: 6, position: "relative", overflow: "hidden",
+                    border: `1px solid ${cutCooldown > 0 ? "rgba(0,0,0,0.06)" : T.accentBorder}`,
+                    background: cutCooldown > 0 ? "rgba(0,0,0,0.03)" : T.accentSoft,
+                    color: cutCooldown > 0 ? T.textTertiary : T.accent,
+                    fontFamily: T.sans, fontSize: 13, fontWeight: 500,
+                    cursor: cutCooldown > 0 || cutting ? "default" : "pointer",
+                    transition: "all 0.25s ease", minWidth: 80,
+                  }}>
+                    {cutCooldown > 0 && (
+                      <div style={{
+                        position: "absolute", left: 0, bottom: 0, height: 2,
+                        background: T.accent, opacity: 0.3,
+                        width: `${(cutCooldown / 3) * 100}%`,
+                        transition: "width 1s linear",
+                      }} />
+                    )}
+                    {cutting ? "..." : cutCooldown > 0 ? `${cutCooldown}s` : "Cut"}
+                  </button>
+                )}
+                <button onClick={handleTiptoe} style={{
+                  padding: "8px 16px", borderRadius: 6,
+                  border: `1px solid ${tiptoe ? T.accentBorder : "rgba(0,0,0,0.08)"}`,
+                  background: tiptoe ? T.accentSoft : "transparent",
+                  color: tiptoe ? T.accent : T.textSecondary,
                   fontFamily: T.sans, fontSize: 13, fontWeight: 500,
-                  cursor: cutCooldown > 0 || cutting ? "default" : "pointer",
-                  transition: "all 0.25s ease", minWidth: 80,
-                }}>
-                  {cutCooldown > 0 && (
-                    <div style={{
-                      position: "absolute", left: 0, bottom: 0, height: 2,
-                      background: T.accent, opacity: 0.3,
-                      width: `${(cutCooldown / 10) * 100}%`,
-                      transition: "width 1s linear",
-                    }} />
-                  )}
-                  {cutting ? "..." : cutCooldown > 0 ? `${cutCooldown}s` : "Cut"}
+                  cursor: "pointer", transition: "all 0.25s ease",
+                  transform: tiptoeAnim ? "translateY(-2px)" : "translateY(0)",
+                }}
+                  onMouseEnter={e => { if (!tiptoe) e.target.style.color = T.charcoal; }}
+                  onMouseLeave={e => { if (!tiptoe) e.target.style.color = T.textSecondary; }}>
+                  {tiptoe ? "On tiptoes ↑" : "Stand on tiptoes"}
                 </button>
-              )}
-              <button onClick={handleTiptoe} style={{
-                padding: "8px 16px", borderRadius: 6,
-                border: `1px solid ${tiptoe ? T.accentBorder : "rgba(0,0,0,0.08)"}`,
-                background: tiptoe ? T.accentSoft : "transparent",
-                color: tiptoe ? T.accent : T.textSecondary,
-                fontFamily: T.sans, fontSize: 13, fontWeight: 500,
-                cursor: "pointer", transition: "all 0.25s ease",
-                transform: tiptoeAnim ? "translateY(-2px)" : "translateY(0)",
-              }}
-                onMouseEnter={e => { if (!tiptoe) e.target.style.color = T.charcoal; }}
-                onMouseLeave={e => { if (!tiptoe) e.target.style.color = T.textSecondary; }}>
-                {tiptoe ? "On tiptoes ↑" : "Stand on tiptoes"}
-              </button>
+              </div>
+            </div>
+
+            {/* Queue list */}
+            <div ref={listRef} style={{ maxHeight: 380, overflowY: "auto", overflowX: "hidden", scrollbarWidth: "thin", scrollbarColor: `${T.border} transparent` }}>
+              {users.map((u, idx) => (
+                <QueuePerson
+                  key={u.displayName}
+                  name={u.displayName}
+                  position={idx + 1}
+                  blur={getBlur(idx)}
+                  isSelf={u.displayName === user.displayName}
+                  delay={Math.min(idx * 25, 500)}
+                  highFiveCount={u.highFiveCount || 0}
+                  hasFivedToday={u.hasFivedToday || false}
+                  waitingFor={u.waitingFor}
+                  accumulatedWaitSeconds={u.accumulatedWaitSeconds || 0}
+                  onTimerExpire={u.displayName === user.displayName && idx === 0 ? handleWaitExpire : undefined}
+                />
+              ))}
+            </div>
+            {bubble && <SpeechBubble text={bubble} listRef={listRef} myIndex={myIndex} />}
+
+            {/* Footer stats */}
+            <div style={{
+              padding: "12px 24px", borderTop: `1px solid ${T.borderLight}`,
+              display: "flex", justifyContent: "space-between", alignItems: "center",
+              borderRadius: "0 0 16px 16px",
+            }}>
+              <span style={{ fontFamily: T.sans, fontSize: 12, color: T.textTertiary }}>
+                {users.length} {users.length === 1 ? "person" : "people"} in line
+              </span>
+              <span style={{ fontFamily: T.sans, fontSize: 12, color: T.textTertiary }}>
+                {peopleBehind} behind you
+              </span>
             </div>
           </div>
 
-          {/* Queue list */}
-          <div ref={listRef} style={{ maxHeight: 380, overflowY: "auto", overflowX: "hidden", scrollbarWidth: "thin", scrollbarColor: `${T.border} transparent` }}>
-            {users.map((u, idx) => (
-              <QueuePerson key={u.displayName} name={u.displayName} position={idx + 1}
-                blur={getBlur(idx)} isSelf={u.displayName === user.displayName} delay={Math.min(idx * 25, 500)}
-                highFiveCount={u.highFiveCount || 0} waitingFor={u.waitingFor} />
-            ))}
-          </div>
-          {bubble && <SpeechBubble text={bubble} listRef={listRef} myIndex={myIndex} />}
-
-          {/* Bottom stats bar */}
-          <div style={{
-            padding: "12px 24px", borderTop: `1px solid ${T.borderLight}`,
-            display: "flex", justifyContent: "space-between", alignItems: "center",
-            borderRadius: "0 0 16px 16px",
-          }}>
-            <span style={{ fontFamily: T.sans, fontSize: 12, color: T.textTertiary }}>
-              {users.length} {users.length === 1 ? "person" : "people"} in line
-            </span>
-            <span style={{ fontFamily: T.sans, fontSize: 12, color: T.textTertiary }}>
-              {peopleBehind} behind you
-            </span>
-          </div>
         </div>
-
       </div>
-    </div>
     </>
   );
 }
 
+// ── App ───────────────────────────────────────────────────────────────────
 export default function App() {
   const [ready, setReady] = useState(false);
   const [currentUser, setCurrentUser] = useState(null);
   const [allUsers, setAllUsers] = useState([]);
   const [onboarding, setOnboarding] = useState(false);
+  const [congratulationsData, setCongratulationsData] = useState(null);
   const bgRef = useRef(null);
 
   useEffect(() => {
     if (_token) {
       Promise.all([api("/me"), api("/queue")])
-        .then(([user, queue]) => { setCurrentUser(user); setAllUsers(queue); })
-        .catch(() => { setToken(null); })
+        .then(([user, queue]) => {
+          setCurrentUser(user);
+          setAllUsers(queue);
+          // Restore congratulations screen if user completed a wait and hasn't rejoined
+          if (user.inQueue === false && user.lastCompletion) {
+            setCongratulationsData(user.lastCompletion);
+          }
+        })
+        .catch(() => setToken(null))
         .finally(() => setReady(true));
     } else {
       setReady(true);
@@ -1027,17 +1659,55 @@ export default function App() {
     setOnboarding(false);
   };
 
+  const handleWaitComplete = (data) => {
+    setCongratulationsData(data);
+    setCurrentUser(u => ({ ...u, inQueue: false, position: null }));
+  };
+
+  const handleRejoin = async () => {
+    const { user: updated } = await api("/rejoin", { method: "POST" });
+    const queue = await api("/queue");
+    setCurrentUser(updated);
+    setAllUsers(queue);
+    setCongratulationsData(null);
+  };
+
+  const handleLogout = () => {
+    setToken(null);
+    setCurrentUser(null);
+    setAllUsers([]);
+    setOnboarding(false);
+    setCongratulationsData(null);
+  };
+
   let content;
   if (!currentUser) {
     content = <AuthScreen bgRef={bgRef} onAuth={handleAuth} />;
   } else if (onboarding) {
     content = <OnboardingScreen bgRef={bgRef} onComplete={handleOnboardingComplete} />;
+  } else if (congratulationsData || currentUser.inQueue === false) {
+    content = (
+      <CongratulationsScreen
+        data={congratulationsData}
+        user={currentUser}
+        onRejoin={handleRejoin}
+        onLogout={handleLogout}
+        onUserUpdate={setCurrentUser}
+        bgRef={bgRef}
+      />
+    );
   } else {
-    content = <Dashboard user={currentUser} users={allUsers}
-      onLogout={() => { setToken(null); setCurrentUser(null); setAllUsers([]); setOnboarding(false); }}
-      onUserUpdate={setCurrentUser}
-      onUsersUpdate={setAllUsers}
-      bgRef={bgRef} />;
+    content = (
+      <Dashboard
+        user={currentUser}
+        users={allUsers}
+        onLogout={handleLogout}
+        onUserUpdate={setCurrentUser}
+        onUsersUpdate={setAllUsers}
+        onWaitComplete={handleWaitComplete}
+        bgRef={bgRef}
+      />
+    );
   }
 
   return (
@@ -1053,6 +1723,38 @@ export default function App() {
         @keyframes hfBurst {
           0% { opacity: 1; height: 6px; translate: 0 0; }
           100% { opacity: 0; height: 2px; translate: 0 -14px; }
+        }
+        @keyframes float {
+          0%, 100% { transform: translateY(0px); }
+          50% { transform: translateY(-12px); }
+        }
+        @keyframes hourglassFlip {
+          0%    { transform: rotate(0deg);   }
+          37.5% { transform: rotate(0deg);   }
+          50%   { transform: rotate(180deg); }
+          87.5% { transform: rotate(180deg); }
+          100%  { transform: rotate(360deg); }
+        }
+        @keyframes sandDripDown {
+          0%   { transform: translateY(0px); opacity: 1; }
+          70%  { transform: translateY(6px); opacity: 1; }
+          85%  { transform: translateY(6px); opacity: 0; }
+          100% { transform: translateY(0px); opacity: 0; }
+        }
+        @keyframes sandDripUp {
+          0%   { transform: translateY(0px);  opacity: 1; }
+          70%  { transform: translateY(-6px); opacity: 1; }
+          85%  { transform: translateY(-6px); opacity: 0; }
+          100% { transform: translateY(0px);  opacity: 0; }
+        }
+        @keyframes showUpright {
+          0%,  35%  { opacity: 1; }
+          38%, 100% { opacity: 0; }
+        }
+        @keyframes showFlipped {
+          0%,  52%  { opacity: 0; }
+          55%, 85%  { opacity: 1; }
+          88%, 100% { opacity: 0; }
         }
         input::placeholder { color: #B3B1A9; }
         ::-webkit-scrollbar { width: 3px; }

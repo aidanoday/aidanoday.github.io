@@ -2,7 +2,20 @@ name = "waitlist-api"
 main = "src/index.js"
 compatibility_date = "2024-12-01"
 
+# ── Production database ───────────────────────────────────────────────────
 [[d1_databases]]
 binding = "DB"
 database_name = "waitlist-db"
 database_id = "21e8a272-4900-4f12-9441-7b15e3523ad8"
+
+# ── Dev / staging environment ─────────────────────────────────────────────
+# To use: npx wrangler d1 create waitlist-db-dev  → paste the ID below
+# Then:   npm run worker:dev:init   (schema + seed)
+#         npm run worker:dev        (start local worker with remote dev DB)
+[env.dev]
+name = "waitlist-api-dev"
+
+[[env.dev.d1_databases]]
+binding = "DB"
+database_name = "waitlist-db-dev"
+database_id = "REPLACE_WITH_DEV_DB_ID"
