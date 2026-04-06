@@ -252,7 +252,7 @@ async function handleLogin(request, env) {
 }
 
 async function handleQueue(request, env) {
-  // Identify the requesting user (if logged in) to flag who they've already fived today
+  // Identify the requesting user (if logged in) to flag who they've already fived this run
   let myId = null;
   const auth = request.headers.get("Authorization");
   if (auth?.startsWith("Bearer ")) {
@@ -260,13 +260,20 @@ async function handleQueue(request, env) {
     if (payload) myId = payload.sub;
   }
 
-  let fivedTodayIds = new Set();
+  let fivedThisRunIds = new Set();
   if (myId) {
-    const today = new Date().toISOString().slice(0, 10);
-    const { results: fiveRows } = await env.DB.prepare(
-      "SELECT to_user_id FROM high_fives WHERE from_user_id = ? AND created_at LIKE ?"
-    ).bind(myId, `${today}%`).all();
-    fivedTodayIds = new Set(fiveRows.map(r => r.to_user_id));
+    const myUser = await env.DB.prepare(
+      "SELECT current_wait_join_time, signup_time FROM users WHERE id = ?"
+    ).bind(myId).first();
+    const joinTime = myUser?.current_wait_join_time || myUser?.signup_time;
+    if (joinTime) {
+      const todayUtc = new Date().toISOString().slice(0, 10) + "T00:00:00.000Z";
+      const sinceTime = joinTime > todayUtc ? joinTime : todayUtc;
+      const { results: fiveRows } = await env.DB.prepare(
+        "SELECT to_user_id FROM high_fives WHERE from_user_id = ? AND created_at >= ?"
+      ).bind(myId, sinceTime).all();
+      fivedThisRunIds = new Set(fiveRows.map(r => r.to_user_id));
+    }
   }
 
   const { results } = await env.DB.prepare(`
@@ -281,7 +288,7 @@ async function handleQueue(request, env) {
     waitingFor: r.waiting_for || null,
     highFiveCount: r.high_five_count || 0,
     accumulatedWaitSeconds: r.accumulated_wait_seconds || 0,
-    hasFivedToday: fivedTodayIds.has(r.id),
+    hasFivedToday: fivedThisRunIds.has(r.id),
   })));
 }
 
@@ -326,10 +333,12 @@ async function handleHighFive(request, env) {
   if (!target) return json({ error: "User not found" }, 404);
   if (target.id === user.id) return json({ error: "You can't high-five yourself!" }, 400);
 
-  const today = new Date().toISOString().slice(0, 10);
+  const joinTime = user.current_wait_join_time || user.signup_time;
+  const todayUtc = new Date().toISOString().slice(0, 10) + "T00:00:00.000Z";
+  const sinceTime = joinTime > todayUtc ? joinTime : todayUtc;
   const existing = await env.DB.prepare(
-    "SELECT id FROM high_fives WHERE from_user_id = ? AND to_user_id = ? AND created_at LIKE ?"
-  ).bind(user.id, target.id, `${today}%`).first();
+    "SELECT id FROM high_fives WHERE from_user_id = ? AND to_user_id = ? AND created_at >= ?"
+  ).bind(user.id, target.id, sinceTime).first();
   if (existing) return json({ error: "You already high-fived this person today!" }, 429);
 
   await env.DB.prepare(

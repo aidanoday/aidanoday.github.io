@@ -304,10 +304,12 @@ function HighFiveButton({ name, isSelf, highFiveCount, hasFivedToday }) {
   const [fived, setFived] = useState(hasFivedToday || false);
   const [bursting, setBursting] = useState(false);
   const [tooltip, setTooltip] = useState(false);
+  const [tooltipMsg, setTooltipMsg] = useState("Spread some love!");
+  const tooltipToggle = useRef(false);
 
   useEffect(() => { setCount(highFiveCount); }, [highFiveCount]);
 
-  // Sync fived state when the queue refreshes (covers page reload + next-day reset)
+  // Sync fived state when the queue refreshes (covers page reload + rejoin reset)
   useEffect(() => { setFived(hasFivedToday || false); }, [hasFivedToday]);
 
   // Auto-reset at UTC midnight so the button re-enables without a page reload
@@ -318,6 +320,7 @@ function HighFiveButton({ name, isSelf, highFiveCount, hasFivedToday }) {
     const id = setTimeout(() => setFived(false), midnight - now);
     return () => clearTimeout(id);
   }, [fived]);
+
 
   const handleClick = async (e) => {
     e.stopPropagation();
@@ -354,7 +357,13 @@ function HighFiveButton({ name, isSelf, highFiveCount, hasFivedToday }) {
     <div style={{ display: "flex", alignItems: "center", gap: 6, flexShrink: 0, position: "relative" }}>
       {count > 0 && <span style={{ fontFamily: T.mono, fontSize: 11, color: T.textTertiary }}>{count}</span>}
       <button onClick={handleClick}
-        onMouseEnter={() => setTooltip(true)}
+        onMouseEnter={() => {
+          if (!fived) {
+            tooltipToggle.current = !tooltipToggle.current;
+            setTooltipMsg(tooltipToggle.current ? "Celebrate the wait!" : "Spread some love!");
+          }
+          setTooltip(true);
+        }}
         onMouseLeave={() => setTooltip(false)}
         style={{
           border: "none", background: "transparent",
@@ -389,7 +398,7 @@ function HighFiveButton({ name, isSelf, highFiveCount, hasFivedToday }) {
           padding: "5px 10px", borderRadius: 6, pointerEvents: "none",
           animation: "fadeIn 0.15s ease both", zIndex: 40,
         }}>
-          You can give a person a high five once a day
+          {fived ? "High five-ability resets at midnight and whenever you start a new run." : tooltipMsg}
         </div>
       )}
     </div>
@@ -508,15 +517,16 @@ function SpeechBubble({ text, listRef, myIndex }) {
     if (!row) return;
     const listRect = listRef.current.getBoundingClientRect();
     const rowRect = row.getBoundingClientRect();
-    setPos({ top: rowRect.top - listRect.top - 10 });
+    setPos({ top: rowRect.top - listRect.top - 10, width: listRect.width });
   }, [listRef, myIndex]);
 
   if (!pos) return null;
 
   return (
     <div style={{
-      position: "absolute", left: "50%", top: pos.top,
-      translate: "-50% 70px",
+      position: "absolute", left: 0, top: pos.top,
+      translate: "0 70px",
+      width: pos.width,
       background: "#FDFCFB", color: T.textPrimary,
       fontFamily: T.serif, fontSize: 26,
       padding: "12px 22px", borderRadius: 12,
@@ -524,7 +534,8 @@ function SpeechBubble({ text, listRef, myIndex }) {
       boxShadow: "0 4px 20px rgba(0,0,0,0.08), 0 1px 4px rgba(0,0,0,0.04)",
       border: `1px solid ${T.borderLight}`,
       animation: "bubblePop 0.35s cubic-bezier(.34,1.56,.64,1) both",
-      zIndex: 30, whiteSpace: "nowrap", pointerEvents: "none",
+      zIndex: 30, whiteSpace: "normal", wordBreak: "break-word", pointerEvents: "none",
+      boxSizing: "border-box",
     }}>
       &ldquo;{text}&rdquo;
       <div style={{
