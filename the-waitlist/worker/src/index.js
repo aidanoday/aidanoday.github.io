@@ -640,7 +640,11 @@ async function handleHeartbeat(request, env) {
     "UPDATE users SET accumulated_wait_seconds = MIN(accumulated_wait_seconds + ?, ?), last_heartbeat = ? WHERE id = ?"
   ).bind(delta, WAIT_DURATION_SECONDS, now, user.id).run();
 
-  return json({ ok: true });
+  const updated = await env.DB.prepare(
+    "SELECT accumulated_wait_seconds FROM users WHERE id = ?"
+  ).bind(user.id).first();
+
+  return json({ ok: true, accumulatedWaitSeconds: updated?.accumulated_wait_seconds || 0 });
 }
 
 async function handleWaitHistory(request, env) {

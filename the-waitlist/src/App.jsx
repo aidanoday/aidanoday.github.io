@@ -265,7 +265,7 @@ function CountdownTimer({ accumulatedWaitSeconds, isPosition1, isSelf }) {
 }
 
 // ── HighFiveButton ───────────────────────────────────────────────────────
-function HighFiveButton({ name, isSelf, highFiveCount, hasFivedToday }) {
+function HighFiveButton({ name, isSelf, highFiveCount, hasFivedToday, onFive }) {
   const [count, setCount] = useState(highFiveCount);
   const [fived, setFived] = useState(hasFivedToday || false);
   const [bursting, setBursting] = useState(false);
@@ -302,6 +302,7 @@ function HighFiveButton({ name, isSelf, highFiveCount, hasFivedToday }) {
       const { highFiveCount: newCount } = await api("/high-five", { method: "POST", body: JSON.stringify({ displayName: name }) });
       setCount(newCount);
       setFived(true);
+      onFive?.();
     } catch (err) {
       if (err.message?.includes("already")) {
         setFived(true);
@@ -409,12 +410,13 @@ function UserCard({ name, waitingFor, position, onClose, anchorRef }) {
 }
 
 // ── QueuePerson ──────────────────────────────────────────────────────────
-function QueuePerson({ name, position, blur, isSelf, delay, highFiveCount, hasFivedToday, waitingFor, accumulatedWaitSeconds, lastHeartbeat }) {
+function QueuePerson({ name, position, blur, isSelf, delay, highFiveCount, hasFivedToday, waitingFor, accumulatedWaitSeconds, lastHeartbeat, assumedActive, onFive }) {
   const [showCard, setShowCard] = useState(false);
   const nameRef = useRef(null);
 
-  // For position-1 non-self: consider them active if they heartbeated within 30s
-  const isActive = isSelf || (lastHeartbeat && (Date.now() - new Date(lastHeartbeat).getTime()) < 30000);
+  // For position-1 non-self: active if they heartbeated within 30s, or if they
+  // just took position 1 (assumedActive covers the gap before their first heartbeat).
+  const isActive = isSelf || assumedActive || (lastHeartbeat && (Date.now() - new Date(lastHeartbeat).getTime()) < 30000);
 
   // Tick the displayed seconds locally for an active position-1 non-self user,
   // so their timer moves between queue refreshes. Resets when server value changes.
@@ -482,7 +484,7 @@ function QueuePerson({ name, position, blur, isSelf, delay, highFiveCount, hasFi
         }}>YOU</span>
       </div>
       <div style={{ visibility: blur === 0 ? "visible" : "hidden", minWidth: 80, flexShrink: 0, display: "flex", justifyContent: "flex-end" }}>
-        <HighFiveButton name={name} isSelf={isSelf} highFiveCount={highFiveCount} hasFivedToday={hasFivedToday} />
+        <HighFiveButton name={name} isSelf={isSelf} highFiveCount={highFiveCount} hasFivedToday={hasFivedToday} onFive={onFive} />
       </div>
       {showCard && <UserCard name={name} waitingFor={waitingFor} position={position} onClose={() => setShowCard(false)} anchorRef={nameRef} />}
     </div>
@@ -1403,26 +1405,72 @@ function Dashboard({ user, users, onLogout, onUsersUpdate, onUserUpdate, onWaitC
   const myPosition = myIndex + 1;
   const peopleBehind = users.length - myPosition;
 
+  // When the position-1 user changes (e.g. someone cuts to front), optimistically
+  // assume they're active for 30s so the hourglass and ticking timer show immediately
+  // without waiting for their first heartbeat.
+  const pos1Name = users[0]?.displayName || null;
+  const prevPos1NameRef = useRef(pos1Name);
+  const [assumedActiveUntil, setAssumedActiveUntil] = useState(0);
+  useEffect(() => {
+    if (pos1Name && pos1Name !== prevPos1NameRef.current) {
+      setAssumedActiveUntil(Date.now() + 30000);
+    }
+    prevPos1NameRef.current = pos1Name;
+  }, [pos1Name]);
+
   // Track accumulated time locally so it survives screen changes (profile/leaderboard)
   // and isn't subject to heartbeat lag when getting cut from position 1.
   const myEntry = users.find(u => u.displayName === user.displayName);
   const [localAccumulated, setLocalAccumulated] = useState(myEntry?.accumulatedWaitSeconds || 0);
 
-  // Sync from server on every queue refresh — always take the higher value so
-  // users never see their wait time go backwards unexpectedly.
+  // Tick locally every second while at position 1. Uses wall-clock anchoring so
+  // background tab throttling doesn't cause the timer to fall behind.
+  // The anchor always uses the latest confirmed server value as its base so that
+  // a page refresh or new build never starts the timer from 0.
+  const tickAnchorRef = useRef(null);
+
+  // Re-anchor whenever the server gives us a value (queue refresh or heartbeat response).
+  // This is the single source of truth for where the tick starts from.
   useEffect(() => {
     const serverVal = myEntry?.accumulatedWaitSeconds || 0;
-    setLocalAccumulated(prev => Math.max(prev, serverVal));
-  }, [myEntry?.accumulatedWaitSeconds]);
+    const next = Math.max(localAccumulated, serverVal);
+    setLocalAccumulated(next);
+    if (myPosition === 1) {
+      tickAnchorRef.current = { time: Date.now(), accumulated: next };
+    }
+  }, [myEntry?.accumulatedWaitSeconds]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Tick locally every second while at position 1
+  // Start/stop the interval when position changes.
   useEffect(() => {
-    if (myPosition !== 1) return;
+    if (myPosition !== 1) { tickAnchorRef.current = null; return; }
+    // Seed anchor from the current server value if not already set.
+    if (!tickAnchorRef.current) {
+      const seed = myEntry?.accumulatedWaitSeconds || localAccumulated;
+      tickAnchorRef.current = { time: Date.now(), accumulated: seed };
+    }
     const id = setInterval(() => {
-      setLocalAccumulated(prev => Math.min(prev + 1, TIMER_DURATION));
+      if (!tickAnchorRef.current) return;
+      const elapsed = Math.floor((Date.now() - tickAnchorRef.current.time) / 1000);
+      setLocalAccumulated(prev => {
+        const next = Math.min(tickAnchorRef.current.accumulated + elapsed, TIMER_DURATION);
+        return Math.max(prev, next);
+      });
     }, 1000);
     return () => clearInterval(id);
-  }, [myPosition]);
+  }, [myPosition]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // When the tab regains focus, immediately fetch the queue so background time
+  // is accounted for and completion triggers without waiting for the next poll.
+  useEffect(() => {
+    if (myPosition !== 1) return;
+    const handleVisibility = () => {
+      if (document.visibilityState === "visible") {
+        api("/queue").then(onUsersUpdate).catch(() => {});
+      }
+    };
+    document.addEventListener("visibilitychange", handleVisibility);
+    return () => document.removeEventListener("visibilitychange", handleVisibility);
+  }, [myPosition, onUsersUpdate]);
 
   const getBlur = useCallback((idx) => {
     if (idx <= 2) return 0;
@@ -1459,7 +1507,17 @@ function Dashboard({ user, users, onLogout, onUsersUpdate, onUserUpdate, onWaitC
     const myEntry = users.find(u => u.displayName === user.displayName);
     if (!myEntry || myEntry.position !== 1) return;
     const id = setInterval(() => {
-      api("/heartbeat", { method: "POST", body: JSON.stringify({ seconds: 10 }) }).catch(() => {});
+      api("/heartbeat", { method: "POST", body: JSON.stringify({ seconds: 10 }) })
+        .then(({ accumulatedWaitSeconds }) => {
+          if (typeof accumulatedWaitSeconds === "number") {
+            setLocalAccumulated(prev => {
+              const next = Math.max(prev, accumulatedWaitSeconds);
+              tickAnchorRef.current = { time: Date.now(), accumulated: next };
+              return next;
+            });
+          }
+        })
+        .catch(() => {});
     }, 10000);
     return () => clearInterval(id);
   }, [users, user.displayName]);
@@ -1470,7 +1528,7 @@ function Dashboard({ user, users, onLogout, onUsersUpdate, onUserUpdate, onWaitC
     if (myPosition !== 1) return;
     const id = setInterval(() => {
       api("/queue").then(onUsersUpdate).catch(() => {});
-    }, 15000);
+    }, 5000);
     return () => clearInterval(id);
   }, [myPosition, onUsersUpdate]);
 
@@ -1639,6 +1697,8 @@ function Dashboard({ user, users, onLogout, onUsersUpdate, onUserUpdate, onWaitC
                   waitingFor={u.waitingFor}
                   accumulatedWaitSeconds={u.displayName === user.displayName ? localAccumulated : (u.accumulatedWaitSeconds || 0)}
                   lastHeartbeat={u.lastHeartbeat || null}
+                  assumedActive={idx === 0 && Date.now() < assumedActiveUntil}
+                  onFive={() => api("/queue").then(onUsersUpdate).catch(() => {})}
                 />
               ))}
             </div>
