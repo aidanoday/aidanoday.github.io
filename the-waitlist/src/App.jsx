@@ -1193,7 +1193,7 @@ function CongratulationsScreen({ data, user, onRejoin, onLogout, onUserUpdate, b
           {data && (
             <div style={{
               width: 180, height: 180, borderRadius: "50%",
-              background: `linear-gradient(145deg, ${T.accent} 0%, #c7d9ff 100%)`,
+              background: `linear-gradient(145deg, ${T.accent} 0%, #2e3238 100%)`,
               display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
               margin: "0 auto 36px",
               animation: "float 3s ease-in-out infinite",
