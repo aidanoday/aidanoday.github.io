@@ -164,15 +164,10 @@ p.small {
 }
 
 #projects, .projects_list {
-    columns: 270px;
-    column-gap: 24px;
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(270px, 1fr));
+    gap: 24px;
     width: 100%;
-}
-
-#projects project-card,
-.projects_list project-card {
-    break-inside: avoid;
-    margin-bottom: 24px;
 }
 
 .window-height{
@@ -206,7 +201,7 @@ p.small {
     overflow:hidden;
 }
 
-.card {
+/*.card {
     width: 100%;
     max-width: 1000px;
     height: 300px;
@@ -225,10 +220,26 @@ p.small {
     transition: all 400ms;
   
 }
+
+.card:hover {
+    /* transform: scale(1.05); *
+    box-shadow: 0px 12px 28px 4px var(--AccentShadow);
+}
+
+.card:hover img.card_cover {
+    transform: scale(1.06);
+}
+
+.card:active {
+    transform: translateY(-10px);
+    box-shadow: 0px 0px 6px 6px var(--AccentShadowPressed);
+}
 img.card_cover {
     height: 100%;
     width: 486px;
+    transition: transform 400ms;
 }
+*/
 
 @media only screen and (max-width: 1080px){
 
@@ -310,15 +321,7 @@ img.card_cover {
     }
 }
 
-.card:hover {
-    transform: scale(1.05);
-    box-shadow: 0px 0px 6px 6px var(--AccentShadow);
-}
 
-.card:active {
-    transform: translateY(-10px);
-    box-shadow: 0px 0px 6px 6px var(--AccentShadowPressed);
-}
 
 a {
     color: var(--Text);
