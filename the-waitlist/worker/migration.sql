@@ -19,6 +19,7 @@ UPDATE users SET current_wait_join_time = signup_time WHERE current_wait_join_ti
 UPDATE users SET position_one_start_time = datetime('now') WHERE in_queue = 1 AND position = 1;
 
 ALTER TABLE wait_completions ADD COLUMN waiting_for TEXT;
+ALTER TABLE users ADD COLUMN last_heartbeat TEXT;
 
 CREATE TABLE IF NOT EXISTS wait_completions (
   id INTEGER PRIMARY KEY AUTOINCREMENT,

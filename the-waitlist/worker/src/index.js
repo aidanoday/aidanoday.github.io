@@ -277,7 +277,7 @@ async function handleQueue(request, env) {
   }
 
   const { results } = await env.DB.prepare(`
-    SELECT u.id, u.display_name, u.position, u.waiting_for, u.accumulated_wait_seconds,
+    SELECT u.id, u.display_name, u.position, u.waiting_for, u.accumulated_wait_seconds, u.last_heartbeat,
       (SELECT COUNT(*) FROM high_fives hf WHERE hf.to_user_id = u.id AND hf.created_at >= COALESCE(u.current_wait_join_time, u.signup_time)) as high_five_count
     FROM users u WHERE u.in_queue = 1 ORDER BY u.position ASC
   `).all();
@@ -288,6 +288,7 @@ async function handleQueue(request, env) {
     waitingFor: r.waiting_for || null,
     highFiveCount: r.high_five_count || 0,
     accumulatedWaitSeconds: r.accumulated_wait_seconds || 0,
+    lastHeartbeat: r.last_heartbeat || null,
     hasFivedToday: fivedThisRunIds.has(r.id),
   })));
 }
@@ -634,9 +635,10 @@ async function handleHeartbeat(request, env) {
   // Cap each heartbeat at 30s to limit any abuse
   const delta = Math.min(Math.max(1, seconds || 10), 30);
 
+  const now = new Date().toISOString();
   await env.DB.prepare(
-    "UPDATE users SET accumulated_wait_seconds = MIN(accumulated_wait_seconds + ?, ?) WHERE id = ?"
-  ).bind(delta, WAIT_DURATION_SECONDS, user.id).run();
+    "UPDATE users SET accumulated_wait_seconds = MIN(accumulated_wait_seconds + ?, ?), last_heartbeat = ? WHERE id = ?"
+  ).bind(delta, WAIT_DURATION_SECONDS, now, user.id).run();
 
   return json({ ok: true });
 }

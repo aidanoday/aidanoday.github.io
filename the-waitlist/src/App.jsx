@@ -243,22 +243,8 @@ function PixelHourglass() {
 // ── CountdownTimer ───────────────────────────────────────────────────────
 // For the self/position-1 user: counts down locally each second (active time).
 // For everyone else: shows the server's last-known remaining time as a static value.
-function CountdownTimer({ accumulatedWaitSeconds, isPosition1, isSelf, onExpire }) {
+function CountdownTimer({ accumulatedWaitSeconds, isPosition1, isSelf }) {
   const secs = Math.max(0, TIMER_DURATION - (accumulatedWaitSeconds || 0));
-  const onExpireRef = useRef(onExpire);
-  onExpireRef.current = onExpire;
-  const expiredRef = useRef(false);
-
-  // Fire onExpire once when the self/pos-1 timer reaches zero (driven by Dashboard's tick)
-  useEffect(() => {
-    if (!isPosition1 || !isSelf) return;
-    if (secs <= 0 && !expiredRef.current) {
-      expiredRef.current = true;
-      setTimeout(() => onExpireRef.current?.(), 0);
-    }
-    if (secs > 0) expiredRef.current = false;
-  }, [secs, isPosition1, isSelf]);
-
   const h = Math.floor(secs / 3600);
   const m = Math.floor((secs % 3600) / 60);
   const s = secs % 60;
@@ -423,9 +409,26 @@ function UserCard({ name, waitingFor, position, onClose, anchorRef }) {
 }
 
 // ── QueuePerson ──────────────────────────────────────────────────────────
-function QueuePerson({ name, position, blur, isSelf, delay, highFiveCount, hasFivedToday, waitingFor, accumulatedWaitSeconds, onTimerExpire }) {
+function QueuePerson({ name, position, blur, isSelf, delay, highFiveCount, hasFivedToday, waitingFor, accumulatedWaitSeconds, lastHeartbeat }) {
   const [showCard, setShowCard] = useState(false);
   const nameRef = useRef(null);
+
+  // For position-1 non-self: consider them active if they heartbeated within 30s
+  const isActive = isSelf || (lastHeartbeat && (Date.now() - new Date(lastHeartbeat).getTime()) < 30000);
+
+  // Tick the displayed seconds locally for an active position-1 non-self user,
+  // so their timer moves between queue refreshes. Resets when server value changes.
+  const [displayedAccumulated, setDisplayedAccumulated] = useState(accumulatedWaitSeconds);
+  useEffect(() => {
+    setDisplayedAccumulated(accumulatedWaitSeconds);
+  }, [accumulatedWaitSeconds]);
+  useEffect(() => {
+    if (isSelf || position !== 1 || !isActive) return;
+    const id = setInterval(() => {
+      setDisplayedAccumulated(prev => Math.min(prev + 1, TIMER_DURATION));
+    }, 1000);
+    return () => clearInterval(id);
+  }, [isSelf, position, isActive, accumulatedWaitSeconds]);
 
   return (
     <div style={{
@@ -448,14 +451,13 @@ function QueuePerson({ name, position, blur, isSelf, delay, highFiveCount, hasFi
         {position}
       </div>
       {position === 1
-        ? isSelf ? <PixelHourglass /> : <ZzzIcon />
+        ? (isSelf || isActive) ? <PixelHourglass /> : <ZzzIcon />
         : <div style={{ width: 4, height: 4, borderRadius: "50%", flexShrink: 0, background: isSelf ? T.accent : T.border }} />
       }
       <CountdownTimer
-        accumulatedWaitSeconds={accumulatedWaitSeconds}
+        accumulatedWaitSeconds={isSelf ? accumulatedWaitSeconds : displayedAccumulated}
         isPosition1={position === 1}
         isSelf={isSelf}
-        onExpire={onTimerExpire}
       />
       <div style={{
         flex: 1, fontFamily: T.sans, fontSize: 15,
@@ -1494,6 +1496,17 @@ function Dashboard({ user, users, onLogout, onUsersUpdate, onUserUpdate, onWaitC
     }
   }, [onWaitComplete]);
 
+  // Fire completion when localAccumulated reaches the duration. Lives here in
+  // Dashboard so it's immune to CountdownTimer unmounting or prop timing races.
+  const waitExpiredRef = useRef(false);
+  useEffect(() => {
+    if (myPosition !== 1) { waitExpiredRef.current = false; return; }
+    if (localAccumulated >= TIMER_DURATION && !waitExpiredRef.current) {
+      waitExpiredRef.current = true;
+      handleWaitExpire();
+    }
+  }, [localAccumulated, myPosition, handleWaitExpire]);
+
   const handleCut = async () => {
     if (cutCooldown > 0 || cutting || myPosition <= 1) return;
     setCutting(true);
@@ -1621,7 +1634,7 @@ function Dashboard({ user, users, onLogout, onUsersUpdate, onUserUpdate, onWaitC
                   hasFivedToday={u.hasFivedToday || false}
                   waitingFor={u.waitingFor}
                   accumulatedWaitSeconds={u.displayName === user.displayName ? localAccumulated : (u.accumulatedWaitSeconds || 0)}
-                  onTimerExpire={u.displayName === user.displayName && idx === 0 ? handleWaitExpire : undefined}
+                  lastHeartbeat={u.lastHeartbeat || null}
                 />
               ))}
             </div>
