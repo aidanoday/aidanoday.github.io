@@ -1451,13 +1451,18 @@ function Dashboard({ user, users, onLogout, onUsersUpdate, onUserUpdate, onWaitC
   }, [users, user.displayName]);
 
   const handleWaitExpire = useCallback(async () => {
-    try {
-      const data = await api("/complete-wait", { method: "POST" });
-      onWaitComplete(data);
-    } catch (err) {
-      // If the server rejects (e.g. timer not quite expired), do nothing —
-      // the next tick will retry automatically.
-      console.warn("complete-wait rejected:", err.message);
+    for (let attempt = 0; attempt < 4; attempt++) {
+      try {
+        const data = await api("/complete-wait", { method: "POST" });
+        onWaitComplete(data);
+        return;
+      } catch (err) {
+        if (attempt < 3) {
+          await new Promise(r => setTimeout(r, 2000));
+        } else {
+          console.warn("complete-wait failed after retries:", err.message);
+        }
+      }
     }
   }, [onWaitComplete]);
 

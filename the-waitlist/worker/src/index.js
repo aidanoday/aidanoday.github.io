@@ -271,7 +271,7 @@ async function handleQueue(request, env) {
 
   const { results } = await env.DB.prepare(`
     SELECT u.id, u.display_name, u.position, u.waiting_for, u.accumulated_wait_seconds,
-      (SELECT COUNT(*) FROM high_fives hf WHERE hf.to_user_id = u.id) as high_five_count
+      (SELECT COUNT(*) FROM high_fives hf WHERE hf.to_user_id = u.id AND hf.created_at >= COALESCE(u.current_wait_join_time, u.signup_time)) as high_five_count
     FROM users u WHERE u.in_queue = 1 ORDER BY u.position ASC
   `).all();
 
@@ -511,10 +511,17 @@ async function handleCompleteWait(request, env) {
   const totalTimeSeconds = Math.round((Date.now() - new Date(joinedAt).getTime()) / 1000);
   const cuts = user.cuts_in_current_wait || 0;
 
-  // Record the completion
-  await env.DB.prepare(
-    "INSERT INTO wait_completions (user_id, wait_number, joined_at, completed_at, high_fives_given, high_fives_received, cuts_made, waiting_for) VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
-  ).bind(user.id, waitNumber, joinedAt, completedAt, given, received, cuts, user.waiting_for || null).run();
+  // Record the completion. Try with waiting_for first; fall back if the column
+  // wasn't added to an older production DB via migration.
+  try {
+    await env.DB.prepare(
+      "INSERT INTO wait_completions (user_id, wait_number, joined_at, completed_at, high_fives_given, high_fives_received, cuts_made, waiting_for) VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
+    ).bind(user.id, waitNumber, joinedAt, completedAt, given, received, cuts, user.waiting_for || null).run();
+  } catch {
+    await env.DB.prepare(
+      "INSERT INTO wait_completions (user_id, wait_number, joined_at, completed_at, high_fives_given, high_fives_received, cuts_made) VALUES (?, ?, ?, ?, ?, ?, ?)"
+    ).bind(user.id, waitNumber, joinedAt, completedAt, given, received, cuts).run();
+  }
 
   // Find who is next in line before we shift positions
   const nextPerson = await env.DB.prepare(
