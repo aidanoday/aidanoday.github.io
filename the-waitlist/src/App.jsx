@@ -1421,7 +1421,19 @@ function Dashboard({ user, users, onLogout, onUsersUpdate, onUserUpdate, onWaitC
   // Track accumulated time locally so it survives screen changes (profile/leaderboard)
   // and isn't subject to heartbeat lag when getting cut from position 1.
   const myEntry = users.find(u => u.displayName === user.displayName);
-  const [localAccumulated, setLocalAccumulated] = useState(myEntry?.accumulatedWaitSeconds || 0);
+  const SESSION_KEY = `waitlist:accumulated:${user.displayName}`;
+  const [localAccumulated, _setLocalAccumulated] = useState(() => {
+    const persisted = parseInt(sessionStorage.getItem(SESSION_KEY) || "0", 10);
+    const serverVal = myEntry?.accumulatedWaitSeconds || 0;
+    return Math.max(persisted, serverVal);
+  });
+  const setLocalAccumulated = useCallback((valOrFn) => {
+    _setLocalAccumulated(prev => {
+      const next = typeof valOrFn === "function" ? valOrFn(prev) : valOrFn;
+      sessionStorage.setItem(SESSION_KEY, String(next));
+      return next;
+    });
+  }, [SESSION_KEY]);
 
   // Tick locally every second while at position 1. Uses wall-clock anchoring so
   // background tab throttling doesn't cause the timer to fall behind.
@@ -1430,14 +1442,18 @@ function Dashboard({ user, users, onLogout, onUsersUpdate, onUserUpdate, onWaitC
   const tickAnchorRef = useRef(null);
 
   // Re-anchor whenever the server gives us a value (queue refresh or heartbeat response).
-  // This is the single source of truth for where the tick starts from.
+  // Uses a functional update so we always see the latest local value, never a stale closure.
+  const myPositionRef = useRef(myPosition);
+  myPositionRef.current = myPosition;
   useEffect(() => {
     const serverVal = myEntry?.accumulatedWaitSeconds || 0;
-    const next = Math.max(localAccumulated, serverVal);
-    setLocalAccumulated(next);
-    if (myPosition === 1) {
-      tickAnchorRef.current = { time: Date.now(), accumulated: next };
-    }
+    setLocalAccumulated(prev => {
+      const next = Math.max(prev, serverVal);
+      if (myPositionRef.current === 1) {
+        tickAnchorRef.current = { time: Date.now(), accumulated: next };
+      }
+      return next;
+    });
   }, [myEntry?.accumulatedWaitSeconds]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Start/stop the interval when position changes.
@@ -1512,7 +1528,9 @@ function Dashboard({ user, users, onLogout, onUsersUpdate, onUserUpdate, onWaitC
           if (typeof accumulatedWaitSeconds === "number") {
             setLocalAccumulated(prev => {
               const next = Math.max(prev, accumulatedWaitSeconds);
-              tickAnchorRef.current = { time: Date.now(), accumulated: next };
+              if (myPositionRef.current === 1) {
+                tickAnchorRef.current = { time: Date.now(), accumulated: next };
+              }
               return next;
             });
           }
@@ -1522,10 +1540,9 @@ function Dashboard({ user, users, onLogout, onUsersUpdate, onUserUpdate, onWaitC
     return () => clearInterval(id);
   }, [users, user.displayName]);
 
-  // Position check: poll the queue every 15s while locally at position 1 so the
-  // user finds out quickly if they've been cut, without the whole list polling.
+  // Poll every 5s at position 1 (cut detection) or position 2 (completion detection).
   useEffect(() => {
-    if (myPosition !== 1) return;
+    if (myPosition !== 1 && myPosition !== 2) return;
     const id = setInterval(() => {
       api("/queue").then(onUsersUpdate).catch(() => {});
     }, 5000);
@@ -1769,14 +1786,19 @@ export default function App() {
     setOnboarding(false);
   };
 
+  const clearAccumulatedSession = (name) => {
+    sessionStorage.removeItem(`waitlist:accumulated:${name}`);
+  };
+
   const handleWaitComplete = (data) => {
     setCongratulationsData(data);
-    setCurrentUser(u => ({ ...u, inQueue: false, position: null }));
+    setCurrentUser(u => { clearAccumulatedSession(u.displayName); return { ...u, inQueue: false, position: null }; });
   };
 
   const handleRejoin = async () => {
     const { user: updated } = await api("/rejoin", { method: "POST" });
     const queue = await api("/queue");
+    clearAccumulatedSession(updated.displayName);
     setCurrentUser(updated);
     setAllUsers(queue);
     setCongratulationsData(null);
