@@ -1477,35 +1477,16 @@ function Dashboard({ user, users, onLogout, onUsersUpdate, onUserUpdate, onWaitC
 
   // When the tab regains focus, immediately fetch the queue so background time
   // is accounted for and completion triggers without waiting for the next poll.
-  const handleWaitExpireRef = useRef(null);
-  handleWaitExpireRef.current = handleWaitExpire;
   useEffect(() => {
     if (myPosition !== 1) return;
     const handleVisibility = () => {
       if (document.visibilityState === "visible") {
-        // If timer already expired while away, trigger completion immediately.
-        const persisted = parseInt(sessionStorage.getItem(`waitlist:accumulated:${user.displayName}`) || "0", 10);
-        if (persisted >= TIMER_DURATION && !waitExpiredRef.current) {
-          waitExpiredRef.current = true;
-          handleWaitExpireRef.current();
-        } else {
-          api("/queue").then(onUsersUpdate).catch(() => {});
-        }
+        api("/queue").then(onUsersUpdate).catch(() => {});
       }
     };
     document.addEventListener("visibilitychange", handleVisibility);
     return () => document.removeEventListener("visibilitychange", handleVisibility);
-  }, [myPosition, onUsersUpdate, user.displayName]);
-
-  // On mount: if the timer is already expired (e.g. page was refreshed after expiry),
-  // trigger completion immediately without waiting for a state change.
-  useEffect(() => {
-    if (myPosition !== 1) return;
-    if (localAccumulated >= TIMER_DURATION && !waitExpiredRef.current) {
-      waitExpiredRef.current = true;
-      handleWaitExpireRef.current();
-    }
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [myPosition, onUsersUpdate]);
 
   const getBlur = useCallback((idx) => {
     if (idx <= 2) return 0;
