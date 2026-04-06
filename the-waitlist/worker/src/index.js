@@ -491,15 +491,19 @@ async function handleCompleteWait(request, env) {
     return json({ error: "You're not first in line." }, 400);
   }
 
-  // Validate the active-time counter has reached the required duration
+  // Validate the active-time counter has reached the required duration.
+  // Fall back to wall-clock time since joining if heartbeats failed to land
+  // (e.g. browser throttled the tab or the heartbeat interval was reset too often).
   const accumulated = user.accumulated_wait_seconds || 0;
-  if (accumulated < WAIT_DURATION_SECONDS - 15) {
-    const remaining = WAIT_DURATION_SECONDS - accumulated;
+  const joinedAt = user.current_wait_join_time || user.signup_time;
+  const wallClockElapsed = Math.floor((Date.now() - new Date(joinedAt).getTime()) / 1000);
+  const effectiveAccumulated = Math.max(accumulated, wallClockElapsed);
+  if (effectiveAccumulated < WAIT_DURATION_SECONDS - 15) {
+    const remaining = WAIT_DURATION_SECONDS - effectiveAccumulated;
     return json({ error: `Timer not complete. ${remaining}s of active time remaining.` }, 400);
   }
 
   const completedAt = new Date().toISOString();
-  const joinedAt = user.current_wait_join_time || user.signup_time;
 
   // Count high-fives given and received during this wait cycle
   const givenRes = await env.DB.prepare(

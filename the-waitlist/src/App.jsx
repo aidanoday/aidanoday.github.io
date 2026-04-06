@@ -1193,7 +1193,7 @@ function CongratulationsScreen({ data, user, onRejoin, onLogout, onUserUpdate, b
           {data && (
             <div style={{
               width: 180, height: 180, borderRadius: "50%",
-              background: `linear-gradient(145deg, ${T.accent} 0%, #44fff3 100%)`,
+              background: `linear-gradient(145deg, ${T.accent} 0%, #c7d9ff 100%)`,
               display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
               margin: "0 auto 36px",
               animation: "float 3s ease-in-out infinite",
@@ -1423,9 +1423,15 @@ function Dashboard({ user, users, onLogout, onUsersUpdate, onUserUpdate, onWaitC
   const myEntry = users.find(u => u.displayName === user.displayName);
   const SESSION_KEY = `waitlist:accumulated:${user.displayName}`;
   const [localAccumulated, _setLocalAccumulated] = useState(() => {
-    const persisted = parseInt(sessionStorage.getItem(SESSION_KEY) || "0", 10);
     const serverVal = myEntry?.accumulatedWaitSeconds || 0;
-    return Math.max(persisted, serverVal);
+    // Only restore from sessionStorage when currently at position 1 — if we're
+    // not at position 1 the server may have reset the counter and sessionStorage
+    // would carry a stale inflated value into the next position-1 stint.
+    if (myEntry?.position === 1) {
+      const persisted = parseInt(sessionStorage.getItem(SESSION_KEY) || "0", 10);
+      return Math.max(persisted, serverVal);
+    }
+    return serverVal;
   });
   const setLocalAccumulated = useCallback((valOrFn) => {
     _setLocalAccumulated(prev => {
@@ -1448,9 +1454,21 @@ function Dashboard({ user, users, onLogout, onUsersUpdate, onUserUpdate, onWaitC
   useEffect(() => {
     const serverVal = myEntry?.accumulatedWaitSeconds || 0;
     setLocalAccumulated(prev => {
-      const next = Math.max(prev, serverVal);
+      let next;
       if (myPositionRef.current === 1) {
+        // At position 1: take max — local tick may be slightly ahead of server.
+        next = Math.max(prev, serverVal);
         tickAnchorRef.current = { time: Date.now(), accumulated: next };
+      } else {
+        // Not at position 1: always trust the server. The server may have reset
+        // accumulated_wait_seconds to 0 (e.g. after being cut), and we must not
+        // carry a stale local value into the next stint at position 1.
+        next = serverVal;
+        if (serverVal < prev) {
+          // Server reset — clear sessionStorage so a page refresh doesn't reload
+          // the old inflated value.
+          sessionStorage.removeItem(SESSION_KEY);
+        }
       }
       return next;
     });
@@ -1475,12 +1493,13 @@ function Dashboard({ user, users, onLogout, onUsersUpdate, onUserUpdate, onWaitC
     return () => clearInterval(id);
   }, [myPosition]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // When the tab regains focus, immediately fetch the queue so background time
-  // is accounted for and completion triggers without waiting for the next poll.
+  // When the tab regains focus, check expiry immediately then fetch the queue.
+  const checkExpiryRef = useRef(null);
   useEffect(() => {
     if (myPosition !== 1) return;
     const handleVisibility = () => {
       if (document.visibilityState === "visible") {
+        checkExpiryRef.current?.();
         api("/queue").then(onUsersUpdate).catch(() => {});
       }
     };
@@ -1518,10 +1537,11 @@ function Dashboard({ user, users, onLogout, onUsersUpdate, onUserUpdate, onWaitC
 
   useEffect(() => () => clearInterval(timerRef.current), []);
 
-  // Heartbeat: advance the server-side active-time counter while logged in at position 1
+  // Heartbeat: advance the server-side active-time counter while logged in at position 1.
+  // Gated on myPosition (not users) so the 5s queue poll doesn't reset the interval
+  // before it has a chance to fire.
   useEffect(() => {
-    const myEntry = users.find(u => u.displayName === user.displayName);
-    if (!myEntry || myEntry.position !== 1) return;
+    if (myPosition !== 1) return;
     const id = setInterval(() => {
       api("/heartbeat", { method: "POST", body: JSON.stringify({ seconds: 10 }) })
         .then(({ accumulatedWaitSeconds }) => {
@@ -1538,7 +1558,7 @@ function Dashboard({ user, users, onLogout, onUsersUpdate, onUserUpdate, onWaitC
         .catch(() => {});
     }, 10000);
     return () => clearInterval(id);
-  }, [users, user.displayName]);
+  }, [myPosition]);
 
   // Poll every 5s at position 1 (cut detection) or position 2 (completion detection).
   useEffect(() => {
@@ -1575,16 +1595,32 @@ function Dashboard({ user, users, onLogout, onUsersUpdate, onUserUpdate, onWaitC
     }
   }, [localAccumulated, myPosition, onUsersUpdate]);
 
-  // Fire completion when localAccumulated reaches the duration. Lives here in
-  // Dashboard so it's immune to CountdownTimer unmounting or prop timing races.
+  // Central expiry check — called from multiple places. Uses refs so it's always
+  // current without needing to be in effect dependency arrays.
   const waitExpiredRef = useRef(false);
+  const handleWaitExpireRef = useRef(null);
+  handleWaitExpireRef.current = handleWaitExpire;
+  const localAccumulatedRef = useRef(localAccumulated);
+  localAccumulatedRef.current = localAccumulated;
+  const checkExpiry = useCallback(() => {
+    if (myPositionRef.current !== 1) return;
+    if (localAccumulatedRef.current >= TIMER_DURATION && !waitExpiredRef.current) {
+      waitExpiredRef.current = true;
+      handleWaitExpireRef.current();
+    }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  checkExpiryRef.current = checkExpiry;
+
+  // Fire whenever localAccumulated ticks up or position changes.
   useEffect(() => {
     if (myPosition !== 1) { waitExpiredRef.current = false; return; }
-    if (localAccumulated >= TIMER_DURATION && !waitExpiredRef.current) {
-      waitExpiredRef.current = true;
-      handleWaitExpire();
-    }
-  }, [localAccumulated, myPosition, handleWaitExpire]);
+    checkExpiry();
+  }, [localAccumulated, myPosition, checkExpiry]);
+
+  // Also fire on mount (covers page refresh with timer already at 0 in sessionStorage).
+  useEffect(() => {
+    checkExpiry();
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleCut = async () => {
     if (cutCooldown > 0 || cutting || myPosition <= 1) return;
