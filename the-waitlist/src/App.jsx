@@ -244,40 +244,20 @@ function PixelHourglass() {
 // For the self/position-1 user: counts down locally each second (active time).
 // For everyone else: shows the server's last-known remaining time as a static value.
 function CountdownTimer({ accumulatedWaitSeconds, isPosition1, isSelf, onExpire }) {
-  const [secs, setSecs] = useState(
-    Math.max(0, TIMER_DURATION - (accumulatedWaitSeconds || 0))
-  );
-  const expiredRef = useRef(false);
+  const secs = Math.max(0, TIMER_DURATION - (accumulatedWaitSeconds || 0));
   const onExpireRef = useRef(onExpire);
   onExpireRef.current = onExpire;
+  const expiredRef = useRef(false);
 
-  // Re-sync to the server value whenever it changes (e.g. after queue refresh)
-  useEffect(() => {
-    if (!isPosition1 || !isSelf) {
-      setSecs(Math.max(0, TIMER_DURATION - (accumulatedWaitSeconds || 0)));
-      expiredRef.current = false;
-      return;
-    }
-    setSecs(Math.max(0, TIMER_DURATION - (accumulatedWaitSeconds || 0)));
-    expiredRef.current = false;
-  }, [accumulatedWaitSeconds, isPosition1, isSelf]);
-
-  // Local tick — only for the logged-in user at position 1
+  // Fire onExpire once when the self/pos-1 timer reaches zero (driven by Dashboard's tick)
   useEffect(() => {
     if (!isPosition1 || !isSelf) return;
-    const id = setInterval(() => {
-      setSecs(prev => {
-        const next = prev - 1;
-        if (next <= 0 && !expiredRef.current) {
-          expiredRef.current = true;
-          setTimeout(() => onExpireRef.current?.(), 0);
-          return 0;
-        }
-        return Math.max(0, next);
-      });
-    }, 1000);
-    return () => clearInterval(id);
-  }, [isPosition1, isSelf]);
+    if (secs <= 0 && !expiredRef.current) {
+      expiredRef.current = true;
+      setTimeout(() => onExpireRef.current?.(), 0);
+    }
+    if (secs > 0) expiredRef.current = false;
+  }, [secs, isPosition1, isSelf]);
 
   const h = Math.floor(secs / 3600);
   const m = Math.floor((secs % 3600) / 60);
@@ -1421,6 +1401,33 @@ function Dashboard({ user, users, onLogout, onUsersUpdate, onUserUpdate, onWaitC
   const myPosition = myIndex + 1;
   const peopleBehind = users.length - myPosition;
 
+  // Track accumulated time locally so it survives screen changes (profile/leaderboard)
+  // and isn't subject to heartbeat lag when getting cut from position 1.
+  const myEntry = users.find(u => u.displayName === user.displayName);
+  const [localAccumulated, setLocalAccumulated] = useState(myEntry?.accumulatedWaitSeconds || 0);
+
+  // Sync from server on every queue refresh.
+  // At position 1: take the max (local tick may be slightly ahead of server).
+  // Not at position 1: always trust the server — local may have over-counted
+  // if we were cut while the queue hadn't refreshed yet.
+  useEffect(() => {
+    const serverVal = myEntry?.accumulatedWaitSeconds || 0;
+    if (myPosition === 1) {
+      setLocalAccumulated(prev => Math.max(prev, serverVal));
+    } else {
+      setLocalAccumulated(serverVal);
+    }
+  }, [myEntry?.accumulatedWaitSeconds, myPosition]);
+
+  // Tick locally every second while at position 1
+  useEffect(() => {
+    if (myPosition !== 1) return;
+    const id = setInterval(() => {
+      setLocalAccumulated(prev => Math.min(prev + 1, TIMER_DURATION));
+    }, 1000);
+    return () => clearInterval(id);
+  }, [myPosition]);
+
   const getBlur = useCallback((idx) => {
     if (idx <= 2) return 0;
     const dist = Math.abs(idx - myIndex);
@@ -1460,6 +1467,16 @@ function Dashboard({ user, users, onLogout, onUsersUpdate, onUserUpdate, onWaitC
     }, 10000);
     return () => clearInterval(id);
   }, [users, user.displayName]);
+
+  // Position check: poll the queue every 15s while locally at position 1 so the
+  // user finds out quickly if they've been cut, without the whole list polling.
+  useEffect(() => {
+    if (myPosition !== 1) return;
+    const id = setInterval(() => {
+      api("/queue").then(onUsersUpdate).catch(() => {});
+    }, 15000);
+    return () => clearInterval(id);
+  }, [myPosition, onUsersUpdate]);
 
   const handleWaitExpire = useCallback(async () => {
     for (let attempt = 0; attempt < 4; attempt++) {
@@ -1603,7 +1620,7 @@ function Dashboard({ user, users, onLogout, onUsersUpdate, onUserUpdate, onWaitC
                   highFiveCount={u.highFiveCount || 0}
                   hasFivedToday={u.hasFivedToday || false}
                   waitingFor={u.waitingFor}
-                  accumulatedWaitSeconds={u.accumulatedWaitSeconds || 0}
+                  accumulatedWaitSeconds={u.displayName === user.displayName ? localAccumulated : (u.accumulatedWaitSeconds || 0)}
                   onTimerExpire={u.displayName === user.displayName && idx === 0 ? handleWaitExpire : undefined}
                 />
               ))}
