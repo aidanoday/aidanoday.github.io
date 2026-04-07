@@ -171,8 +171,8 @@ const T = {
   borderLight: "#EFEEED",
   charcoal: "#2C2C2C",
   textPrimary: "#37372F",
-  textSecondary: "#87857E",
-  textTertiary: "#B3B1A9",
+  textSecondary: "#5C5A54",
+  textTertiary: "#6E6C66",
   accent: "#C26240",
   accentSoft: "rgba(194,98,64,0.07)",
   accentBorder: "rgba(194,98,64,0.18)",
@@ -1199,10 +1199,24 @@ function AppBar({ user, onLogout, onProfile, onLeaderboard, onHome, bgRef }) {
       }}>
       <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
         <div onClick={onHome} style={{ fontFamily: T.serif, fontSize: 18, color: T.charcoal, fontWeight: 400, letterSpacing: -0.5, cursor: onHome ? "pointer" : "default" }}>The Waitlist</div>
-        <div style={{ width: 1, height: 16, background: T.border }} />
-        <div style={{ fontFamily: T.sans, fontSize: 13, color: T.textTertiary }}>Welcome back</div>
+        {onLeaderboard && (
+          <>
+            <div style={{ width: 1, height: 16, background: T.border }} />
+            <button onClick={onLeaderboard} style={{
+              background: "transparent", border: "none", cursor: "pointer", padding: 0,
+              fontFamily: T.sans, fontSize: 13, color: T.textTertiary, fontWeight: 400,
+              transition: "color 0.15s ease",
+            }}
+              onMouseEnter={e => e.target.style.color = T.charcoal}
+              onMouseLeave={e => e.target.style.color = T.textTertiary}>
+              See leaderboards
+            </button>
+          </>
+        )}
       </div>
-      <div ref={menuRef} style={{ position: "relative" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+        <div className="appbar-welcome" style={{ fontFamily: T.sans, fontSize: 13, color: T.textTertiary }}>Welcome back</div>
+        <div ref={menuRef} style={{ position: "relative" }}>
         <button onClick={() => setMenuOpen(o => !o)} style={{
           display: "flex", alignItems: "center", gap: 6, padding: "6px 10px", borderRadius: 6,
           border: "1px solid rgba(0,0,0,0.08)", background: menuOpen ? "rgba(0,0,0,0.03)" : "transparent",
@@ -1232,6 +1246,7 @@ function AppBar({ user, onLogout, onProfile, onLeaderboard, onHome, bgRef }) {
             ))}
           </div>
         )}
+        </div>
       </div>
     </div>
   );
@@ -2033,6 +2048,7 @@ export default function App() {
           0% { opacity: 1; height: 6px; translate: 0 0; }
           100% { opacity: 0; height: 2px; translate: 0 -14px; }
         }
+        @media (max-width: 480px) { .appbar-welcome { display: none !important; } }
         @keyframes float {
           0%, 100% { transform: translateY(0px); }
           50% { transform: translateY(-12px); }

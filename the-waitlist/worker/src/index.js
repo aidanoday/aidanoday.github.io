@@ -260,7 +260,7 @@ async function handleSignup(request, env) {
   ).bind(displayName.trim()).first();
   const token = await createToken(user.id, env);
 
-  return json({ user: formatUser(user), token });
+  return json({ user: { ...formatUser(user), inviteToken }, token });
 }
 
 async function handleLogin(request, env) {
@@ -270,7 +270,7 @@ async function handleLogin(request, env) {
     return json({ error: "Display name and password are required." }, 400);
   }
 
-  const user = await env.DB.prepare(
+  let user = await env.DB.prepare(
     "SELECT * FROM users WHERE lower(display_name) = lower(?)"
   ).bind(displayName.trim()).first();
   if (!user) return json({ error: "Invalid display name or password." }, 401);
@@ -278,8 +278,15 @@ async function handleLogin(request, env) {
   const valid = await verifyPassword(password, user.password_hash);
   if (!valid) return json({ error: "Invalid display name or password." }, 401);
 
+  // Generate invite token for existing users who don't have one yet.
+  if (!user.invite_token) {
+    const inviteToken = generateInviteToken();
+    await env.DB.prepare("UPDATE users SET invite_token = ? WHERE id = ?").bind(inviteToken, user.id).run();
+    user = { ...user, invite_token: inviteToken };
+  }
+
   const token = await createToken(user.id, env);
-  return json({ user: formatUser(user), token });
+  return json({ user: { ...formatUser(user), inviteToken: user.invite_token }, token });
 }
 
 async function handleQueue(request, env) {
