@@ -1215,7 +1215,7 @@ function AppBar({ user, onLogout, onProfile, onLeaderboard, onHome, bgRef }) {
         )}
       </div>
       <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-        <div className="appbar-welcome" style={{ fontFamily: T.sans, fontSize: 13, color: T.textTertiary }}>Welcome back</div>
+        <div className="appbar-welcome" style={{ fontFamily: T.sans, fontSize: 13, color: T.textTertiary, whiteSpace: "nowrap" }}>Welcome back</div>
         <div ref={menuRef} style={{ position: "relative" }}>
         <button onClick={() => setMenuOpen(o => !o)} style={{
           display: "flex", alignItems: "center", gap: 6, padding: "6px 10px", borderRadius: 6,
