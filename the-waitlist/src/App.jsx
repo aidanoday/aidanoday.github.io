@@ -549,6 +549,23 @@ function AuthScreen({ onAuth, bgRef, referrer }) {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [referrerState, setReferrerState] = useState(referrer ? "loading" : null); // null | "loading" | "found" | "invalid"
+  const [referrerName, setReferrerName] = useState(null);
+
+  useEffect(() => {
+    if (!referrer) return;
+    fetch(`${API_URL}/referrer?token=${encodeURIComponent(referrer)}`)
+      .then(r => r.ok ? r.json() : null)
+      .then(data => {
+        if (data?.displayName) {
+          setReferrerName(data.displayName);
+          setReferrerState("found");
+        } else {
+          setReferrerState("invalid");
+        }
+      })
+      .catch(() => setReferrerState("invalid"));
+  }, [referrer]);
 
   const handleSubmit = async () => {
     setError(""); setLoading(true);
@@ -596,10 +613,14 @@ function AuthScreen({ onAuth, bgRef, referrer }) {
           <div style={{ fontFamily: T.serif, fontSize: 12, fontStyle: "italic", color: T.textTertiary, letterSpacing: 0.5, marginBottom: 10 }}>est. 2026</div>
           <div style={{ fontFamily: T.serif, fontSize: 44, color: T.charcoal, fontWeight: 400, letterSpacing: -1.5, lineHeight: 1 }}>The Waitlist</div>
           <div style={{ width: 40, height: 1, background: T.charcoal, margin: "16px auto 16px", opacity: 0.15 }} />
-          {referrer && mode === "signup" ? (
+          {referrerState === "found" && mode === "signup" ? (
             <div style={{ fontFamily: T.sans, fontSize: 13, color: T.textSecondary, letterSpacing: 0.2, lineHeight: 1.4 }}>
               <span style={{ color: T.textTertiary }}>Back-cutting </span>
-              <span style={{ fontWeight: 600, color: T.charcoal }}>{referrer}</span>
+              <span style={{ fontWeight: 600, color: T.charcoal }}>{referrerName}</span>
+            </div>
+          ) : referrerState === "invalid" ? (
+            <div style={{ fontFamily: T.serif, fontSize: 13, fontStyle: "italic", color: T.textTertiary, lineHeight: 1.5 }}>
+              The user who referred you may have deleted their account, or you may have an invalid referral link.
             </div>
           ) : (
             <div style={{ fontFamily: T.serif, fontSize: 16, fontStyle: "italic", color: T.charcoal, letterSpacing: 0.5, lineHeight: 1 }}>Good things come to those who wait.</div>
@@ -777,7 +798,9 @@ function ProfileScreen({ user, onBack, onUserUpdate, onDelete, bgRef }) {
   const [showAllWaits, setShowAllWaits] = useState(false);
   const [linkCopied, setLinkCopied] = useState(false);
 
-  const inviteUrl = `${window.location.origin}${import.meta.env.BASE_URL}?ref=${encodeURIComponent(user.displayName)}`;
+  const inviteUrl = user.inviteToken
+    ? `${window.location.origin}${import.meta.env.BASE_URL}?ref=${user.inviteToken}`
+    : null;
 
   const handleCopyLink = () => {
     navigator.clipboard.writeText(inviteUrl).then(() => {
@@ -1015,25 +1038,29 @@ function ProfileScreen({ user, onBack, onUserUpdate, onDelete, bgRef }) {
             <div style={{ fontFamily: T.sans, fontSize: 12, color: T.textTertiary, marginBottom: 10, lineHeight: 1.5 }}>
               Share this link — your friend joins directly behind you in the queue.
             </div>
-            <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-              <div style={{
-                flex: 1, padding: "9px 12px", borderRadius: T.r,
-                border: `1px solid ${T.borderLight}`, background: T.bg,
-                fontFamily: T.mono, fontSize: 11, color: T.textTertiary,
-                overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
-              }}>
-                {inviteUrl}
+            {inviteUrl ? (
+              <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                <div style={{
+                  flex: 1, padding: "9px 12px", borderRadius: T.r,
+                  border: `1px solid ${T.borderLight}`, background: T.bg,
+                  fontFamily: T.mono, fontSize: 11, color: T.textTertiary,
+                  overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+                }}>
+                  {inviteUrl}
+                </div>
+                <button onClick={handleCopyLink} style={{
+                  padding: "9px 14px", borderRadius: T.r,
+                  border: `1px solid ${T.border}`, background: linkCopied ? T.accent : "transparent",
+                  color: linkCopied ? "#fff" : T.textSecondary,
+                  fontFamily: T.sans, fontSize: 12, fontWeight: 500, cursor: "pointer",
+                  transition: "all 0.2s ease", flexShrink: 0,
+                }}>
+                  {linkCopied ? "Copied!" : "Copy"}
+                </button>
               </div>
-              <button onClick={handleCopyLink} style={{
-                padding: "9px 14px", borderRadius: T.r,
-                border: `1px solid ${T.border}`, background: linkCopied ? T.accent : "transparent",
-                color: linkCopied ? "#fff" : T.textSecondary,
-                fontFamily: T.sans, fontSize: 12, fontWeight: 500, cursor: "pointer",
-                transition: "all 0.2s ease", flexShrink: 0,
-              }}>
-                {linkCopied ? "Copied!" : "Copy"}
-              </button>
-            </div>
+            ) : (
+              <div style={{ fontFamily: T.sans, fontSize: 12, color: T.textTertiary }}>Loading...</div>
+            )}
           </div>
 
           <div style={{ marginTop: 20, borderTop: `1px solid ${T.borderLight}`, paddingTop: 16 }}>
@@ -1879,6 +1906,9 @@ export default function App() {
   );
 
   const handleAuth = (u, all) => {
+    if (window.location.search) {
+      window.history.replaceState({}, "", window.location.pathname);
+    }
     setCurrentUser(u);
     setAllUsers(all);
     if (!u.waitingFor) setOnboarding(true);

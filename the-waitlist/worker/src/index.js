@@ -48,6 +48,14 @@ async function verifyToken(token, env) {
 
 const WAIT_DURATION_SECONDS = 2 * 60; // 2 minutes (active time only)
 
+// ── Token helpers ────────────────────────────────────────────────────────
+
+function generateInviteToken() {
+  const bytes = crypto.getRandomValues(new Uint8Array(9));
+  return btoa(String.fromCharCode(...bytes))
+    .replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+}
+
 // ── Content moderation ────────────────────────────────────────────────────
 // Two-pass filter: word-boundary check on leet-normalized text, then
 // collapsed-substring check for unambiguous terms, then grawlix detection.
@@ -173,7 +181,7 @@ async function getAuthUser(request, env) {
   const payload = await verifyToken(auth.slice(7), env);
   if (!payload) return null;
   return await env.DB.prepare(
-    "SELECT id, display_name, position, signup_time, waiting_for, in_queue, accumulated_wait_seconds, cuts_in_current_wait, current_wait_join_time FROM users WHERE id = ?"
+    "SELECT id, display_name, position, signup_time, waiting_for, in_queue, accumulated_wait_seconds, cuts_in_current_wait, current_wait_join_time, invite_token FROM users WHERE id = ?"
   ).bind(payload.sub).first();
 }
 
@@ -214,10 +222,10 @@ async function handleSignup(request, env) {
   const now = new Date().toISOString();
   let position;
 
-  // If a referrer was supplied, insert the new user directly behind them.
+  // If a referrer token was supplied, insert the new user directly behind them.
   if (referrer?.trim()) {
     const referrerUser = await env.DB.prepare(
-      "SELECT id, position FROM users WHERE lower(display_name) = lower(?) AND in_queue = 1"
+      "SELECT id, position FROM users WHERE invite_token = ? AND in_queue = 1"
     ).bind(referrer.trim()).first();
 
     if (referrerUser) {
@@ -240,10 +248,11 @@ async function handleSignup(request, env) {
   const positionOneStartTime = position === 1 ? now : null;
 
   const passwordHash = await hashPassword(password);
+  const inviteToken = generateInviteToken();
 
   await env.DB.prepare(
-    "INSERT INTO users (display_name, password_hash, position, signup_time, in_queue, current_wait_join_time, position_one_start_time) VALUES (?, ?, ?, ?, 1, ?, ?)"
-  ).bind(displayName.trim(), passwordHash, position, now, now, positionOneStartTime).run();
+    "INSERT INTO users (display_name, password_hash, position, signup_time, in_queue, current_wait_join_time, position_one_start_time, invite_token) VALUES (?, ?, ?, ?, 1, ?, ?, ?)"
+  ).bind(displayName.trim(), passwordHash, position, now, now, positionOneStartTime, inviteToken).run();
 
   const user = await env.DB.prepare(
     "SELECT id, display_name, position, signup_time, waiting_for, in_queue FROM users WHERE lower(display_name) = lower(?)"
@@ -318,7 +327,7 @@ async function handleMe(request, env) {
   const user = await getAuthUser(request, env);
   if (!user) return json({ error: "Unauthorized" }, 401);
 
-  const result = formatUser(user);
+  const result = { ...formatUser(user), inviteToken: user.invite_token || null };
 
   // If the user is not in queue, attach their last wait completion so the
   // frontend can show the CongratulationsScreen on page reload.
@@ -649,6 +658,16 @@ async function handleLeaderboards(env) {
   });
 }
 
+async function handleReferrer(request, env) {
+  const token = new URL(request.url).searchParams.get("token");
+  if (!token) return json({ error: "token required" }, 400);
+  const row = await env.DB.prepare(
+    "SELECT display_name FROM users WHERE invite_token = ?"
+  ).bind(token).first();
+  if (!row) return json({ error: "Not found" }, 404);
+  return json({ displayName: row.display_name });
+}
+
 async function handleHeartbeat(request, env) {
   const user = await getAuthUser(request, env);
   if (!user) return json({ error: "Unauthorized" }, 401);
@@ -733,6 +752,8 @@ export default {
         response = await handleRejoin(request, env);
       } else if (path === "/wait-history" && request.method === "GET") {
         response = await handleWaitHistory(request, env);
+      } else if (path === "/referrer" && request.method === "GET") {
+        response = await handleReferrer(request, env);
       } else if (path.startsWith("/user/") && request.method === "GET") {
         response = await handleUserProfile(env, decodeURIComponent(path.slice(6)));
       } else {

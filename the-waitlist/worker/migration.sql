@@ -20,6 +20,9 @@ UPDATE users SET position_one_start_time = datetime('now') WHERE in_queue = 1 AN
 
 ALTER TABLE wait_completions ADD COLUMN waiting_for TEXT;
 ALTER TABLE users ADD COLUMN last_heartbeat TEXT;
+ALTER TABLE users ADD COLUMN invite_token TEXT;
+UPDATE users SET invite_token = lower(hex(randomblob(9))) WHERE invite_token IS NULL;
+CREATE UNIQUE INDEX IF NOT EXISTS idx_users_invite_token ON users(invite_token) WHERE invite_token IS NOT NULL;
 
 CREATE TABLE IF NOT EXISTS wait_completions (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
