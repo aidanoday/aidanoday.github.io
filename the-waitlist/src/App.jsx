@@ -847,7 +847,8 @@ function ProfileScreen({ user, onBack, onUserUpdate, onDelete, bgRef }) {
     : null;
 
   const handleCopyLink = () => {
-    navigator.clipboard.writeText(inviteUrl).then(() => {
+    const text = `${inviteUrl}\nYou can use this link to back-cut me and get a better spot on The Waitlist`;
+    navigator.clipboard.writeText(text).then(() => {
       setLinkCopied(true);
       setTimeout(() => setLinkCopied(false), 2000);
     });
