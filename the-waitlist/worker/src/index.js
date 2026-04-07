@@ -660,7 +660,7 @@ async function handleLeaderboards(env) {
 }
 
 async function handleInvite(request, env) {
-  const token = decodeURIComponent(request.url.split("/invite/")[1] || "");
+  const token = decodeURIComponent(request.url.split("/referral/")[1] || "");
   const appUrl = `${APP_BASE_URL}?ref=${encodeURIComponent(token)}`;
 
   let title = "Join The Waitlist";
@@ -671,28 +671,78 @@ async function handleInvite(request, env) {
       "SELECT display_name FROM users WHERE invite_token = ?"
     ).bind(token).first();
     if (row) {
-      title = `Back-cut ${row.display_name} on The Waitlist`;
-      description = "Join the line right behind me and we can wait for the future together.";
+      title = `Join me and get a better spot on The Waitlist`;
+      description = "Back-cuts allowed! Let's wait for the future together.";
     }
   }
 
   const html = `<!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
   <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>${title}</title>
+  <meta name="description" content="${description}">
   <meta property="og:title" content="${title}">
   <meta property="og:description" content="${description}">
   <meta property="og:url" content="${appUrl}">
   <meta property="og:type" content="website">
   <meta property="og:image" content="https://www.aidanoday.me/assets/thewaitlist_cover.png">
+  <meta property="og:image:width" content="1000">
+  <meta property="og:image:height" content="600">
   <meta name="twitter:card" content="summary_large_image">
   <meta name="twitter:title" content="${title}">
   <meta name="twitter:description" content="${description}">
   <meta name="twitter:image" content="https://www.aidanoday.me/assets/thewaitlist_cover.png">
-  <meta http-equiv="refresh" content="0;url=${appUrl}">
-  <script>window.location.replace(${JSON.stringify(appUrl)})</script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: #F7F6F4;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      padding: 24px;
+    }
+    .card {
+      background: #fff;
+      border-radius: 16px;
+      border: 1px solid rgba(0,0,0,0.07);
+      box-shadow: 0 2px 24px rgba(0,0,0,0.06);
+      padding: 48px 40px;
+      max-width: 400px;
+      width: 100%;
+      text-align: center;
+    }
+    .eyebrow { font-size: 12px; font-style: italic; color: #aaa; margin-bottom: 10px; }
+    .wordmark { font-family: Georgia, "Times New Roman", serif; font-size: 40px; color: #1a1a1a; font-weight: 400; letter-spacing: -1px; line-height: 1; }
+    .divider { width: 36px; height: 1px; background: #1a1a1a; opacity: 0.12; margin: 18px auto; }
+    .desc { font-family: Georgia, serif; font-size: 15px; font-style: italic; color: #555; line-height: 1.5; margin-bottom: 32px; }
+    .btn {
+      display: inline-block;
+      padding: 14px 32px;
+      background: #1a1a1a;
+      color: #fff;
+      text-decoration: none;
+      border-radius: 10px;
+      font-size: 15px;
+      font-weight: 500;
+      letter-spacing: 0.2px;
+      transition: opacity 0.15s;
+    }
+    .btn:hover { opacity: 0.85; }
+  </style>
 </head>
-<body></body>
+<body>
+  <div class="card">
+    <div class="eyebrow">est. 2026</div>
+    <div class="wordmark">The Waitlist</div>
+    <div class="divider"></div>
+    <div class="desc">${description}</div>
+    <a href="${appUrl}" class="btn">Join the line</a>
+  </div>
+</body>
 </html>`;
 
   return new Response(html, { status: 200, headers: { "Content-Type": "text/html;charset=UTF-8" } });
@@ -794,7 +844,7 @@ export default {
         response = await handleWaitHistory(request, env);
       } else if (path === "/referrer" && request.method === "GET") {
         response = await handleReferrer(request, env);
-      } else if (path.startsWith("/invite/") && request.method === "GET") {
+      } else if (path.startsWith("/referral/") && request.method === "GET") {
         return await handleInvite(request, env);
       } else if (path.startsWith("/user/") && request.method === "GET") {
         response = await handleUserProfile(env, decodeURIComponent(path.slice(6)));
