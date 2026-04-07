@@ -708,21 +708,24 @@ const CARD_STYLE = {
 
 // ── OnboardingScreen ──────────────────────────────────────────────────────
 function OnboardingScreen({ onComplete, bgRef }) {
+  const [step, setStep] = useState("waitingFor"); // "waitingFor" | "intro"
   const [answer, setAnswer] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
+  const [completedUser, setCompletedUser] = useState(null);
 
   const handleSubmit = async () => {
     setError(null);
     setSaving(true);
     try {
       const updated = await api("/profile", { method: "PATCH", body: JSON.stringify({ waitingFor: answer.trim() || "nothing" }) });
-      onComplete(updated);
+      setCompletedUser(updated);
+      setStep("intro");
     } catch (err) {
       if (err.message?.includes("inappropriate")) {
         setError(err.message);
       } else {
-        onComplete(null);
+        setStep("intro");
       }
     }
     setSaving(false);
@@ -735,6 +738,47 @@ function OnboardingScreen({ onComplete, bgRef }) {
     outline: "none", boxSizing: "border-box",
     transition: "border-color 0.2s ease, box-shadow 0.2s ease",
   };
+
+  if (step === "intro") {
+    const bullets = [
+      "Cut the person in front of you to advance",
+      "Give high fives to the people around you",
+      "Invite friends to join behind you",
+      "Enjoy two minutes of bliss once you reach the front",
+    ];
+    return (
+      <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", padding: 24, position: "relative", zIndex: 1, pointerEvents: "none" }}>
+        <div
+          onMouseOver={() => { if (bgRef?.current?.controls) bgRef.current.controls.enabled = false; }}
+          onMouseLeave={() => { if (bgRef?.current?.controls) bgRef.current.controls.enabled = true; }}
+          style={{ ...CARD_STYLE, width: "100%", maxWidth: 420, padding: "48px 36px 40px", animation: "fadeIn 0.5s ease both", pointerEvents: "auto" }}>
+          <div style={{ fontFamily: T.serif, fontSize: 28, color: T.charcoal, fontWeight: 400, letterSpacing: -0.8, lineHeight: 1.2, marginBottom: 14 }}>
+            Welcome to The Waitlist
+          </div>
+          <p style={{ fontFamily: T.sans, fontSize: 14, color: T.textSecondary, lineHeight: 1.65, marginBottom: 16, textAlign: "left" }}>
+             You have the agency to define your position in line, what you wait for, and how long you wait.
+          </p>
+          <ul style={{ paddingLeft: 20, marginBottom: 32, display: "flex", flexDirection: "column", gap: 8 }}>
+            {bullets.map(b => (
+              <li key={b} style={{ fontFamily: T.sans, fontSize: 14, color: T.textSecondary, lineHeight: 1.5, textAlign: "left" }}>{b}</li>
+            ))}
+          </ul>
+          <button onClick={() => onComplete(completedUser)} style={{
+            width: "100%", padding: "14px 0", borderRadius: T.r,
+            border: "none", cursor: "pointer",
+            background: T.charcoal, color: "#FFFFFF",
+            fontFamily: T.sans, fontSize: 15, fontWeight: 500, letterSpacing: 0.2,
+            transition: "opacity 0.15s ease, transform 0.1s ease",
+          }}
+            onMouseDown={e => e.target.style.transform = "scale(0.985)"}
+            onMouseUp={e => e.target.style.transform = "scale(1)"}
+            onMouseLeave={e => e.target.style.transform = "scale(1)"}>
+            Continue
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", padding: 24, position: "relative", zIndex: 1, pointerEvents: "none" }}>
@@ -799,7 +843,7 @@ function ProfileScreen({ user, onBack, onUserUpdate, onDelete, bgRef }) {
   const [linkCopied, setLinkCopied] = useState(false);
 
   const inviteUrl = user.inviteToken
-    ? `${API_URL}/referral/${user.inviteToken}`
+    ? `https://www.aidanoday.me/thewaitlist/?ref=${user.inviteToken}`
     : null;
 
   const handleCopyLink = () => {
