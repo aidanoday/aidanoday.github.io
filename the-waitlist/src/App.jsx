@@ -542,8 +542,8 @@ function SpeechBubble({ text, listRef, myIndex }) {
 }
 
 // ── AuthScreen ───────────────────────────────────────────────────────────
-function AuthScreen({ onAuth, bgRef }) {
-  const [mode, setMode] = useState("login");
+function AuthScreen({ onAuth, bgRef, referrer }) {
+  const [mode, setMode] = useState(referrer ? "signup" : "login");
   const [displayName, setDisplayName] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -559,7 +559,7 @@ function AuthScreen({ onAuth, bgRef }) {
       if (mode === "signup") {
         if (password.length < 4) { setError("Password must be at least 4 characters."); setLoading(false); return; }
         if (password !== confirmPassword) { setError("Passwords do not match."); setLoading(false); return; }
-        const { user, token } = await api("/signup", { method: "POST", body: JSON.stringify({ displayName: displayName.trim(), password }) });
+        const { user, token } = await api("/signup", { method: "POST", body: JSON.stringify({ displayName: displayName.trim(), password, referrer: referrer || undefined }) });
         setToken(token);
         const queue = await api("/queue");
         onAuth(user, queue);
@@ -596,7 +596,14 @@ function AuthScreen({ onAuth, bgRef }) {
           <div style={{ fontFamily: T.serif, fontSize: 12, fontStyle: "italic", color: T.textTertiary, letterSpacing: 0.5, marginBottom: 10 }}>est. 2026</div>
           <div style={{ fontFamily: T.serif, fontSize: 44, color: T.charcoal, fontWeight: 400, letterSpacing: -1.5, lineHeight: 1 }}>The Waitlist</div>
           <div style={{ width: 40, height: 1, background: T.charcoal, margin: "16px auto 16px", opacity: 0.15 }} />
-          <div style={{ fontFamily: T.serif, fontSize: 16, fontStyle: "italic", color: T.charcoal, letterSpacing: 0.5, lineHeight: 1 }}>Good things come to those who wait.</div>
+          {referrer && mode === "signup" ? (
+            <div style={{ fontFamily: T.sans, fontSize: 13, color: T.textSecondary, letterSpacing: 0.2, lineHeight: 1.4 }}>
+              <span style={{ color: T.textTertiary }}>Back-cutting </span>
+              <span style={{ fontWeight: 600, color: T.charcoal }}>{referrer}</span>
+            </div>
+          ) : (
+            <div style={{ fontFamily: T.serif, fontSize: 16, fontStyle: "italic", color: T.charcoal, letterSpacing: 0.5, lineHeight: 1 }}>Good things come to those who wait.</div>
+          )}
         </div>
 
         <div style={{ display: "flex", marginBottom: 28, borderBottom: `1px solid ${T.border}` }}>
@@ -767,6 +774,16 @@ function ProfileScreen({ user, onBack, onUserUpdate, onDelete, bgRef }) {
   const [deleting, setDeleting] = useState(false);
   const [waitHistory, setWaitHistory] = useState(null);
   const [selectedRun, setSelectedRun] = useState(null);
+  const [linkCopied, setLinkCopied] = useState(false);
+
+  const inviteUrl = `${window.location.origin}${import.meta.env.BASE_URL}?ref=${encodeURIComponent(user.displayName)}`;
+
+  const handleCopyLink = () => {
+    navigator.clipboard.writeText(inviteUrl).then(() => {
+      setLinkCopied(true);
+      setTimeout(() => setLinkCopied(false), 2000);
+    });
+  };
 
   useEffect(() => {
     api("/wait-history")
@@ -968,6 +985,35 @@ function ProfileScreen({ user, onBack, onUserUpdate, onDelete, bgRef }) {
                 </div>
               </>
             )}
+          </div>
+
+          {/* Invite link */}
+          <div style={{ marginTop: 20, borderTop: `1px solid ${T.borderLight}`, paddingTop: 20 }}>
+            <div style={{ fontFamily: T.sans, fontSize: 11, color: T.textSecondary, fontWeight: 600, letterSpacing: 0.8, textTransform: "uppercase", marginBottom: 10 }}>
+              Invite a friend
+            </div>
+            <div style={{ fontFamily: T.sans, fontSize: 12, color: T.textTertiary, marginBottom: 10, lineHeight: 1.5 }}>
+              Share this link — your friend joins directly behind you in the queue.
+            </div>
+            <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+              <div style={{
+                flex: 1, padding: "9px 12px", borderRadius: T.r,
+                border: `1px solid ${T.borderLight}`, background: T.bg,
+                fontFamily: T.mono, fontSize: 11, color: T.textTertiary,
+                overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+              }}>
+                {inviteUrl}
+              </div>
+              <button onClick={handleCopyLink} style={{
+                padding: "9px 14px", borderRadius: T.r,
+                border: `1px solid ${T.border}`, background: linkCopied ? T.accent : "transparent",
+                color: linkCopied ? "#fff" : T.textSecondary,
+                fontFamily: T.sans, fontSize: 12, fontWeight: 500, cursor: "pointer",
+                transition: "all 0.2s ease", flexShrink: 0,
+              }}>
+                {linkCopied ? "Copied!" : "Copy"}
+              </button>
+            </div>
           </div>
 
           <div style={{ marginTop: 20, borderTop: `1px solid ${T.borderLight}`, paddingTop: 16 }}>
@@ -1786,6 +1832,7 @@ export default function App() {
   const [onboarding, setOnboarding] = useState(false);
   const [congratulationsData, setCongratulationsData] = useState(null);
   const bgRef = useRef(null);
+  const [referrer] = useState(() => new URLSearchParams(window.location.search).get("ref") || null);
 
   useEffect(() => {
     if (_token) {
@@ -1850,7 +1897,7 @@ export default function App() {
 
   let content;
   if (!currentUser) {
-    content = <AuthScreen bgRef={bgRef} onAuth={handleAuth} />;
+    content = <AuthScreen bgRef={bgRef} onAuth={handleAuth} referrer={referrer} />;
   } else if (onboarding) {
     content = <OnboardingScreen bgRef={bgRef} onComplete={handleOnboardingComplete} />;
   } else if (congratulationsData || currentUser.inQueue === false) {

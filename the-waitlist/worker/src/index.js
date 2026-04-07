@@ -193,7 +193,7 @@ function formatUser(row) {
 // ── Routes ───────────────────────────────────────────────────────────────
 
 async function handleSignup(request, env) {
-  const { displayName, password } = await request.json();
+  const { displayName, password, referrer } = await request.json();
 
   if (!displayName?.trim() || !password) {
     return json({ error: "All fields are required." }, 400);
@@ -211,11 +211,32 @@ async function handleSignup(request, env) {
   ).bind(displayName.trim()).first();
   if (existingName) return json({ error: "This display name is taken." }, 409);
 
-  const { max_pos } = await env.DB.prepare(
-    "SELECT COALESCE(MAX(position), 0) as max_pos FROM users WHERE in_queue = 1"
-  ).first();
-  const position = max_pos + 1;
   const now = new Date().toISOString();
+  let position;
+
+  // If a referrer was supplied, insert the new user directly behind them.
+  if (referrer?.trim()) {
+    const referrerUser = await env.DB.prepare(
+      "SELECT id, position FROM users WHERE lower(display_name) = lower(?) AND in_queue = 1"
+    ).bind(referrer.trim()).first();
+
+    if (referrerUser) {
+      // Shift everyone currently behind the referrer down one spot.
+      await env.DB.prepare(
+        "UPDATE users SET position = position + 1 WHERE in_queue = 1 AND position > ?"
+      ).bind(referrerUser.position).run();
+      position = referrerUser.position + 1;
+    }
+  }
+
+  // Fall back to end of queue if no valid referrer.
+  if (!position) {
+    const { max_pos } = await env.DB.prepare(
+      "SELECT COALESCE(MAX(position), 0) as max_pos FROM users WHERE in_queue = 1"
+    ).first();
+    position = max_pos + 1;
+  }
+
   const positionOneStartTime = position === 1 ? now : null;
 
   const passwordHash = await hashPassword(password);
