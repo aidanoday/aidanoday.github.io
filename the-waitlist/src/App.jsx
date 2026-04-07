@@ -1713,9 +1713,10 @@ function Dashboard({ user, users, onLogout, onUsersUpdate, onUserUpdate, onWaitC
     return () => clearInterval(id);
   }, [myPosition]);
 
-  // Poll every 5s at position 1 (cut detection) or position 2 (completion detection).
+  // Poll every 5s for all in-queue users: cut/completion detection for pos 1-2,
+  // and top-user status/timer updates for everyone else.
   useEffect(() => {
-    if (myPosition !== 1 && myPosition !== 2) return;
+    if (!myPosition) return;
     const id = setInterval(() => {
       api("/queue").then(onUsersUpdate).catch(() => {});
     }, 5000);
