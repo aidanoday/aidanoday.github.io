@@ -774,6 +774,7 @@ function ProfileScreen({ user, onBack, onUserUpdate, onDelete, bgRef }) {
   const [deleting, setDeleting] = useState(false);
   const [waitHistory, setWaitHistory] = useState(null);
   const [selectedRun, setSelectedRun] = useState(null);
+  const [showAllWaits, setShowAllWaits] = useState(false);
   const [linkCopied, setLinkCopied] = useState(false);
 
   const inviteUrl = `${window.location.origin}${import.meta.env.BASE_URL}?ref=${encodeURIComponent(user.displayName)}`;
@@ -946,43 +947,62 @@ function ProfileScreen({ user, onBack, onUserUpdate, onDelete, bgRef }) {
                   <span style={{ fontFamily: T.mono, fontWeight: 600, color: T.charcoal, fontSize: 15 }}>{waitHistory.length}</span>
                   {" "}wait{waitHistory.length !== 1 ? "s" : ""} completed
                 </div>
-                <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                  {waitHistory.map(w => (
-                    <div key={w.waitNumber} style={{
-                      padding: "10px 14px",
-                      borderRadius: T.r,
-                      border: `1px solid ${T.borderLight}`,
-                      background: T.bg,
-                      display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10,
-                    }}>
-                      <div style={{ minWidth: 0 }}>
-                        <div style={{ fontFamily: T.sans, fontSize: 13, color: T.textPrimary, fontWeight: 500 }}>
-                          {ordinal(w.waitNumber)} wait
-                        </div>
-                        {w.waitingFor && (
-                          <div style={{ fontFamily: T.sans, fontSize: 11, color: T.textTertiary, marginTop: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                            {w.waitingFor}
+                {(() => {
+                  const reversed = [...waitHistory].reverse();
+                  const visible = showAllWaits ? reversed : reversed.slice(0, 3);
+                  return (
+                    <>
+                      <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                        {visible.map(w => (
+                          <div key={w.waitNumber} style={{
+                            padding: "10px 14px",
+                            borderRadius: T.r,
+                            border: `1px solid ${T.borderLight}`,
+                            background: T.bg,
+                            display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10,
+                          }}>
+                            <div style={{ minWidth: 0, textAlign: "left" }}>
+                              <div style={{ fontFamily: T.sans, fontSize: 13, color: T.textPrimary, fontWeight: 500 }}>
+                                {ordinal(w.waitNumber)} wait
+                              </div>
+                              {w.waitingFor && (
+                                <div style={{ fontFamily: T.sans, fontSize: 11, color: T.textTertiary, marginTop: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                                  {w.waitingFor}
+                                </div>
+                              )}
+                            </div>
+                            <div style={{ display: "flex", alignItems: "center", gap: 10, flexShrink: 0 }}>
+                              <span style={{ fontFamily: T.mono, fontSize: 11, color: T.textTertiary }}>
+                                {new Date(w.completedAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
+                              </span>
+                              <button onClick={() => setSelectedRun(w)} style={{
+                                padding: "4px 10px", borderRadius: 5,
+                                border: `1px solid ${T.border}`, background: "transparent",
+                                color: T.textSecondary, fontFamily: T.sans, fontSize: 11,
+                                cursor: "pointer", transition: "all 0.15s ease",
+                              }}
+                                onMouseEnter={e => { e.target.style.color = T.charcoal; e.target.style.borderColor = T.textSecondary; }}
+                                onMouseLeave={e => { e.target.style.color = T.textSecondary; e.target.style.borderColor = T.border; }}>
+                                Details
+                              </button>
+                            </div>
                           </div>
-                        )}
+                        ))}
                       </div>
-                      <div style={{ display: "flex", alignItems: "center", gap: 10, flexShrink: 0 }}>
-                        <span style={{ fontFamily: T.mono, fontSize: 11, color: T.textTertiary }}>
-                          {new Date(w.completedAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
-                        </span>
-                        <button onClick={() => setSelectedRun(w)} style={{
-                          padding: "4px 10px", borderRadius: 5,
-                          border: `1px solid ${T.border}`, background: "transparent",
-                          color: T.textSecondary, fontFamily: T.sans, fontSize: 11,
-                          cursor: "pointer", transition: "all 0.15s ease",
+                      {waitHistory.length > 3 && (
+                        <button onClick={() => setShowAllWaits(v => !v)} style={{
+                          marginTop: 8, padding: 0, border: "none", background: "transparent",
+                          fontFamily: T.sans, fontSize: 12, color: T.textTertiary,
+                          cursor: "pointer", transition: "color 0.15s ease",
                         }}
-                          onMouseEnter={e => { e.target.style.color = T.charcoal; e.target.style.borderColor = T.textSecondary; }}
-                          onMouseLeave={e => { e.target.style.color = T.textSecondary; e.target.style.borderColor = T.border; }}>
-                          Details
+                          onMouseEnter={e => e.target.style.color = T.charcoal}
+                          onMouseLeave={e => e.target.style.color = T.textTertiary}>
+                          {showAllWaits ? "See less" : `See all ${waitHistory.length}`}
                         </button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
+                      )}
+                    </>
+                  );
+                })()}
               </>
             )}
           </div>
