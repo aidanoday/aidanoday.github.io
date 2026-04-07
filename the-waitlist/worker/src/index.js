@@ -47,6 +47,7 @@ async function verifyToken(token, env) {
 // ── Constants ────────────────────────────────────────────────────────────
 
 const WAIT_DURATION_SECONDS = 2 * 60; // 2 minutes (active time only)
+const APP_BASE_URL = "https://www.aidanoday.me/thewaitlist/";
 
 // ── Token helpers ────────────────────────────────────────────────────────
 
@@ -658,6 +659,45 @@ async function handleLeaderboards(env) {
   });
 }
 
+async function handleInvite(request, env) {
+  const token = decodeURIComponent(request.url.split("/invite/")[1] || "");
+  const appUrl = `${APP_BASE_URL}?ref=${encodeURIComponent(token)}`;
+
+  let title = "Join The Waitlist";
+  let description = "Good things come to those who wait.";
+
+  if (token) {
+    const row = await env.DB.prepare(
+      "SELECT display_name FROM users WHERE invite_token = ?"
+    ).bind(token).first();
+    if (row) {
+      title = `Back-cut ${row.display_name} on The Waitlist`;
+      description = "Join the line right behind me and we can wait for the future together.";
+    }
+  }
+
+  const html = `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta property="og:title" content="${title}">
+  <meta property="og:description" content="${description}">
+  <meta property="og:url" content="${appUrl}">
+  <meta property="og:type" content="website">
+  <meta property="og:image" content="https://www.aidanoday.me/assets/thewaitlist_cover.png">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="${title}">
+  <meta name="twitter:description" content="${description}">
+  <meta name="twitter:image" content="https://www.aidanoday.me/assets/thewaitlist_cover.png">
+  <meta http-equiv="refresh" content="0;url=${appUrl}">
+  <script>window.location.replace(${JSON.stringify(appUrl)})</script>
+</head>
+<body></body>
+</html>`;
+
+  return new Response(html, { status: 200, headers: { "Content-Type": "text/html;charset=UTF-8" } });
+}
+
 async function handleReferrer(request, env) {
   const token = new URL(request.url).searchParams.get("token");
   if (!token) return json({ error: "token required" }, 400);
@@ -754,6 +794,8 @@ export default {
         response = await handleWaitHistory(request, env);
       } else if (path === "/referrer" && request.method === "GET") {
         response = await handleReferrer(request, env);
+      } else if (path.startsWith("/invite/") && request.method === "GET") {
+        return await handleInvite(request, env);
       } else if (path.startsWith("/user/") && request.method === "GET") {
         response = await handleUserProfile(env, decodeURIComponent(path.slice(6)));
       } else {

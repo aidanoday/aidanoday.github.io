@@ -799,7 +799,7 @@ function ProfileScreen({ user, onBack, onUserUpdate, onDelete, bgRef }) {
   const [linkCopied, setLinkCopied] = useState(false);
 
   const inviteUrl = user.inviteToken
-    ? `${window.location.origin}${import.meta.env.BASE_URL}?ref=${user.inviteToken}`
+    ? `${API_URL}/invite/${user.inviteToken}`
     : null;
 
   const handleCopyLink = () => {
