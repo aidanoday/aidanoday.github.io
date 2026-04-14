@@ -571,7 +571,6 @@ function AuthScreen({ onAuth, bgRef, referrer }) {
     setError(""); setLoading(true);
     try {
       if (!displayName.trim() || !password.trim()) { setError("All fields are required."); setLoading(false); return; }
-      if (!/^[a-zA-Z0-9]+$/.test(password)) { setError("Password must contain only letters and numbers."); setLoading(false); return; }
       if (!/[a-zA-Z]/.test(password)) { setError("Password must contain at least 1 letter."); setLoading(false); return; }
       if (mode === "signup") {
         if (password.length < 4) { setError("Password must be at least 4 characters."); setLoading(false); return; }
@@ -654,7 +653,7 @@ function AuthScreen({ onAuth, bgRef, referrer }) {
               onFocus={e => { e.target.style.borderColor = T.accent; e.target.style.boxShadow = `0 0 0 3px ${T.accentSoft}`; }}
               onBlur={e => { e.target.style.borderColor = T.border; e.target.style.boxShadow = "none"; }} />
             <div style={{ fontFamily: T.sans, fontSize: 11, color: T.textTertiary, marginTop: 6, lineHeight: 1.4 }}>
-              At least 4 characters. Letters and numbers only — no spaces or special characters.
+              Password must be at least 4 characters.
             </div>
           </div>
           {mode === "signup" && (
