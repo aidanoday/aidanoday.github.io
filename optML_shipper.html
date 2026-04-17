@@ -65,85 +65,7 @@
             <a class="onSurface" href="index.html">Back to Home</a>
         </nav>
 
-        <dialogContainer>
-            <dialog id="constructionDialog" inert>
-                <div class="dialog-content">
-                    <h2>🚧 Page In Progress 📑✍🏻 🚧</h2>
-                    <p> So sorry! This project is done but the writeup is still in progress. Rather than give you a premature peek behind the curtain, I've put up this barrier. Check back soon!</p>
-                    <button class="close-button" onclick="closeDialog()">Done (esc)</button>
-                </div>
-            </dialog>
-            <style>
-                dialog {
-                    border: none;
-                    border-radius: 8px;
-                    padding-bottom: 16px;
-                    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-                    max-width: 400px;
-                }
-
-                dialog::backdrop {
-                    background: rgba(0, 0, 0, 0.5);
-                }
-
-                .dialog-content {
-                    padding: 0px;
-                    text-align: center;
-                }
-
-                .dialog-content h2 {
-                    margin: bottom 0px;
-                    color: #333;
-                    font-size: 24px;
-                }
-
-                .dialog-content p {
-                    margin: bottom 16px;;
-                    color: #666;
-                    line-height: 1.5;
-                }
-
-                .close-button {
-                    padding: 8px 16px;
-                    background: var(--surface);
-                    color:var(--onSurface);
-                    border: none;
-                    border-radius: 4px;
-                    cursor: pointer;
-                    font-size: 14px;
-                    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-                    outline: 1px #333;
-                }
-
-                .close-button:hover {
-                    padding: 8px 16px;
-                    background:paleturquoise;
-                    color:black;
-                    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-                    
-                }
-            </style>
-            <script>
-                const dialog = document.getElementById('constructionDialog');
-
-                function showDialog() {
-                    dialog.removeAttribute('inert');
-                    dialog.showModal();
-                }
-
-                function closeDialog() {
-                    dialog.close();
-                    dialog.setAttribute('inert', '');
-                }
-
-                // Allow closing with Escape key (built-in) or clicking backdrop
-                dialog.addEventListener('click', (e) => {
-                    if (e.target === dialog) {
-                        closeDialog();
-                    }
-                });
-                </script>
-         </dialogContainer>
+        <construction-dialog></construction-dialog>
 
 
         <wrapper>
@@ -165,7 +87,7 @@
                     <p><b>Impact:</b> Developed business case and proof of concept dashboard for handoff to AI implementation team.</p>
                 </container>
             </container>
-            <container class="flex_stacker">
+            <div class="case-study-body">
                 <h2>Background</h2>
                 <p>The client currently determines optimal shipper selection through lengthy analysis cycles and hard-codes business rules, which requires large time and capitol investment for optimization and maintenance. This approach has two downsides: it is expensive to maintain, and slow to adapt to fast changing logistics situations. The mass-adoption of capable AI models has them asking "how could we be using ai to optimize our business practices?"</p>
                 <h2>Proposal: Use Machine Learning to Optimize Carrier Selection</h2>
@@ -173,15 +95,14 @@
                 <p>In the second layer, an ML algorithm would be trained on the costing data from the first layer and become adept at predicting the least expensive and most reliable carriers for each situation. Models like Gradient Boosting (e.g., XGBoost, LightGBM) and Random Forest are also well-suited for structured, tabular data like this and are known for their strong performance and interpretability. XGBoost in particular is a popular choice for this type of problem due to its speed and accuracy.</p>
                 <p>In the third layer, an agent could be deployed to surface and communicate savings opportunities through a dashboard similar to the one mocked up above.</p>
                 <h2>Impact:</h2>
-                <p>This product would deliver the following key benefits to 
-                    Key benefits to the logistics team:
-                    <ul>
-                        <li>Reduce shipping costs: Algorithm will be able to effectively consider every shipment option available and exhaustively identify the least expensive shipment methods.</li>
-                        <li>Improve shipment reliability: Algorithm will observe historic shipment data to identify the most reliable shipment methods and generate more accurate delivery date predictions than those provided by couriers.</li>
-                        <li>Simplified UI: Agent-driven reccomendations for understanding shipping volume, carrier selection, and costs make business choices more clear for analysts.</li>
-                    </ul>
-                </p>
-            </container>
+                <p>This product would deliver the following key benefits to
+                    Key benefits to the logistics team:</p>
+                <ul>
+                    <li>Reduce shipping costs: Algorithm will be able to effectively consider every shipment option available and exhaustively identify the least expensive shipment methods.</li>
+                    <li>Improve shipment reliability: Algorithm will observe historic shipment data to identify the most reliable shipment methods and generate more accurate delivery date predictions than those provided by couriers.</li>
+                    <li>Simplified UI: Agent-driven reccomendations for understanding shipping volume, carrier selection, and costs make business choices more clear for analysts.</li>
+                </ul>
+            </div>
             <h2>Similar Projects</h2>
                 <container class="projects_list">
                     <project-card slug="pebble-ai"></project-card>

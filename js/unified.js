@@ -1461,6 +1461,53 @@ class AppFooter extends HTMLElement {
 
 customElements.define('app-footer', AppFooter);
 
+// ============ Construction Dialog Component ============
+// Usage:
+//   <construction-dialog></construction-dialog>          (drop anywhere in body)
+//   <a onclick="showDialog()">Pebble AI</a>              (open from a card/link)
+
+class ConstructionDialog extends HTMLElement {
+    connectedCallback() {
+        this.innerHTML = `
+            <dialog id="constructionDialog" class="construction-dialog" inert>
+                <div class="dialog-content">
+                    <h2>🚧 Page In Progress 📑✍🏻 🚧</h2>
+                    <p>So sorry! This project is done but the writeup is still in progress. Rather than give you a premature peek behind the curtain, I've put up this barrier. Check back soon!</p>
+                    <button class="close-button" type="button">Done (esc)</button>
+                </div>
+            </dialog>
+        `;
+
+        const dialog = this.querySelector('#constructionDialog');
+        const closeBtn = this.querySelector('.close-button');
+
+        closeBtn.addEventListener('click', () => this.close());
+        dialog.addEventListener('click', (e) => {
+            if (e.target === dialog) this.close();
+        });
+
+        // Expose global helpers so existing inline onclick="showDialog()" keeps working
+        window.showDialog = () => this.open();
+        window.closeDialog = () => this.close();
+    }
+
+    open() {
+        const dialog = this.querySelector('#constructionDialog');
+        if (!dialog) return;
+        dialog.removeAttribute('inert');
+        dialog.showModal();
+    }
+
+    close() {
+        const dialog = this.querySelector('#constructionDialog');
+        if (!dialog) return;
+        dialog.close();
+        dialog.setAttribute('inert', '');
+    }
+}
+
+customElements.define('construction-dialog', ConstructionDialog);
+
 // Letter scroll-settle animation
 const letter = document.getElementById('letter');
 if (letter) {
