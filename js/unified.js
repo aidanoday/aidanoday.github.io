@@ -37,7 +37,8 @@ const PROJECT_DATA = {
   "pebble-ai": {
     title: "Pebble AI Agent",
     image: "assets/ai_pebble.png",
-    link: "ai_pebble.html",
+    action: "showDialog()",
+    //link: "ai_pebble.html",
     subtitle: "In-context Academic Advising",
     desc: "Spring 2025 - How might we guide lost students at a critical junctures in their academic journeys?  Using agentic adivsors trained on historic student data and advising materials, this concept brings personalized, context-aware, and proactive advising to students.  I developed the concept and prototype in collaboration with a team of 2 other designers for a graduate design course at University of Washington."
   },
