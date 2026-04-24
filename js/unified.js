@@ -19,6 +19,13 @@ const PROJECT_DATA = {
     subtitle: "User research, Interface design",
     desc: "Summer/Fall 2025 - How can UX best practices and insights from contextual inquiry elevate lululemon's internally-built Store Shipping Portal from minimum viable product to most valuable portal?"
   },
+  "inquiry-selector": {
+    title: "Inquiry Selector",
+    image: "assets/inquiry_selector_cover.jpg",
+    link: "inquiry_selector.html",
+    subtitle: "Interface Design, Process Design",
+    desc: "Summer 2023 - How can we get an early win solving documented user problems and setting ourselves up for success with solid design handoff protocols?"
+  },
   "dawg-walks": {
     title: "Dawg Walks Kiosk",
     image: "assets/dawgWalks.png",
