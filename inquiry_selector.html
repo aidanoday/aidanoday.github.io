@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <!--Open Graph Properties-->
+        <meta property="og:title" content="Inquiry Selector Redesign" />
+        <meta property="og:type" content="website" />
+        <meta property="og:url" content="https://aidanoday.me/" />
+        <meta property="og:image" content="https://aidanoday.me/assets/optML_ship.png" />
+        <meta property="description" content="Inquiry Selector redesign case study." />
+
+        <title>Inquiry Selector Redesign</title>
+
+        <!--favicon-->
+        <link rel="shortcut icon" href="assets/apod.ico" type="image/x-icon"/>
+        <link rel="apple-touch-icon" href="assets/apod.ico" type="image/x-icon"/>
+
+        <!--stylesheet-->
+        <link rel="stylesheet" href="styles.css">
+
+        <!--lottiefile player-->
+        <script src="https://unpkg.com/@lottiefiles/lottie-player@latest/dist/lottie-player.js"></script>
+
+        <!--google fonts-->
+        <script async src="https://www.googletagmanager.com/gtag/js?id=G-DYDCM8KNK6"></script>
+        <script>
+            window.dataLayer = window.dataLayer || [];
+            function gtag(){dataLayer.push(arguments);}
+            gtag('js', new Date());
+
+            gtag('config', 'G-DYDCM8KNK6');
+        </script>
+
+    </head>
+
+    <spinner>
+        <img class="spinner" src="assets/apodLoader.gif" >
+    </spinner>
+   
+    <body>
+        <nav id="peekaboo" aria-label="Skip to main navigation">
+            <svg width="24" height="24" viewBox="0 0 44 44" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <g clip-path="url(#clip0_194_15860)">
+                <path d="M33 0H11C4.92487 0 0 4.92487 0 11V33C0 39.0751 4.92487 44 11 44H33C39.0751 44 44 39.0751 44 33V11C44 4.92487 39.0751 0 33 0Z" fill="black"/>
+                <path fill-rule="evenodd" clip-rule="evenodd" d="M7.11797 17.793C7.69751 15.5172 8.63273 13.8384 9.30916 12.1039C9.99035 10.3573 10.4157 8.55624 11.8525 6.63931C13.3394 4.65559 14.4056 5.66686 14.8262 6.63931C15.274 7.67434 15.9229 9.94774 16.7435 12.1039C17.6442 14.4701 18.7 16.741 18.7 18.1673C18.7 20.3008 16.7127 19.982 16.2349 19.103C15.7263 18.1673 15.7263 15.8078 15.1785 15.4725C14.2002 14.8736 11.8525 14.9022 11.07 15.2105C10.4048 15.4725 10.2862 17.6699 9.46565 19.103C8.56571 20.6751 6.37452 20.7125 7.11797 17.793ZM14.0437 11.7296C13.5742 10.3073 13.0655 10.1576 12.4786 11.243C11.0904 13.8101 11.9699 13.4513 13.2612 13.4513C14.5524 13.4513 14.2136 12.2443 14.0437 11.7296Z" fill="white"/>
+                <path fill-rule="evenodd" clip-rule="evenodd" d="M8.87069 26.6099C10.718 24.0916 12.8259 21.7485 16.5217 26.9224C18.5609 29.777 19.6607 33.225 17.5916 36.0547C15.2965 39.1936 10.7804 39.349 8.38442 36.2978C6.1585 33.4631 6.73104 29.5267 8.87069 26.6099ZM10.9148 32.6064C10.4609 31.7035 10.039 29.3121 11.4335 27.1547C12.3089 25.8005 13.6688 25.2904 14.7062 28.0336C15.8547 31.0708 15.5508 32.2592 14.8699 33.6828C14.0565 35.3837 11.9098 34.5857 10.9148 32.6064Z" fill="white"/>
+                <path d="M20.7492 25.0108C20.8014 24.6807 20.7492 24.4893 20.7492 24.1552C20.7492 23.885 21.3836 23.6598 21.7914 24.0201C22.1231 24.3131 22.1086 25.2809 21.3836 26.3166C21.1503 26.6498 20.3867 26.4074 20.3867 26.0014C20.3867 25.6411 20.6848 25.4174 20.7492 25.0108Z" fill="#D9D9D9"/>
+                <path fill-rule="evenodd" clip-rule="evenodd" d="M26.366 28.0673C26.3278 28.048 26.3228 28.0756 26.3253 28.1204V28.1211C26.3283 28.1732 26.3506 28.1684 26.3767 28.1421C26.4106 28.1077 26.4021 28.0855 26.366 28.0673ZM26.3645 28.0903C26.3418 28.0763 26.3349 28.0948 26.3371 28.1182C26.3383 28.1319 26.3465 28.1394 26.3675 28.1229C26.3806 28.1126 26.3808 28.1004 26.3645 28.0903Z" fill="#D9D9D9"/>
+                <path fill-rule="evenodd" clip-rule="evenodd" d="M25.7919 7.89316C24.7098 12.255 25.6414 18.5336 26.404 19.2852C27.1033 19.9745 29.3762 21.0268 29.3762 18.9224C29.3762 16.6005 28.3273 15.2218 28.7643 14.2785C29.0668 13.6255 33.6787 13.0879 34.5777 12.5008C37.244 10.7593 37.8067 8.53072 35.9326 7.31268C31.2994 4.30137 26.404 5.42606 25.7919 7.89316ZM28.1523 10.2513C28.3094 7.77451 29.0265 7.82496 30.7312 7.89316C34.7962 8.05574 35.4956 10.5054 31.8677 11.6663C29.3866 12.4603 27.9775 13.0087 28.1523 10.2513Z" fill="white"/>
+                <path fill-rule="evenodd" clip-rule="evenodd" d="M31.6525 23.8333C24.9891 23.8333 25.0601 25.2402 25.439 32.7464L25.4446 32.8577C25.8856 41.5986 29.7692 38.6563 33.7451 34.2401C38.9231 28.4887 37.8074 23.8333 31.6525 23.8333ZM31.6525 26.6199C29.1959 26.7901 28.409 27.0206 27.6767 31.0144C27.2626 33.2719 27.6767 39.4166 32.2106 31.8266C33.0173 30.476 34.1091 26.4498 31.6525 26.6199Z" fill="white"/>
+            </g>
+            <defs>
+                <clipPath id="clip0_194_15860">
+                    <rect width="44" height="44" fill="white"/>
+                </clipPath>
+            </defs>
+            </svg>
+            <a class="onSurface" href="index.html">Back to Home</a>
+        </nav>
+
+        <wrapper>
+            <container class="above_the_fold">
+                <h1>Inquiry Selector Redesign</h1>
+                <p>Responsive UI redesign for InquirED curriculum platform home page.</p>
+                <iframe class="mobile_prototype" src="https://embed.figma.com/proto/QZI2MnHSpXy4joMCKHQYUu/Finalized-Mockups?node-id=7851-9881&viewport=-1162%2C220%2C0.38&scaling=min-zoom&content-scaling=fixed&starting-point-node-id=7851%3A9881&show-proto-sidebar=1&page-id=7712%3A88&embed-host=share&hide-ui=1" allowfullscreen></iframe>
+            </container>
+
+            <container class="project_summary">
+                <container id="introduction" class="flex_stacker">
+                    <p><b>Problem:</b> First-time users sometimes struggle to find the right content using the minimal Inquiry Selector.</p>
+                    <p><b>Solution:</b> Redesign the Inquiry Selector with CTAs and visual cues that make it more clear to users where content starts and ends.</p>
+                </container>
+                <container id="roleAndImpact" class="flex_stacker">
+                    <p><b>Role:</b> Product Designer</p>
+                    <p><b>Impact:</b> Reduced onboarding ticket reporting for new users, solved 2 accessibility issues with the page, and pioneered better design-to-engineering handoff documentation.</p>
+                </container>
+            </container>
+            <div class="case-study-body">
+                <h2>Background</h2>
+                <p>When users logged into their InquirED curriculum platform, the first place they land is the Inquiry Selector. It operates like a central collection of the curricular units available to each teacher. Under the InquirED model, lessons are grouped into Modules, and Modules are grouped into Inquiries - and these inquiries, the largest units of curriculum, are displayed here.</p>
+                <img src="assets/inqsel_legacy_inquiry_selector.png" alt="The pre-intervention Inquiry Selector, which is a simple list of cards, each one representing an inquiry.">
+                <p>Based on support tickets that were generated by our users, we knew that the original Inquiry Selector presented several problems to teachers looking to get started with their curriculum.  First, many teachers were not able to find all of the content that they thought they had access to. Second, Teachers weren’t sure how to access their grade settings when they had access to some but not all of their curricular content. Finally, the page was not responsive to smaller window and screen sizes.</p>
+                <p>There were second-order process questions to be answered as well. As our design process matures, how might we improve the handoff process between Design and Engineering teams?  As the company's first UI/UX Designer, this was an important question for me to figure out with the engineers and product managers.</p>
+</p>
+                <h2>Process</h2>
+                <p>First, I wanted to tackle the challenges surfaced by our customer support teams, and I was eager to demonstrate the process, craft, and Figma expertise that I brought to the team from my previous product design experience. Looking at the feedback from our users and the Inquiry Selector side-by-side, I tried to diagnose the friction points that were causing users to lose track of curriculum. One thing I noticed is that at different window sizes, users could see some of their content while other content was hidden beyond the boundaries of the screen. This is normal, but users weren’t thinking of scrolling horizontally or vertically because there were no visual cues for content continuity.</p>
+                <img src="assets/inqsel_how_many_inquiries.png" alt="A screenshot of the legacy Inquiry Selector, which shows 3 inquiries, but the user has access to 5. There are no visual cues to indicate that there are more inquiries to scroll to.">
+                <p>How many inquiries does this teacher have access to? How many grades? If you said 3 instead of 5, you're not alone. Many teachers opened tickets because they didn't know they could or should use horizontal and vertical scrolling to access the rest of their content.</p>
+                <img src="assets/inqsel_legacy_blank_state.png" alt="A screenshot of the legacy Inquiry Selector, which shows an empty state with a prompt to visit account settings.">
+                <p>While users were prompted to visit their account settings page to check their grade settings in the empty state, there were no similar cues helping them when they had access to some, but not all of their expected Inquiries. In fact, the only non-curriculum button that users could see was the “X” icon button in the top right corner. As a first time user, I wondered “what am I closing?” This button acted like a 'back to curriculum' button, which defaulted to the first module in the first Inquiry. So, if you were a first time user, and you could see some, but not all of your Inquiries, you wouldn’t see any clear paths to your account settings page or to a support function. This also needed to be addressed.</p>
+                <p>To tackle these issues, I thought about a couple different ways to organize the information. The simplest would be to use wrapping or stacking behavior on the existing card layout, to prevent content from going missing over the side.</p>
+                <img src="assets/inqsel_tab_divided_sketches.png" alt="A sketch of the Inquiry Selector with tabs dividing the content.">
+                <p>Then, I wanted to make it clear where content started and ended, so that users knew if they were seeing everything available to them, even if it wasn’t all visible on the first page.  I thought that using tabs or expanding drawers would be two good options for bundling content so that it was easy for users to scan and navigate without any getting lost.</p>
+                <img src="assets/inqsel_drawer_divided_sketches.png" alt="A sketch of the Inquiry Selector with expandable drawers for each inquiry.">
+                <p>I also wanted to redesign the cards slightly to accommodate different screensizes, from mobile or zoomed-in formats to full desktop web formats.  So I sketched up my ideas and brought them to review with my ideas and progress with the main stakeholders for this project - the head of product and members of our engineering team.</p>
+                <img src="assets/inqsel_sketch2cards.png" alt="">
+
+                <p>After aligning on direction, I developed some first mockups for the tabs and drawers and began drafting reusable components for the cards. After this phase of building out higher-fidelity mockups, we sat down to review the options and choose a final direction to ship. Our largest discussion centered on whether or not to include a grade selector in the final design. The pros of including the grade selector: it would give maximum visibility and control to the user. The cons: only one or two grades would ever be relevant to a given teacher, so why show them more? We decided to direct users to the account settings page so that they would become more familiar with that interface, and so that they weren’t always tweaking their grade settings as a way to control explore InquirED content.</p>
+
+
+                <h2>Solution and Handoff</h2>
+                <p>To organize the cards, we decided to go with the drawer system, which gave visual cues so that teachers could understand when they were looking at the entirety of available content, even when there were too many inquiries to show on just one page.  A quick expand/collapse all button makes it easy to either see everything, or quickly tidy up the space and take a more direct approach to content sourcing. And, Whether all of the content is there, or some seems missing, teachers could always access their account information or shortcut to their account settings to check which grades they had selected.</p>
+                <p>When we had the finalized design ready, I surprised the team with 22 screens and 10 reusable components for what they had previously thought of as a very simple page - the previous ‘finalized’ mockups consisted of just 3 screens, leaving the engineers to fill in the rest.</p>
+                <img src="assets/inqsel_full_handoff.png">
+                <p>The new handoff format was a key to my success in aligning our Product and Engineering stakeholders on these big new changes to critical platform infrastructure. Before, Product was handing off one or two heavily annotated screens to engineers. Instead of telling engineers with words, I showed exactly how each screen should look, with auto-layout that perfectly defined how each piece of the page should work and interact once built in react.js or html. I also included sections that detailed the new components which were used in the file, and which had been added to the component library.</p>
+                <img src="assets/Placeholder.jpg" alt="Store Portal cartons view">
+                <h2>Reflections</h2>
+                <p>Overall, this project was a great success. We reduced the number of support tickets related to onboarding and content discovery, and we solved the problem of users not being able to find all of their content with an elegant experience. I only wish that I had done a better job of documenting and preserving the intermediate progress of this project throughout the development process, but that is something that I will have to continue to work on.</p>
+                
+                </ul>
+
+            </div>
+            <section class="bg-blue">
+                <h2>Similar Projects</h2>
+                <container class="projects_list">
+                    <project-card slug="store-portal"></project-card>
+                    <project-card slug="synq"></project-card>
+                </container>
+            </section>
+            
+
+                <site-footer></site-footer>
+        </wrapper>
+        <!--unified javascript for menu, loading state, and cards-->
+        <script src="js/unified.js" data-public-key="piJ-WyioNmFk3MpfB" data-service-id="service_10py5wb" data-template-id="template_fubshbp" data-backup-url="https://script.google.com/macros/s/AKfycbyuwdTjryvnQ24c59rV9h1vMW7IfIuY5yyyDYZ2bnaeboCW9P9BUY1DE36LehIR1u1E/exec"></script>
+    </body>
+</html>
