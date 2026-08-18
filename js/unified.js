@@ -142,6 +142,14 @@ const PROJECT_DATA = {
     external: true,
     subtitle: "Build: Full Stack Web App built in React and deployed with a Cloudflare D1 SQL backend",
     desc: "Spring 2026 - Ever since I built waybetterboxd, I've been curious about pushing past the limits of serverless web apps and deploying a full stack app. I used Claude Code and Omma to explore the essentials of application deployment - identity management, account creation, backend calls, and account deletion - through this lightweight build that purports to be a premier wait list experience."
+  },
+  "daylight": {
+    title: "Daylight",
+    image: "assets/daylight_cover.png",
+    link: "https://www.aidanoday.me/daylight.html",
+    external: true,
+    subtitle: "Build: Timezone visualizer for helping remote teams visualize and coordinate across disparate timezones.",
+    desc: "Summer 2026 - One morning when I was trying to reschedule a call with teammembers in Hong Kong and Bengaluru, I struggled to track and articulate the meeting time in a way that made sense to everyone.  I built this app to easily map and articulate temporal relationships between distant timezones.  I built this app using Claude Code. "
   }
   // ... (Keep the rest of your data here)
 };
