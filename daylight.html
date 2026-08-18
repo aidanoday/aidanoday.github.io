@@ -1,0 +1,949 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Daylight timelines</title>
+<style>
+  :root{
+    --bg:#f6f4ef; --panel:#efece5; --ink:#2b2e33; --muted:#6f6c64;
+    --now:#e8425f; --pin:#2f6fe4; --line:rgba(43,46,51,.15);
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  html,body{height:100%;}
+  body{
+    background:var(--bg); color:var(--ink);
+    font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+    display:flex; flex-direction:column; overflow:hidden;
+  }
+  header{
+    display:flex; align-items:baseline; gap:16px;
+    padding:18px 22px 14px; border-bottom:1px solid var(--line);
+    flex-wrap:wrap;
+  }
+  h1{font-size:15px; font-weight:600; letter-spacing:.02em;}
+  h1 .swap{color:var(--muted); font-weight:400; padding:0 2px;}
+  .sub{font-size:12px; color:var(--muted);}
+  .spacer{flex:1;}
+  .hbtn{
+    font: 12px/1 ui-monospace, "SF Mono", Menlo, monospace;
+    color:var(--ink); background:transparent;
+    border:1px solid rgba(43,46,51,.35); border-radius:999px;
+    padding:7px 14px; cursor:pointer; letter-spacing:.04em;
+  }
+  .hbtn:hover{border-color:var(--now); color:var(--now);}
+  .hbtn:focus-visible{outline:2px solid var(--now); outline-offset:2px;}
+  .readout{
+    font: 12px/1.5 ui-monospace, "SF Mono", Menlo, monospace;
+    color:var(--muted); min-width:280px; text-align:right;
+  }
+  .readout b{color:var(--ink); font-weight:600;}
+  .stage{position:relative; flex:1; min-height:0;}
+  .scroller{
+    position:absolute; inset:0; overflow:auto;
+    scrollbar-color: #c9c4b8 transparent;
+    display:flex;
+  }
+  #track{flex:0 0 auto; margin:auto 0; position:relative; cursor:crosshair;}
+  canvas{display:block;}
+  .city-tags{position:absolute; left:0; top:0; pointer-events:none;}
+  .city-tag{
+    position:absolute; left:14px;
+    font: 600 11px/1 system-ui, sans-serif; letter-spacing:.14em;
+    color:var(--ink); text-transform:uppercase;
+    background:rgba(246,244,239,.85); backdrop-filter: blur(3px);
+    border:1px solid var(--line); border-radius:6px;
+    padding:6px 9px; white-space:nowrap;
+  }
+  .city-tag small{display:block; margin-top:4px; font:400 10px/1 ui-monospace,monospace; letter-spacing:.03em; color:var(--muted); text-transform:none;}
+  .marker{position:absolute; top:0; pointer-events:none; z-index:5;}
+  .marker-line{position:absolute; left:-1px; top:5px; bottom:8px; width:2px; background:var(--pin); z-index:1;}
+  .marker-x{
+    pointer-events:auto; position:absolute; top:-3px; left:-10px;
+    width:20px; height:20px; border-radius:50%;
+    border:1px solid var(--pin); background:#fff; color:var(--pin);
+    font:600 12px/1 system-ui, sans-serif; cursor:pointer; padding:0;
+    z-index:2;
+  }
+  .marker-x:hover{background:var(--pin); color:#fff;}
+  .marker-x:focus-visible{outline:2px solid var(--pin); outline-offset:2px;}
+  .marker-hit{
+    pointer-events:auto; position:absolute; left:-7px; top:15px; bottom:8px;
+    width:14px; cursor:grab; touch-action:none;
+  }
+  .marker-chip{
+    position:absolute; left:9px; transform:translateY(-50%);
+    background:var(--pin); color:#fff; white-space:nowrap;
+    pointer-events:auto; cursor:grab; touch-action:none;
+    font:11px/1 ui-monospace, "SF Mono", Menlo, monospace;
+    padding:5px 8px; border-radius:5px; box-shadow:0 1px 4px rgba(20,40,90,.35);
+  }
+  .marker.dragging .marker-hit, .marker.dragging .marker-chip{cursor:grabbing;}
+  .marker.flip .marker-chip{left:auto; right:9px;}
+  footer{
+    padding:10px 22px; border-top:1px solid var(--line);
+    font-size:11px; color:var(--muted); display:flex; gap:18px; flex-wrap:wrap;
+  }
+  .key{display:inline-flex; align-items:center; gap:6px;}
+  .chip{width:22px; height:10px; border-radius:3px; display:inline-block;}
+  .chip.day{background:linear-gradient(90deg,#e8b04b,#c5e2f0,#e8b04b);}
+  .chip.night{background:linear-gradient(90deg,#0a0f26,#131f45); border:1px solid rgba(43,46,51,.2);}
+  .chip.nowc{width:3px; height:12px; border-radius:1px; background:var(--now);}
+  /* ---------- city modal ---------- */
+  dialog#cityModal{
+    margin:auto;
+    border:1px solid var(--line); border-radius:12px;
+    background:var(--bg); color:var(--ink);
+    width:min(420px, calc(100vw - 40px));
+    padding:20px 20px 16px;
+    box-shadow:0 12px 40px rgba(20,22,26,.25);
+  }
+  dialog#cityModal::backdrop{background:rgba(20,22,26,.35);}
+  .modal-head{display:flex; align-items:center; justify-content:space-between; margin-bottom:14px;}
+  .modal-head h2{font-size:14px; letter-spacing:.03em;}
+  .city-rows{list-style:none; margin-bottom:14px;}
+  .city-rows li{
+    display:flex; align-items:center; gap:10px;
+    padding:8px 10px; border:1px solid var(--line); border-radius:8px;
+    margin-bottom:6px; background:rgba(255,255,255,.5);
+    cursor:grab; touch-action:none; user-select:none; -webkit-user-select:none;
+  }
+  .city-rows li.drag-row{
+    cursor:grabbing; opacity:.95; position:relative; z-index:2;
+    border-color:var(--pin); box-shadow:0 4px 14px rgba(20,22,26,.18);
+    background:#fff;
+  }
+  .city-rows .grip{color:rgba(43,46,51,.35); font-size:11px; letter-spacing:.5px;}
+  .city-rows .cname{font-weight:600; font-size:13px;}
+  .city-rows .ctz{font:11px ui-monospace,monospace; color:var(--muted); flex:1;}
+  .row-x{
+    border:none; background:transparent; color:var(--muted);
+    font:600 14px/1 system-ui; cursor:pointer; padding:4px 6px; border-radius:6px;
+  }
+  .row-x:hover:not(:disabled){color:var(--now); background:rgba(232,66,95,.1);}
+  .row-x:disabled{opacity:.3; cursor:default;}
+  .search-wrap{position:relative;}
+  #citySearch, .manual-box input{
+    width:100%; padding:8px 10px; font-size:13px;
+    border:1px solid rgba(43,46,51,.3); border-radius:8px;
+    background:#fff; color:var(--ink);
+  }
+  #citySearch:focus, .manual-box input:focus{outline:2px solid var(--pin); outline-offset:-1px;}
+  .results{
+    position:absolute; left:0; right:0; top:calc(100% + 4px); z-index:10;
+    background:#fff; border:1px solid var(--line); border-radius:8px;
+    box-shadow:0 6px 20px rgba(20,22,26,.15); overflow:hidden;
+    max-height:220px; overflow-y:auto;
+  }
+  .results button{
+    display:flex; width:100%; gap:8px; align-items:baseline;
+    padding:8px 10px; border:none; background:transparent; cursor:pointer;
+    font-size:13px; color:var(--ink); text-align:left;
+  }
+  .results button:hover{background:rgba(47,111,228,.08);}
+  .results .rtz{font:10px ui-monospace,monospace; color:var(--muted); margin-left:auto;}
+  .manual-box{margin-top:12px; font-size:12px; color:var(--muted);}
+  .manual-box summary{cursor:pointer; padding:4px 0;}
+  .manual-box .grid{display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-top:10px;}
+  .manual-box label{display:flex; flex-direction:column; gap:4px; font-size:11px;}
+  .manual-box label.wide{grid-column:1 / -1;}
+  .m-add{
+    grid-column:1 / -1; padding:8px; border-radius:8px; cursor:pointer;
+    border:1px solid var(--pin); background:var(--pin); color:#fff; font-size:12px;
+  }
+  .m-add:hover{background:#2559ba;}
+  .m-err{grid-column:1 / -1; color:var(--now); font-size:11px; min-height:14px;}
+  .cap-note{margin-top:12px; font-size:11px; color:var(--muted);}
+</style>
+</head>
+<body>
+<header>
+  <h1 id="title"></h1>
+  <span class="sub">daylight &amp; darkness, hour by hour · scroll sideways · click to pin a time, drag to move it</span>
+  <span class="spacer"></span>
+  <span class="readout" id="readout"></span>
+  <button class="hbtn" id="cityBtn" type="button">✎ cities</button>
+  <button class="hbtn" id="nowBtn" type="button">◉ now</button>
+</header>
+
+<div class="stage">
+  <div class="scroller" id="scroller">
+    <div id="track"></div>
+  </div>
+  <div class="city-tags" id="tags"></div>
+</div>
+
+<footer>
+  <span class="key"><span class="chip day"></span> daylight (gold = sunrise / sunset)</span>
+  <span class="key"><span class="chip night"></span> night</span>
+  <span class="key"><span class="chip nowc"></span> current moment</span>
+  <span class="key"><span class="chip nowc" style="background:var(--pin);"></span> pinned marker (click timeline to add, ✕ to remove)</span>
+  <span>times shown in each city's own clock · sun times computed for city coordinates</span>
+</footer>
+
+<dialog id="cityModal">
+  <div class="modal-head">
+    <h2>Edit cities</h2>
+    <button class="hbtn" id="modalDone" type="button">done</button>
+  </div>
+  <ul class="city-rows" id="cityRows"></ul>
+  <div id="addWrap">
+    <div class="search-wrap">
+      <input id="citySearch" placeholder="Add a city — search…" autocomplete="off" aria-label="Search cities">
+      <div class="results" id="searchResults" hidden></div>
+    </div>
+    <details class="manual-box" id="manualBox">
+      <summary>Can't find it? Add manually</summary>
+      <div class="grid">
+        <label class="wide">City name <input id="mName" placeholder="e.g. Tromsø"></label>
+        <label class="wide">IANA time zone <input id="mTz" list="tzList" placeholder="e.g. Europe/Oslo"></label>
+        <datalist id="tzList"></datalist>
+        <label>Latitude <input id="mLat" type="number" step="0.0001" min="-90" max="90" placeholder="59.91"></label>
+        <label>Longitude <input id="mLng" type="number" step="0.0001" min="-180" max="180" placeholder="10.75"></label>
+        <button class="m-add" id="mAdd" type="button">Add city</button>
+        <div class="m-err" id="mErr"></div>
+      </div>
+    </details>
+  </div>
+  <div class="cap-note" id="capNote"></div>
+</dialog>
+
+<script>
+'use strict';
+/* ---------- solar math (SunCalc-style, ±1–2 min) ---------- */
+const RAD = Math.PI/180, DAY = 86400000, J1970 = 2440588, J2000 = 2451545;
+const toJulian = t => t/DAY - 0.5 + J1970;
+const fromJulian = j => (j + 0.5 - J1970) * DAY;
+const OBL = RAD * 23.4397;
+function sunTimes(ts, lat, lng){
+  const lw = RAD * -lng, phi = RAD * lat;
+  const d = toJulian(ts) - J2000;
+  const n = Math.round(d - 0.0009 - lw/(2*Math.PI));
+  const ds = 0.0009 + lw/(2*Math.PI) + n;
+  const M = RAD * (357.5291 + 0.98560028 * ds);
+  const C = RAD * (1.9148*Math.sin(M) + 0.02*Math.sin(2*M) + 0.0003*Math.sin(3*M));
+  const L = M + C + RAD*102.9372 + Math.PI;
+  const dec = Math.asin(Math.sin(L)*Math.sin(OBL));
+  const Jnoon = J2000 + ds + 0.0053*Math.sin(M) - 0.0069*Math.sin(2*L);
+  const cosH = (Math.sin(RAD*-0.833) - Math.sin(phi)*Math.sin(dec)) / (Math.cos(phi)*Math.cos(dec));
+  if (cosH < -1 || cosH > 1) return null;
+  const w = Math.acos(cosH);
+  const Jset = J2000 + (0.0009 + (w + lw)/(2*Math.PI) + n) + 0.0053*Math.sin(M) - 0.0069*Math.sin(2*L);
+  return { rise: fromJulian(Jnoon - (Jset - Jnoon)), set: fromJulian(Jset) };
+}
+
+/* ---------- timezone helpers via Intl ---------- */
+function tzParts(ts, tz){
+  const f = new Intl.DateTimeFormat('en-US', {timeZone:tz, hour12:false,
+    year:'numeric', month:'2-digit', day:'2-digit',
+    hour:'2-digit', minute:'2-digit', second:'2-digit', weekday:'short'});
+  const o = {};
+  for (const p of f.formatToParts(ts)) o[p.type] = p.value;
+  return o;
+}
+function tzOffsetMs(ts, tz){
+  const p = tzParts(ts, tz);
+  const asUTC = Date.UTC(+p.year, +p.month-1, +p.day, (+p.hour)%24, +p.minute, +p.second);
+  return asUTC - ts;
+}
+function localMidnight(ts, tz){
+  const p = tzParts(ts, tz);
+  let guess = Date.UTC(+p.year, +p.month-1, +p.day) - tzOffsetMs(ts, tz);
+  guess = Date.UTC(+p.year, +p.month-1, +p.day) - tzOffsetMs(guess, tz);
+  return guess;
+}
+const fmtClock = (ts, tz) => new Date(ts).toLocaleTimeString('en-US',
+  {timeZone: tz, hour:'numeric', minute:'2-digit'});
+const fmtShort = (ts, tz) => new Date(ts).toLocaleTimeString('en-US',
+  {timeZone: tz, hour:'numeric', minute:'2-digit'}).replace(' ','').toLowerCase();
+
+/* ---------- curated city list: [name, country, tz, lat, lng, code?] ---------- */
+const CITY_LIST = [
+["Seattle","USA","America/Los_Angeles",47.61,-122.33,"SEA"],
+["Portland","USA","America/Los_Angeles",45.52,-122.68,"PDX"],
+["San Francisco","USA","America/Los_Angeles",37.77,-122.42,"SFO"],
+["Los Angeles","USA","America/Los_Angeles",34.05,-118.24,"LAX"],
+["San Diego","USA","America/Los_Angeles",32.72,-117.16,"SAN"],
+["Las Vegas","USA","America/Los_Angeles",36.17,-115.14,"LAS"],
+["Phoenix","USA","America/Phoenix",33.45,-112.07,"PHX"],
+["Denver","USA","America/Denver",39.74,-104.99,"DEN"],
+["Salt Lake City","USA","America/Denver",40.76,-111.89,"SLC"],
+["Austin","USA","America/Chicago",30.27,-97.74,"AUS"],
+["Dallas","USA","America/Chicago",32.78,-96.80,"DAL"],
+["Houston","USA","America/Chicago",29.76,-95.37,"HOU"],
+["Chicago","USA","America/Chicago",41.88,-87.63,"CHI"],
+["Minneapolis","USA","America/Chicago",44.98,-93.27,"MSP"],
+["St. Louis","USA","America/Chicago",38.63,-90.20,"STL"],
+["Nashville","USA","America/Chicago",36.16,-86.78,"BNA"],
+["New Orleans","USA","America/Chicago",29.95,-90.07,"MSY"],
+["Detroit","USA","America/Detroit",42.33,-83.05,"DTW"],
+["Atlanta","USA","America/New_York",33.75,-84.39,"ATL"],
+["Miami","USA","America/New_York",25.76,-80.19,"MIA"],
+["Orlando","USA","America/New_York",28.54,-81.38,"MCO"],
+["Boston","USA","America/New_York",42.36,-71.06,"BOS"],
+["New York","USA","America/New_York",40.71,-74.01,"NYC"],
+["Philadelphia","USA","America/New_York",39.95,-75.17,"PHL"],
+["Washington, DC","USA","America/New_York",38.91,-77.04,"DCA"],
+["Anchorage","USA","America/Anchorage",61.22,-149.90,"ANC"],
+["Honolulu","USA","Pacific/Honolulu",21.31,-157.86,"HNL"],
+["Vancouver","Canada","America/Vancouver",49.28,-123.12,"YVR"],
+["Calgary","Canada","America/Edmonton",51.05,-114.07,"YYC"],
+["Winnipeg","Canada","America/Winnipeg",49.90,-97.14,"YWG"],
+["Toronto","Canada","America/Toronto",43.65,-79.38,"YYZ"],
+["Montreal","Canada","America/Toronto",45.50,-73.57,"YUL"],
+["Halifax","Canada","America/Halifax",44.65,-63.58,"YHZ"],
+["Mexico City","Mexico","America/Mexico_City",19.43,-99.13,"MEX"],
+["Guadalajara","Mexico","America/Mexico_City",20.67,-103.35,"GDL"],
+["Monterrey","Mexico","America/Monterrey",25.69,-100.32,"MTY"],
+["Guatemala City","Guatemala","America/Guatemala",14.63,-90.51,"GUA"],
+["San José","Costa Rica","America/Costa_Rica",9.93,-84.08,"SJO"],
+["Panama City","Panama","America/Panama",8.98,-79.52,"PTY"],
+["Bogotá","Colombia","America/Bogota",4.71,-74.07,"BOG"],
+["Quito","Ecuador","America/Guayaquil",-0.18,-78.47,"UIO"],
+["Lima","Peru","America/Lima",-12.05,-77.04,"LIM"],
+["Santiago","Chile","America/Santiago",-33.45,-70.67,"SCL"],
+["Buenos Aires","Argentina","America/Argentina/Buenos_Aires",-34.60,-58.38,"BUE"],
+["Montevideo","Uruguay","America/Montevideo",-34.90,-56.16,"MVD"],
+["São Paulo","Brazil","America/Sao_Paulo",-23.55,-46.63,"SAO"],
+["Rio de Janeiro","Brazil","America/Sao_Paulo",-22.91,-43.17,"RIO"],
+["Brasília","Brazil","America/Sao_Paulo",-15.79,-47.88,"BSB"],
+["Recife","Brazil","America/Recife",-8.05,-34.88,"REC"],
+["Reykjavík","Iceland","Atlantic/Reykjavik",64.15,-21.94,"REK"],
+["Dublin","Ireland","Europe/Dublin",53.35,-6.26,"DUB"],
+["London","UK","Europe/London",51.51,-0.13,"LON"],
+["Lisbon","Portugal","Europe/Lisbon",38.72,-9.14,"LIS"],
+["Madrid","Spain","Europe/Madrid",40.42,-3.70,"MAD"],
+["Barcelona","Spain","Europe/Madrid",41.39,2.17,"BCN"],
+["Paris","France","Europe/Paris",48.86,2.35,"PAR"],
+["Brussels","Belgium","Europe/Brussels",50.85,4.35,"BRU"],
+["Amsterdam","Netherlands","Europe/Amsterdam",52.37,4.90,"AMS"],
+["Copenhagen","Denmark","Europe/Copenhagen",55.68,12.57,"CPH"],
+["Oslo","Norway","Europe/Oslo",59.91,10.75,"OSL"],
+["Stockholm","Sweden","Europe/Stockholm",59.33,18.07,"STO"],
+["Helsinki","Finland","Europe/Helsinki",60.17,24.94,"HEL"],
+["Berlin","Germany","Europe/Berlin",52.52,13.41,"BER"],
+["Frankfurt","Germany","Europe/Berlin",50.11,8.68,"FRA"],
+["Munich","Germany","Europe/Berlin",48.14,11.58,"MUC"],
+["Zurich","Switzerland","Europe/Zurich",47.37,8.54,"ZRH"],
+["Geneva","Switzerland","Europe/Zurich",46.20,6.14,"GVA"],
+["Vienna","Austria","Europe/Vienna",48.21,16.37,"VIE"],
+["Prague","Czechia","Europe/Prague",50.08,14.44,"PRG"],
+["Warsaw","Poland","Europe/Warsaw",52.23,21.01,"WAW"],
+["Budapest","Hungary","Europe/Budapest",47.50,19.04,"BUD"],
+["Rome","Italy","Europe/Rome",41.90,12.50,"ROM"],
+["Milan","Italy","Europe/Rome",45.46,9.19,"MIL"],
+["Athens","Greece","Europe/Athens",37.98,23.73,"ATH"],
+["Istanbul","Türkiye","Europe/Istanbul",41.01,28.98,"IST"],
+["Bucharest","Romania","Europe/Bucharest",44.43,26.10,"BUH"],
+["Kyiv","Ukraine","Europe/Kyiv",50.45,30.52,"KYV"],
+["Moscow","Russia","Europe/Moscow",55.76,37.62,"MOW"],
+["Casablanca","Morocco","Africa/Casablanca",33.57,-7.59,"CMN"],
+["Cairo","Egypt","Africa/Cairo",30.04,31.24,"CAI"],
+["Lagos","Nigeria","Africa/Lagos",6.52,3.38,"LOS"],
+["Accra","Ghana","Africa/Accra",5.60,-0.19,"ACC"],
+["Nairobi","Kenya","Africa/Nairobi",-1.29,36.82,"NBO"],
+["Addis Ababa","Ethiopia","Africa/Addis_Ababa",9.01,38.75,"ADD"],
+["Johannesburg","South Africa","Africa/Johannesburg",-26.20,28.05,"JNB"],
+["Cape Town","South Africa","Africa/Johannesburg",-33.92,18.42,"CPT"],
+["Jerusalem","Israel","Asia/Jerusalem",31.77,35.21,"JRS"],
+["Riyadh","Saudi Arabia","Asia/Riyadh",24.71,46.68,"RUH"],
+["Doha","Qatar","Asia/Qatar",25.29,51.53,"DOH"],
+["Dubai","UAE","Asia/Dubai",25.20,55.27,"DXB"],
+["Abu Dhabi","UAE","Asia/Dubai",24.45,54.38,"AUH"],
+["Tehran","Iran","Asia/Tehran",35.69,51.39,"THR"],
+["Baghdad","Iraq","Asia/Baghdad",33.31,44.37,"BGW"],
+["Karachi","Pakistan","Asia/Karachi",24.86,67.01,"KHI"],
+["Mumbai","India","Asia/Kolkata",19.08,72.88,"BOM"],
+["Delhi","India","Asia/Kolkata",28.70,77.10,"DEL"],
+["Bengaluru","India","Asia/Kolkata",12.97,77.59,"BLR"],
+["Chennai","India","Asia/Kolkata",13.08,80.27,"MAA"],
+["Kolkata","India","Asia/Kolkata",22.57,88.36,"CCU"],
+["Colombo","Sri Lanka","Asia/Colombo",6.93,79.85,"CMB"],
+["Kathmandu","Nepal","Asia/Kathmandu",27.72,85.32,"KTM"],
+["Dhaka","Bangladesh","Asia/Dhaka",23.81,90.41,"DAC"],
+["Yangon","Myanmar","Asia/Yangon",16.87,96.20,"RGN"],
+["Bangkok","Thailand","Asia/Bangkok",13.76,100.50,"BKK"],
+["Hanoi","Vietnam","Asia/Bangkok",21.03,105.85,"HAN"],
+["Ho Chi Minh City","Vietnam","Asia/Ho_Chi_Minh",10.82,106.63,"SGN"],
+["Phnom Penh","Cambodia","Asia/Phnom_Penh",11.56,104.92,"PNH"],
+["Kuala Lumpur","Malaysia","Asia/Kuala_Lumpur",3.14,101.69,"KUL"],
+["Singapore","Singapore","Asia/Singapore",1.35,103.82,"SIN"],
+["Jakarta","Indonesia","Asia/Jakarta",-6.21,106.85,"JKT"],
+["Manila","Philippines","Asia/Manila",14.60,120.98,"MNL"],
+["Hong Kong","China","Asia/Hong_Kong",22.32,114.17,"HKG"],
+["Macau","China","Asia/Macau",22.20,113.54,"MFM"],
+["Taipei","Taiwan","Asia/Taipei",25.03,121.57,"TPE"],
+["Shenzhen","China","Asia/Shanghai",22.54,114.06,"SZX"],
+["Shanghai","China","Asia/Shanghai",31.23,121.47,"SHA"],
+["Beijing","China","Asia/Shanghai",39.90,116.41,"BJS"],
+["Chengdu","China","Asia/Shanghai",30.57,104.07,"CTU"],
+["Ulaanbaatar","Mongolia","Asia/Ulaanbaatar",47.89,106.91,"ULN"],
+["Seoul","South Korea","Asia/Seoul",37.57,126.98,"SEL"],
+["Tokyo","Japan","Asia/Tokyo",35.68,139.69,"TYO"],
+["Osaka","Japan","Asia/Tokyo",34.69,135.50,"OSA"],
+["Sapporo","Japan","Asia/Tokyo",43.06,141.35,"CTS"],
+["Perth","Australia","Australia/Perth",-31.95,115.86,"PER"],
+["Adelaide","Australia","Australia/Adelaide",-34.93,138.60,"ADL"],
+["Darwin","Australia","Australia/Darwin",-12.46,130.84,"DRW"],
+["Brisbane","Australia","Australia/Brisbane",-27.47,153.03,"BNE"],
+["Sydney","Australia","Australia/Sydney",-33.87,151.21,"SYD"],
+["Melbourne","Australia","Australia/Melbourne",-37.81,144.96,"MEL"],
+["Hobart","Australia","Australia/Hobart",-42.88,147.33,"HBA"],
+["Auckland","New Zealand","Pacific/Auckland",-36.85,174.76,"AKL"],
+["Wellington","New Zealand","Pacific/Auckland",-41.29,174.78,"WLG"],
+["Christchurch","New Zealand","Pacific/Auckland",-43.53,172.64,"CHC"],
+["Suva","Fiji","Pacific/Fiji",-18.14,178.44,"SUV"],
+];
+const listToCity = r => ({name:r[0], country:r[1], tz:r[2], lat:r[3], lng:r[4], code:r[5]});
+
+/* ---------- state (persisted to localStorage when available) ---------- */
+const MAX_CITIES = 4, MIN_CITIES = 1;
+const STORAGE_KEY = 'daylight.cities.v1';
+const DEFAULT_NAMES = ['Seattle', 'Hong Kong', 'Bengaluru'];
+const defaultCities = () => DEFAULT_NAMES.map(n => listToCity(CITY_LIST.find(r => r[0] === n)));
+function loadCities(){
+  try{
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return defaultCities();
+    const arr = JSON.parse(raw);
+    if (!Array.isArray(arr) || arr.length < MIN_CITIES || arr.length > MAX_CITIES) return defaultCities();
+    const out = [];
+    for (const c of arr){
+      if (typeof c?.name !== 'string' || !c.name.trim()) return defaultCities();
+      if (typeof c.lat !== 'number' || typeof c.lng !== 'number' ||
+          Math.abs(c.lat) > 90 || Math.abs(c.lng) > 180) return defaultCities();
+      try{ new Intl.DateTimeFormat('en-US', {timeZone: c.tz}); }
+      catch(_){ return defaultCities(); }
+      out.push({name:c.name.trim(), country:c.country || '', tz:c.tz, lat:c.lat, lng:c.lng, code:c.code || null});
+    }
+    return out;
+  }catch(_){ return defaultCities(); }   // storage blocked (e.g. sandboxed preview) → defaults
+}
+function saveCities(){
+  try{
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(cities.map(c =>
+      ({name:c.name, country:c.country, tz:c.tz, lat:c.lat, lng:c.lng, code:c.code}))));
+  }catch(_){}
+}
+let cities = loadCities();
+const markers = []; // [{ts, el}]
+
+/* ---------- layout constants ---------- */
+const PX_PER_HOUR = 56;
+const PX_PER_MS = PX_PER_HOUR / 3600000;
+const DAYS_BACK = 3, DAYS_FWD = 12;
+const LABEL_H = 26, BAR_H = 92, GAP = 30, PAD_TOP = 16, PAD_BOT = 14;
+const CITY_H = LABEL_H + BAR_H;
+const NOW = Date.now();
+const SNAP = 300000; // 5 minutes
+
+let startT, endT, WIDTH, HEIGHT;
+const xOf = ts => (ts - startT) * PX_PER_MS;
+const tOf = x  => startT + x / PX_PER_MS;
+
+const scroller = document.getElementById('scroller');
+const track = document.getElementById('track');
+const tags = document.getElementById('tags');
+const readout = document.getElementById('readout');
+
+const COL = {
+  nightA:'#0a0f26', nightB:'#101c3f',
+  dawn:'#e8a94a', dawnHot:'#f2c168',
+  day:'#c5e2f0', dayHigh:'#dcedf7',
+  inkOnDay:'rgba(24,38,58,.78)', inkOnNight:'rgba(168,187,224,.72)',
+  tickOnDay:'rgba(24,38,58,.35)', tickOnNight:'rgba(168,187,224,.28)',
+};
+function mulberry32(a){ return function(){ a|=0; a=a+0x6D2B79F5|0;
+  let t=Math.imul(a^a>>>15,1|a); t=t+Math.imul(t^t>>>7,61|t)^t;
+  return ((t^t>>>14)>>>0)/4294967296; }; }
+
+/* ---------- drawing (one canvas per city; top=0 within each canvas) ---------- */
+function drawCity(ctx, c){
+  const top = 0, barTop = LABEL_H;
+  const ramp = 0.62 * 3600000;
+
+  const g = ctx.createLinearGradient(0, 0, WIDTH, 0);
+  const stop = (ts, col) => { const p = (ts-startT)/(endT-startT);
+    if (p>=0 && p<=1) g.addColorStop(p, col); };
+  g.addColorStop(0, c.isDay(startT) ? COL.day : COL.nightA);
+  for (const e of c.events){
+    stop(e.rise - ramp, COL.nightB);
+    stop(e.rise,        COL.dawn);
+    stop(e.rise + ramp*.55, COL.dawnHot);
+    stop(e.rise + ramp*1.6, COL.day);
+    stop((e.rise+e.set)/2,  COL.dayHigh);
+    stop(e.set - ramp*1.6,  COL.day);
+    stop(e.set - ramp*.55,  COL.dawnHot);
+    stop(e.set,             COL.dawn);
+    stop(e.set + ramp,      COL.nightB);
+    stop(e.set + ramp*2.2,  COL.nightA);
+  }
+  g.addColorStop(1, c.isDay(endT) ? COL.day : COL.nightA);
+  ctx.fillStyle = g;
+  ctx.fillRect(0, barTop, WIDTH, BAR_H);
+
+  /* stars */
+  const rand = mulberry32(c.name.length * 7919 + c.tz.length);
+  const nightSpans = [];
+  let prevSet = startT - DAY;
+  for (const e of c.events){
+    nightSpans.push([prevSet + ramp*2, e.rise - ramp]);
+    prevSet = e.set;
+  }
+  nightSpans.push([prevSet + ramp*2, endT]);
+  ctx.fillStyle = 'rgba(210,224,255,.55)';
+  for (const [a,b] of nightSpans){
+    if (b <= startT || a >= endT) continue;
+    const x0 = Math.max(0, xOf(a)), x1 = Math.min(WIDTH, xOf(b));
+    const count = Math.floor((x1-x0)/26);
+    for (let i=0;i<count;i++){
+      const sx = x0 + rand()*(x1-x0);
+      const sy = barTop + 6 + rand()*(BAR_H-18);
+      const r  = rand() < .12 ? 1.2 : .6;
+      ctx.globalAlpha = .25 + rand()*.5;
+      ctx.beginPath(); ctx.arc(sx, sy, r, 0, 7); ctx.fill();
+    }
+  }
+  ctx.globalAlpha = 1;
+
+  /* midnight markers with flanking day/date labels */
+  ctx.textBaseline = 'middle';
+  const todayP = tzParts(NOW, c.tz);
+  const todayKey = `${+todayP.month}/${+todayP.day}`;
+  const dayLbl = p => `${p.weekday.toUpperCase()} ${+p.month}/${+p.day}`;
+  const dayCol = p => {
+    const key = `${+p.month}/${+p.day}`;
+    const wknd = p.weekday === 'Sat' || p.weekday === 'Sun';
+    return key === todayKey ? '#b0720a' : (wknd ? 'rgba(106,79,173,.9)' : 'rgba(43,46,51,.85)');
+  };
+  let m = localMidnight(startT, c.tz);
+  while (m < endT){
+    const next = localMidnight(m + DAY + 3600000, c.tz);
+    const x = xOf(m);
+    if (x >= 0 && x <= WIDTH){
+      ctx.strokeStyle = 'rgba(140,160,200,.35)';
+      ctx.setLineDash([2,4]);
+      ctx.beginPath(); ctx.moveTo(x+.5, barTop); ctx.lineTo(x+.5, barTop+BAR_H); ctx.stroke();
+      ctx.setLineDash([]);
+
+      const cy = top + LABEL_H/2;
+      ctx.fillStyle = 'rgba(43,46,51,.55)';
+      ctx.save();
+      ctx.translate(x, cy); ctx.rotate(Math.PI/4);
+      ctx.fillRect(-2.6, -2.6, 5.2, 5.2);
+      ctx.restore();
+      ctx.strokeStyle = 'rgba(43,46,51,.3)';
+      ctx.beginPath(); ctx.moveTo(x+.5, cy+5); ctx.lineTo(x+.5, top+LABEL_H); ctx.stroke();
+
+      const pl = tzParts(m - 3600000, c.tz);
+      const pr = tzParts(m + 3600000, c.tz);
+      ctx.font = '600 11px system-ui, sans-serif';
+      const lt = dayLbl(pl), rt = dayLbl(pr);
+      if (x - 12 - ctx.measureText(lt).width >= 0){
+        ctx.textAlign = 'right';
+        ctx.fillStyle = dayCol(pl);
+        ctx.fillText(lt, x - 12, cy);
+      }
+      if (x + 12 + ctx.measureText(rt).width <= WIDTH){
+        ctx.textAlign = 'left';
+        ctx.fillStyle = dayCol(pr);
+        ctx.fillText(rt, x + 12, cy);
+      }
+    }
+    m = next;
+  }
+
+  /* hour ticks */
+  let h = localMidnight(startT, c.tz);
+  while (h < endT){
+    const off = tzOffsetMs(h, c.tz);
+    const localHour = Math.round(((h + off) % DAY)/3600000) % 24;
+    const x = xOf(h);
+    if (x >= 0 && x <= WIDTH && localHour % 3 === 0 && localHour !== 0){
+      const day = c.isDay(h);
+      ctx.strokeStyle = day ? COL.tickOnDay : COL.tickOnNight;
+      ctx.beginPath(); ctx.moveTo(x+.5, barTop+BAR_H-10); ctx.lineTo(x+.5, barTop+BAR_H-4); ctx.stroke();
+      if (localHour % 6 === 0){
+        ctx.font = '10px ui-monospace, Menlo, monospace';
+        ctx.fillStyle = day ? COL.inkOnDay : COL.inkOnNight;
+        ctx.textAlign = 'center';
+        ctx.fillText(localHour === 12 ? 'noon' : String(localHour).padStart(2,'0'), x, barTop+BAR_H-18);
+      }
+    }
+    h += 3600000;
+  }
+
+  /* sunrise / sunset tags */
+  ctx.font = '10px ui-monospace, Menlo, monospace';
+  ctx.textAlign = 'left';
+  for (const e of c.events){
+    const rx = xOf(e.rise), sx = xOf(e.set);
+    if (rx > 0 && rx < WIDTH){
+      ctx.fillStyle = 'rgba(24,38,58,.85)';
+      ctx.fillText('↑' + fmtShort(e.rise, c.tz), rx + 5, barTop + 13);
+    }
+    if (sx > 0 && sx < WIDTH){
+      ctx.fillStyle = 'rgba(24,38,58,.85)';
+      ctx.textAlign = 'right';
+      ctx.fillText(fmtShort(e.set, c.tz) + '↓', sx - 5, barTop + 13);
+      ctx.textAlign = 'left';
+    }
+  }
+}
+
+/* ---------- rebuild everything from the cities array ---------- */
+function rebuild(){
+  startT = localMidnight(NOW, cities[0].tz) - DAYS_BACK*DAY;
+  endT   = startT + (DAYS_BACK + DAYS_FWD)*DAY;
+  WIDTH  = Math.round((endT - startT) * PX_PER_MS);
+  HEIGHT = PAD_TOP + cities.length*CITY_H + (cities.length-1)*GAP + PAD_BOT;
+
+  /* unique display codes */
+  const seen = new Set();
+  for (const c of cities){
+    let code = c.code || c.name.replace(/[^A-Za-z]/g,'').slice(0,3).toUpperCase() || 'CTY';
+    let u = code, i = 2;
+    while (seen.has(u)) u = code.slice(0,2) + i++;
+    seen.add(u);
+    c.dcode = u;
+  }
+
+  /* sun events */
+  for (const c of cities){
+    c.events = [];
+    let t = localMidnight(startT, c.tz) - DAY;
+    while (t < endT + DAY){
+      const st = sunTimes(t + DAY/2, c.lat, c.lng);
+      if (st && !c.events.some(e => Math.abs(e.rise - st.rise) < 60000)) c.events.push(st);
+      t += DAY;
+    }
+    c.events.sort((a,b)=>a.rise-b.rise);
+    c.isDay = ts => c.events.some(e => ts >= e.rise && ts <= e.set);
+  }
+
+  /* canvases */
+  track.innerHTML = '';
+  tags.innerHTML = '';
+  track.style.width = WIDTH + 'px';
+  track.style.height = HEIGHT + 'px';
+  const DPR = Math.min(window.devicePixelRatio || 1, 2);
+  const nx = xOf(NOW);
+  let topCursor = PAD_TOP;
+  for (let i = 0; i < cities.length; i++){
+    const c = cities[i];
+    c.top = topCursor;
+    const cv = document.createElement('canvas');
+    cv.width = WIDTH * DPR; cv.height = CITY_H * DPR;
+    cv.style.cssText = `position:absolute; left:0; top:${topCursor}px; width:${WIDTH}px; height:${CITY_H}px;`;
+    track.appendChild(cv);
+    const ctx = cv.getContext('2d');
+    ctx.scale(DPR, DPR);
+    drawCity(ctx, c);
+    /* now line */
+    ctx.strokeStyle = 'rgba(232,66,95,.95)';
+    ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(nx, i === 0 ? 6 : 0); ctx.lineTo(nx, CITY_H); ctx.stroke();
+    ctx.lineWidth = 1;
+    if (i === 0){
+      ctx.fillStyle = '#e8425f';
+      ctx.beginPath(); ctx.arc(nx, 6, 3.5, 0, 7); ctx.fill();
+    }
+    /* bridge through the gap below (except after last bar) */
+    if (i < cities.length - 1){
+      const bridge = document.createElement('div');
+      bridge.style.cssText = `position:absolute; left:${nx-1}px; width:2px; background:rgba(232,66,95,.95);
+        top:${topCursor+CITY_H}px; height:${GAP}px;`;
+      track.appendChild(bridge);
+    }
+    /* sticky tag */
+    const el = document.createElement('div');
+    el.className = 'city-tag';
+    el.textContent = c.name;
+    const sm = document.createElement('small');
+    sm.textContent = fmtClock(NOW, c.tz) + ' now';
+    el.appendChild(sm);
+    tags.appendChild(el);
+    c.tagEl = el;
+    topCursor += CITY_H + GAP;
+  }
+  placeTags();
+
+  /* re-render pinned markers with the current city set */
+  for (const rec of markers) renderMarker(rec);
+
+  document.getElementById('title').innerHTML =
+    cities.map(c => escapeHtml(c.name)).join(' <span class="swap">⇄</span> ');
+  setReadout(NOW);
+  saveCities();
+}
+function escapeHtml(s){ return s.replace(/[&<>"']/g, ch =>
+  ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch])); }
+
+function placeTags(){
+  const offset = track.offsetTop - scroller.scrollTop;
+  for (const c of cities) if (c.tagEl)
+    c.tagEl.style.top = (offset + c.top + LABEL_H + 10) + 'px';
+}
+window.addEventListener('resize', placeTags);
+scroller.addEventListener('scroll', placeTags);
+
+/* ---------- readout & scrolling ---------- */
+function setReadout(ts){
+  readout.innerHTML = cities.map(c =>
+    `${c.dcode} <b>${fmtClock(ts, c.tz)}</b> ${tzParts(ts, c.tz).weekday}`
+  ).join(' &nbsp;·&nbsp; ');
+}
+function jumpToNow(smooth){
+  scroller.scrollTo({ left: Math.max(0, xOf(Date.now()) - scroller.clientWidth*0.38),
+                      behavior: smooth ? 'smooth' : 'auto' });
+}
+document.getElementById('nowBtn').addEventListener('click', ()=>jumpToNow(true));
+scroller.addEventListener('mousemove', ev=>{
+  const rect = scroller.getBoundingClientRect();
+  setReadout(tOf(ev.clientX - rect.left + scroller.scrollLeft));
+});
+scroller.addEventListener('mouseleave', ()=>setReadout(Date.now()));
+
+/* ---------- pinned time markers (click to add, drag to move) ---------- */
+function renderMarker(rec){
+  if (rec.el) rec.el.remove();
+  const el = document.createElement('div');
+  rec.el = el;
+  el.className = 'marker';
+  el.style.height = HEIGHT + 'px';
+
+  const xb = document.createElement('button');
+  xb.className = 'marker-x'; xb.type = 'button'; xb.textContent = '×';
+  xb.setAttribute('aria-label', 'Remove time marker');
+  xb.addEventListener('click', e => {
+    e.stopPropagation();
+    el.remove();
+    const i = markers.indexOf(rec);
+    if (i > -1) markers.splice(i, 1);
+  });
+  el.appendChild(xb);
+
+  const line = document.createElement('div');
+  line.className = 'marker-line';
+  el.appendChild(line);
+
+  const hit = document.createElement('div');
+  hit.className = 'marker-hit';
+  hit.title = 'Drag to move';
+  el.appendChild(hit);
+
+  const chips = [];
+  for (const c of cities){
+    const chip = document.createElement('div');
+    chip.className = 'marker-chip';
+    chip.style.top = (c.top + LABEL_H + BAR_H/2) + 'px';
+    el.appendChild(chip);
+    chips.push({ chip, c });
+  }
+
+  function setTime(t){
+    rec.ts = t;
+    const x = xOf(rec.ts);
+    el.style.left = x + 'px';
+    el.classList.toggle('flip', x > WIDTH - 190);
+    for (const { chip, c } of chips){
+      chip.textContent = `${c.dcode} ${fmtClock(rec.ts, c.tz)} ${tzParts(rec.ts, c.tz).weekday}`;
+    }
+  }
+  setTime(rec.ts);
+
+  let dragging = false, grabOffset = 0;
+  function onDown(e){
+    if (e.button !== undefined && e.button !== 0) return;
+    e.stopPropagation(); e.preventDefault();
+    dragging = true;
+    const rect = track.getBoundingClientRect();
+    grabOffset = xOf(rec.ts) - (e.clientX - rect.left);
+    el.classList.add('dragging');
+    e.currentTarget.setPointerCapture(e.pointerId);
+  }
+  function onMove(e){
+    if (!dragging) return;
+    const rect = track.getBoundingClientRect();
+    const x = Math.min(Math.max(e.clientX - rect.left + grabOffset, 0), WIDTH);
+    const t = Math.round(tOf(x) / SNAP) * SNAP;
+    setTime(t);
+    setReadout(t);
+  }
+  function onUp(){
+    if (!dragging) return;
+    dragging = false;
+    el.classList.remove('dragging');
+  }
+  for (const h of [hit, ...chips.map(o => o.chip)]){
+    h.addEventListener('pointerdown', onDown);
+    h.addEventListener('pointermove', onMove);
+    h.addEventListener('pointerup', onUp);
+    h.addEventListener('pointercancel', onUp);
+    h.addEventListener('click', e => e.stopPropagation());
+  }
+  track.appendChild(el);
+}
+function addMarker(ts){
+  ts = Math.round(ts / SNAP) * SNAP;
+  if (xOf(ts) < 0 || xOf(ts) > WIDTH) return;
+  const rec = { ts, el: null };
+  markers.push(rec);
+  renderMarker(rec);
+}
+track.addEventListener('click', ev => {
+  const rect = track.getBoundingClientRect();
+  addMarker(tOf(ev.clientX - rect.left));
+});
+
+/* ---------- city modal ---------- */
+const modal = document.getElementById('cityModal');
+const cityRows = document.getElementById('cityRows');
+const searchInput = document.getElementById('citySearch');
+const resultsBox = document.getElementById('searchResults');
+const capNote = document.getElementById('capNote');
+const mErr = document.getElementById('mErr');
+
+document.getElementById('cityBtn').addEventListener('click', ()=>{
+  refreshModal();
+  modal.showModal();
+});
+document.getElementById('modalDone').addEventListener('click', ()=> modal.close());
+modal.addEventListener('click', e => {           // click on backdrop closes
+  if (e.target === modal) modal.close();
+});
+
+/* populate IANA tz datalist for the manual form */
+try{
+  const dl = document.getElementById('tzList');
+  for (const z of Intl.supportedValuesOf('timeZone')){
+    const o = document.createElement('option'); o.value = z; dl.appendChild(o);
+  }
+}catch(_){}
+
+function refreshModal(){
+  cityRows.innerHTML = '';
+  for (let i = 0; i < cities.length; i++){
+    const c = cities[i];
+    const li = document.createElement('li');
+    li._city = c;
+    const gr = document.createElement('span'); gr.className='grip'; gr.textContent='⠿';
+    const nm = document.createElement('span'); nm.className='cname'; nm.textContent = c.name;
+    const tz = document.createElement('span'); tz.className='ctz'; tz.textContent = c.tz;
+    const rm = document.createElement('button'); rm.className='row-x'; rm.type='button';
+    rm.textContent = '✕'; rm.setAttribute('aria-label', 'Remove ' + c.name);
+    rm.disabled = cities.length <= MIN_CITIES;
+    rm.addEventListener('click', ()=>{
+      cities.splice(cities.indexOf(c), 1);
+      rebuild(); refreshModal();
+    });
+    li.append(gr, nm, tz, rm);
+    li.addEventListener('pointerdown', e => startRowDrag(e, li));
+    cityRows.appendChild(li);
+  }
+  const atCap = cities.length >= MAX_CITIES;
+  document.getElementById('addWrap').style.display = atCap ? 'none' : '';
+  capNote.textContent = (atCap
+    ? 'Maximum of 4 cities — remove one to add another.'
+    : `${cities.length} of ${MAX_CITIES} cities.`)
+    + (cities.length > 1 ? ' Drag a row to reorder the timelines.' : '');
+  mErr.textContent = '';
+}
+
+/* drag rows to reorder the timelines (top row = top bar, anchors the date range) */
+function startRowDrag(e, li){
+  if (e.button !== undefined && e.button !== 0) return;
+  if (e.target.closest('.row-x')) return;          // ✕ is not a drag handle
+  if (cityRows.children.length < 2) return;
+  e.preventDefault();
+  li.setPointerCapture(e.pointerId);
+  li.classList.add('drag-row');
+  const startOrder = [...cityRows.children].map(x => x._city);
+
+  function move(ev){
+    const rows = [...cityRows.children];
+    const liIndex = rows.indexOf(li);
+    for (const other of rows){
+      if (other === li) continue;
+      const r = other.getBoundingClientRect();
+      const mid = r.top + r.height/2;
+      const oIndex = rows.indexOf(other);
+      if (oIndex < liIndex && ev.clientY < mid){ cityRows.insertBefore(li, other); break; }
+      if (oIndex > liIndex && ev.clientY > mid){ cityRows.insertBefore(li, other.nextSibling); break; }
+    }
+  }
+  function up(){
+    li.classList.remove('drag-row');
+    li.removeEventListener('pointermove', move);
+    li.removeEventListener('pointerup', up);
+    li.removeEventListener('pointercancel', up);
+    const newOrder = [...cityRows.children].map(x => x._city);
+    if (newOrder.some((c, i) => c !== startOrder[i])){
+      cities = newOrder;
+      rebuild(); refreshModal();
+    }
+  }
+  li.addEventListener('pointermove', move);
+  li.addEventListener('pointerup', up);
+  li.addEventListener('pointercancel', up);
+}
+
+function addCity(city){
+  if (cities.length >= MAX_CITIES) return;
+  cities.push(city);
+  rebuild(); refreshModal();
+  searchInput.value = '';
+  resultsBox.hidden = true;
+}
+
+/* search over the curated list */
+searchInput.addEventListener('input', ()=>{
+  const q = searchInput.value.trim().toLowerCase();
+  resultsBox.innerHTML = '';
+  if (!q){ resultsBox.hidden = true; return; }
+  const hits = CITY_LIST.filter(r =>
+    (r[0]+' '+r[1]+' '+r[5]).toLowerCase().includes(q) &&
+    !cities.some(c => c.name === r[0] && c.tz === r[2])
+  ).slice(0, 8);
+  if (!hits.length){ resultsBox.hidden = true; return; }
+  for (const r of hits){
+    const b = document.createElement('button');
+    b.type = 'button';
+    const nm = document.createElement('span'); nm.textContent = r[0] + ', ' + r[1];
+    const tz = document.createElement('span'); tz.className = 'rtz'; tz.textContent = r[2];
+    b.append(nm, tz);
+    b.addEventListener('click', ()=> addCity(listToCity(r)));
+    resultsBox.appendChild(b);
+  }
+  resultsBox.hidden = false;
+});
+searchInput.addEventListener('keydown', e => {
+  if (e.key === 'Enter'){
+    const first = resultsBox.querySelector('button');
+    if (first && !resultsBox.hidden) first.click();
+  }
+});
+
+/* manual fallback */
+document.getElementById('mAdd').addEventListener('click', ()=>{
+  const name = document.getElementById('mName').value.trim();
+  const tz   = document.getElementById('mTz').value.trim();
+  const lat  = parseFloat(document.getElementById('mLat').value);
+  const lng  = parseFloat(document.getElementById('mLng').value);
+  mErr.textContent = '';
+  if (!name){ mErr.textContent = 'Give the city a name.'; return; }
+  try{ new Intl.DateTimeFormat('en-US', {timeZone: tz}); }
+  catch(_){ mErr.textContent = 'Not a valid IANA time zone (e.g. Europe/Oslo).'; return; }
+  if (!isFinite(lat) || Math.abs(lat) > 90){ mErr.textContent = 'Latitude must be between −90 and 90.'; return; }
+  if (!isFinite(lng) || Math.abs(lng) > 180){ mErr.textContent = 'Longitude must be between −180 and 180.'; return; }
+  if (Math.abs(lat) > 65){ mErr.textContent = 'Polar latitudes (beyond ±65°) aren\u2019t supported — the sun math breaks down in midnight-sun territory.'; return; }
+  addCity({ name, country:'', tz, lat, lng, code:null });
+  for (const id of ['mName','mTz','mLat','mLng']) document.getElementById(id).value = '';
+});
+
+/* ---------- boot ---------- */
+rebuild();
+jumpToNow(false);
+</script>
+</body>
+</html>

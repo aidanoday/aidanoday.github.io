@@ -1,0 +1,598 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Recipe Mixer</title>
+<style>
+  :root {
+    --bg: #faf6f0;
+    --card: #ffffff;
+    --ink: #3d3229;
+    --accent: #c96f3b;
+    --accent-dark: #a8552a;
+    --soft: #efe6d9;
+    --amount: #7a8f5a;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: Georgia, 'Times New Roman', serif;
+    background: var(--bg);
+    color: var(--ink);
+    min-height: 100vh;
+  }
+  header {
+    text-align: center;
+    padding: 2.2rem 1rem 0.5rem;
+  }
+  header h1 {
+    margin: 0;
+    font-size: 2.2rem;
+    letter-spacing: 0.02em;
+  }
+  header p {
+    margin: 0.4rem 0 0;
+    color: #8a7a68;
+    font-style: italic;
+  }
+  main {
+    max-width: 960px;
+    margin: 0 auto;
+    padding: 1.5rem 1rem 3rem;
+  }
+  .inputs {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1.2rem;
+  }
+  @media (max-width: 700px) {
+    .inputs { grid-template-columns: 1fr; }
+  }
+  .panel {
+    background: var(--card);
+    border: 1px solid var(--soft);
+    border-radius: 12px;
+    padding: 1rem 1.1rem 1.2rem;
+    box-shadow: 0 2px 8px rgba(61, 50, 41, 0.06);
+    display: flex;
+    flex-direction: column;
+  }
+  .panel label {
+    font-weight: bold;
+    margin-bottom: 0.5rem;
+    font-size: 1.05rem;
+  }
+  .panel .hint {
+    font-size: 0.8rem;
+    color: #9a8b79;
+    font-family: 'Helvetica Neue', Arial, sans-serif;
+    margin-bottom: 0.5rem;
+  }
+  textarea {
+    width: 100%;
+    min-height: 240px;
+    resize: vertical;
+    border: 1px solid var(--soft);
+    border-radius: 8px;
+    padding: 0.7rem 0.8rem;
+    font-family: 'Helvetica Neue', Arial, sans-serif;
+    font-size: 0.92rem;
+    line-height: 1.5;
+    color: var(--ink);
+    background: #fffdf9;
+  }
+  textarea:focus {
+    outline: 2px solid var(--accent);
+    outline-offset: 1px;
+    border-color: transparent;
+  }
+  .actions {
+    text-align: center;
+    margin: 1.6rem 0;
+  }
+  button.mix {
+    font-family: inherit;
+    font-size: 1.15rem;
+    padding: 0.75rem 2.4rem;
+    border-radius: 999px;
+    border: none;
+    background: var(--accent);
+    color: #fff;
+    cursor: pointer;
+    box-shadow: 0 3px 10px rgba(201, 111, 59, 0.35);
+    transition: background 0.15s, transform 0.1s;
+  }
+  button.mix:hover { background: var(--accent-dark); }
+  button.mix:active { transform: scale(0.97); }
+  button.mix:disabled { opacity: 0.5; cursor: default; }
+
+  /* ---- Mixing animation ---- */
+  .mixer-stage {
+    display: none;
+    text-align: center;
+    padding: 1rem 0 0.5rem;
+  }
+  .mixer-stage.active { display: block; }
+  .mixer-stage .caption {
+    margin-top: 0.6rem;
+    font-style: italic;
+    color: #8a7a68;
+    animation: pulse 1.1s ease-in-out infinite;
+  }
+  @keyframes pulse {
+    0%, 100% { opacity: 0.55; }
+    50% { opacity: 1; }
+  }
+  .bowl-scene {
+    display: inline-block;
+    position: relative;
+    width: 220px;
+    height: 190px;
+  }
+  .spoon {
+    position: absolute;
+    left: 96px;
+    top: -4px;
+    width: 28px;
+    height: 120px;
+    transform-origin: 50% 92%;
+    animation: stir 1s ease-in-out infinite;
+    z-index: 3;
+  }
+  .spoon .handle {
+    position: absolute;
+    left: 10px;
+    top: 0;
+    width: 8px;
+    height: 82px;
+    background: linear-gradient(90deg, #b07d4f, #8a5a33);
+    border-radius: 4px;
+  }
+  .spoon .scoop {
+    position: absolute;
+    left: 2px;
+    top: 74px;
+    width: 24px;
+    height: 34px;
+    background: radial-gradient(ellipse at 35% 30%, #c99465, #8a5a33);
+    border-radius: 50% 50% 48% 48%;
+  }
+  @keyframes stir {
+    0%   { transform: translateX(-34px) rotate(-14deg); }
+    50%  { transform: translateX(34px) rotate(14deg); }
+    100% { transform: translateX(-34px) rotate(-14deg); }
+  }
+  .batter {
+    position: absolute;
+    left: 30px;
+    top: 96px;
+    width: 160px;
+    height: 26px;
+    background: #f3d9a4;
+    border-radius: 50%;
+    z-index: 2;
+    overflow: hidden;
+  }
+  .batter::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: repeating-linear-gradient(
+      90deg,
+      transparent 0 18px,
+      rgba(201, 111, 59, 0.25) 18px 26px
+    );
+    animation: swirl 1s linear infinite;
+  }
+  @keyframes swirl {
+    from { transform: translateX(0); }
+    to   { transform: translateX(-26px); }
+  }
+  .bowl {
+    position: absolute;
+    left: 20px;
+    top: 100px;
+    width: 180px;
+    height: 80px;
+    background: linear-gradient(180deg, #e8875a, var(--accent-dark));
+    border-radius: 0 0 90px 90px / 0 0 80px 80px;
+    z-index: 2;
+  }
+  .bowl::before {
+    content: "";
+    position: absolute;
+    left: -8px;
+    top: -6px;
+    width: 196px;
+    height: 16px;
+    background: #d4713f;
+    border-radius: 999px;
+  }
+  .bowl::after {
+    content: "";
+    position: absolute;
+    left: 66px;
+    bottom: -10px;
+    width: 48px;
+    height: 12px;
+    background: var(--accent-dark);
+    border-radius: 0 0 8px 8px;
+  }
+  .splash {
+    position: absolute;
+    width: 8px;
+    height: 8px;
+    background: #f3d9a4;
+    border-radius: 50%;
+    z-index: 1;
+    opacity: 0;
+  }
+  .splash.s1 { left: 40px;  top: 84px; animation: splash 1s ease-out infinite 0.1s; }
+  .splash.s2 { left: 170px; top: 80px; animation: splash 1s ease-out infinite 0.6s; }
+  .splash.s3 { left: 105px; top: 72px; animation: splash 1s ease-out infinite 0.35s; }
+  @keyframes splash {
+    0%   { opacity: 0; transform: translateY(0) scale(0.6); }
+    30%  { opacity: 1; }
+    100% { opacity: 0; transform: translateY(-26px) scale(1); }
+  }
+
+  /* ---- Results ---- */
+  .results {
+    display: none;
+    background: var(--card);
+    border: 1px solid var(--soft);
+    border-radius: 12px;
+    padding: 1.4rem 1.6rem;
+    box-shadow: 0 2px 8px rgba(61, 50, 41, 0.06);
+    animation: fadeUp 0.5s ease-out;
+  }
+  .results.active { display: block; }
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(12px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+  .results h2 {
+    margin: 0 0 1rem;
+    font-size: 1.4rem;
+    border-bottom: 2px solid var(--soft);
+    padding-bottom: 0.5rem;
+  }
+  .results ol {
+    margin: 0;
+    padding-left: 1.6rem;
+    line-height: 1.75;
+    font-size: 1.02rem;
+  }
+  .results ol li { margin-bottom: 0.7rem; }
+  .results .amt {
+    color: var(--amount);
+    font-family: 'Helvetica Neue', Arial, sans-serif;
+    font-size: 0.88em;
+    font-weight: 600;
+    white-space: nowrap;
+  }
+  .results .unmatched {
+    margin-top: 1.2rem;
+    padding-top: 0.9rem;
+    border-top: 1px dashed var(--soft);
+    font-size: 0.88rem;
+    color: #9a8b79;
+    font-family: 'Helvetica Neue', Arial, sans-serif;
+  }
+  .error-msg {
+    display: none;
+    text-align: center;
+    color: #b04a3a;
+    margin-top: -0.5rem;
+    margin-bottom: 1rem;
+    font-family: 'Helvetica Neue', Arial, sans-serif;
+    font-size: 0.9rem;
+  }
+  .error-msg.active { display: block; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Recipe Mixer</h1>
+  <p>Paste your ingredients and instructions &mdash; get one list with amounts baked in.</p>
+</header>
+
+<main>
+  <div class="inputs">
+    <div class="panel">
+      <label for="ingredients">Ingredients</label>
+      <div class="hint">One per line, e.g. &ldquo;2 cups flour&rdquo; or &ldquo;1/2 tsp vanilla extract&rdquo;</div>
+      <textarea id="ingredients" placeholder="2 cups all-purpose flour
+1 cup sugar
+1/2 cup butter, softened
+2 eggs
+1 tsp vanilla extract
+1/2 tsp salt"></textarea>
+    </div>
+    <div class="panel">
+      <label for="instructions">Instructions</label>
+      <div class="hint">One step per line (numbering optional) or a paragraph</div>
+      <textarea id="instructions" placeholder="1. Preheat oven to 350°F.
+2. Cream the butter and sugar together.
+3. Beat in the eggs and vanilla extract.
+4. Stir in the flour and salt until just combined.
+5. Bake for 25 minutes."></textarea>
+    </div>
+  </div>
+
+  <div class="actions">
+    <button class="mix" id="mixBtn">Mix it up</button>
+  </div>
+  <div class="error-msg" id="errorMsg"></div>
+
+  <div class="mixer-stage" id="mixerStage" aria-hidden="true">
+    <div class="bowl-scene">
+      <div class="splash s1"></div>
+      <div class="splash s2"></div>
+      <div class="splash s3"></div>
+      <div class="spoon">
+        <div class="handle"></div>
+        <div class="scoop"></div>
+      </div>
+      <div class="batter"></div>
+      <div class="bowl"></div>
+    </div>
+    <div class="caption">Mixing your recipe&hellip;</div>
+  </div>
+
+  <div class="results" id="results">
+    <h2>Your Recipe, All Together</h2>
+    <ol id="stepList"></ol>
+    <div class="unmatched" id="unmatched"></div>
+  </div>
+</main>
+
+<script>
+(function () {
+  var UNITS = [
+    'cups', 'cup', 'c',
+    'tablespoons', 'tablespoon', 'tbsps', 'tbsp', 'tbs', 'tb',
+    'teaspoons', 'teaspoon', 'tsps', 'tsp', 'ts',
+    'fluid ounces', 'fluid ounce', 'fl oz', 'ounces', 'ounce', 'oz',
+    'pounds', 'pound', 'lbs', 'lb',
+    'grams', 'gram', 'g', 'kilograms', 'kilogram', 'kg',
+    'milliliters', 'millilitres', 'milliliter', 'millilitre', 'ml',
+    'liters', 'litres', 'liter', 'litre', 'l',
+    'pinches', 'pinch', 'dashes', 'dash',
+    'cloves', 'clove', 'cans', 'can', 'jars', 'jar',
+    'packages', 'package', 'pkg', 'sticks', 'stick',
+    'slices', 'slice', 'pieces', 'piece', 'sprigs', 'sprig',
+    'bunches', 'bunch', 'heads', 'head', 'stalks', 'stalk',
+    'handfuls', 'handful', 'quarts', 'quart', 'qt', 'pints', 'pint', 'pt'
+  ];
+
+  // quantity: "2", "1/2", "1 1/2", "2-3", "2 to 3", "½", "1½", "2.5"
+  var QTY = '(?:\\d+\\s+\\d+\\s*\\/\\s*\\d+|\\d+\\s*\\/\\s*\\d+|\\d*\\s*[\\u00BC-\\u00BE\\u2150-\\u215E]|\\d+(?:\\.\\d+)?)(?:\\s*(?:-|\\u2013|to)\\s*(?:\\d+\\s+\\d+\\s*\\/\\s*\\d+|\\d+\\s*\\/\\s*\\d+|\\d*\\s*[\\u00BC-\\u00BE\\u2150-\\u215E]|\\d+(?:\\.\\d+)?))?';
+
+  var unitAlternation = UNITS.map(function (u) {
+    return u.replace(/ /g, '\\s+');
+  }).join('|');
+
+  var SINGLE_WORD_UNITS = {};
+  UNITS.forEach(function (u) {
+    if (u.indexOf(' ') === -1) SINGLE_WORD_UNITS[u] = 1;
+  });
+
+  // e.g. "2 cups flour" / "1 (14 oz) can crushed tomatoes" / "salt to taste"
+  var AMOUNT_RE = new RegExp(
+    '^\\s*(' + QTY + ')\\s*' +                       // quantity
+    '(\\([^)]*\\)\\s*)?' +                            // optional "(14 oz)" style note
+    '(?:(' + unitAlternation + ')\\.?\\b)?' +         // optional unit
+    '\\s*(?:of\\s+)?' +                               // optional "of"
+    '(.+)$',                                          // ingredient name
+    'i'
+  );
+
+  var STOPWORDS = {
+    'a': 1, 'an': 1, 'the': 1, 'of': 1, 'and': 1, 'or': 1, 'to': 1, 'for': 1,
+    'fresh': 1, 'freshly': 1, 'large': 1, 'small': 1, 'medium': 1,
+    'chopped': 1, 'diced': 1, 'minced': 1, 'sliced': 1, 'grated': 1,
+    'shredded': 1, 'melted': 1, 'softened': 1, 'ground': 1, 'dried': 1,
+    'finely': 1, 'coarsely': 1, 'roughly': 1, 'thinly': 1, 'divided': 1,
+    'plus': 1, 'more': 1, 'taste': 1, 'optional': 1, 'room': 1, 'temperature': 1
+  };
+
+  function escapeRe(s) {
+    return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  }
+
+  function escapeHtml(s) {
+    return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  }
+
+  function singularize(word) {
+    if (/ies$/i.test(word) && word.length > 4) return word.replace(/ies$/i, 'y');
+    if (/(ches|shes|xes|sses)$/i.test(word)) return word.replace(/es$/i, '');
+    if (/s$/i.test(word) && !/ss$/i.test(word) && word.length > 3) return word.replace(/s$/i, '');
+    return word;
+  }
+
+  function parseIngredient(line) {
+    var raw = line.trim().replace(/^[-*•]\s*/, '');
+    if (!raw) return null;
+
+    var amount, name;
+    var m = raw.match(AMOUNT_RE);
+    if (m) {
+      amount = m[1].trim() + (m[3] ? ' ' + m[3].trim() : '');
+      if (m[2]) amount += ' ' + m[2].trim();
+      name = m[4].trim();
+    } else {
+      // No leading quantity, e.g. "salt to taste" or "zest of one lemon"
+      var toTaste = raw.match(/^(.*?),?\s*(to taste|as needed)$/i);
+      if (toTaste) {
+        amount = toTaste[2].toLowerCase();
+        name = toTaste[1].trim();
+      } else {
+        amount = null;
+        name = raw;
+      }
+    }
+
+    // Drop trailing prep notes: "butter, softened" -> "butter"
+    var displayName = name;
+    var commaIdx = name.indexOf(',');
+    if (commaIdx > 0) name = name.slice(0, commaIdx).trim();
+    name = name.replace(/\s*\([^)]*\)\s*/g, ' ').replace(/\s+/g, ' ').trim();
+
+    // "3 to 4 garlic cloves" — a trailing unit word belongs to the amount,
+    // so match on "garlic" and annotate as "(3 to 4 cloves)".
+    if (m && !m[3] && amount) {
+      var nameParts = name.split(/\s+/);
+      if (nameParts.length > 1) {
+        var lastWord = nameParts[nameParts.length - 1].toLowerCase().replace(/\.$/, '');
+        if (SINGLE_WORD_UNITS[lastWord]) {
+          amount += ' ' + nameParts.pop();
+          name = nameParts.join(' ');
+        }
+      }
+    }
+
+    if (!name) return null;
+
+    // Build match candidates, longest first: full name, then trailing
+    // word runs with stopwords/descriptors stripped, then the head noun.
+    var words = name.toLowerCase().split(/\s+/);
+    var candidates = [];
+    function addCandidate(phrase) {
+      if (phrase && candidates.indexOf(phrase) === -1) candidates.push(phrase);
+    }
+    addCandidate(name.toLowerCase());
+    var core = words.filter(function (w) { return !STOPWORDS[w.replace(/[^a-z\-]/g, '')]; });
+    for (var start = 0; start < core.length; start++) {
+      addCandidate(core.slice(start).join(' '));
+    }
+    if (core.length) {
+      var last = core[core.length - 1];
+      addCandidate(last);
+      addCandidate(singularize(last));
+    }
+    candidates = candidates.filter(function (c) { return c.length >= 3; });
+    candidates.sort(function (a, b) { return b.length - a.length; });
+
+    return {
+      raw: raw,
+      name: name,
+      displayName: displayName,
+      amount: amount,
+      candidates: candidates,
+      matched: false
+    };
+  }
+
+  function parseInstructions(text) {
+    var lines = text.split(/\n+/).map(function (l) {
+      return l.trim().replace(/^(?:step\s*)?\d+[.):]?\s*/i, '').replace(/^[-*•]\s*/, '');
+    }).filter(Boolean);
+
+    // Single paragraph blob? Split into sentences.
+    if (lines.length === 1 && lines[0].length > 160) {
+      var sentences = lines[0].match(/[^.!?]+[.!?]+(?:\s|$)|[^.!?]+$/g);
+      if (sentences && sentences.length > 1) {
+        lines = sentences.map(function (s) { return s.trim(); }).filter(Boolean);
+      }
+    }
+    return lines;
+  }
+
+  // Find the first ingredient mention in a step and tag the amount after it.
+  // Each ingredient gets annotated only once — at its first appearance.
+  function annotateStep(step, ingredients) {
+    var stepHtml = escapeHtml(step);
+    ingredients.forEach(function (ing) {
+      if (ing.matched || !ing.amount) return;
+      for (var i = 0; i < ing.candidates.length; i++) {
+        var cand = ing.candidates[i];
+        var re = new RegExp('\\b(' + escapeRe(escapeHtml(cand)) + '(?:e?s)?)\\b', 'i');
+        var m = stepHtml.match(re);
+        if (m) {
+          var insertAt = m.index + m[1].length;
+          stepHtml = stepHtml.slice(0, insertAt) +
+            ' <span class="amt">(' + escapeHtml(ing.amount) + ')</span>' +
+            stepHtml.slice(insertAt);
+          ing.matched = true;
+          break;
+        }
+      }
+    });
+    return stepHtml;
+  }
+
+  var mixBtn = document.getElementById('mixBtn');
+  var mixerStage = document.getElementById('mixerStage');
+  var results = document.getElementById('results');
+  var stepList = document.getElementById('stepList');
+  var unmatchedEl = document.getElementById('unmatched');
+  var errorMsg = document.getElementById('errorMsg');
+
+  mixBtn.addEventListener('click', function () {
+    var ingText = document.getElementById('ingredients').value;
+    var insText = document.getElementById('instructions').value;
+
+    errorMsg.classList.remove('active');
+    results.classList.remove('active');
+
+    if (!ingText.trim() || !insText.trim()) {
+      errorMsg.textContent = 'Please fill in both the ingredients and the instructions.';
+      errorMsg.classList.add('active');
+      return;
+    }
+
+    var ingredients = ingText.split('\n').map(parseIngredient).filter(Boolean);
+    var steps = parseInstructions(insText);
+
+    if (!ingredients.length || !steps.length) {
+      errorMsg.textContent = 'Couldn’t find anything to mix — check your inputs.';
+      errorMsg.classList.add('active');
+      return;
+    }
+
+    // Show the stirring animation, then reveal the merged list.
+    mixBtn.disabled = true;
+    mixerStage.classList.add('active');
+
+    setTimeout(function () {
+      ingredients.forEach(function (ing) { ing.matched = false; });
+      // Annotate longest ingredient names first so "vanilla extract"
+      // wins over a plain "vanilla" from another line.
+      var ordered = ingredients.slice().sort(function (a, b) {
+        return b.name.length - a.name.length;
+      });
+
+      stepList.innerHTML = '';
+      steps.forEach(function (step) {
+        var li = document.createElement('li');
+        li.innerHTML = annotateStep(step, ordered);
+        stepList.appendChild(li);
+      });
+
+      var leftovers = ingredients.filter(function (ing) { return !ing.matched; });
+      if (leftovers.length) {
+        unmatchedEl.style.display = '';
+        unmatchedEl.innerHTML = '<strong>Not mentioned in the steps:</strong> ' +
+          leftovers.map(function (ing) {
+            return escapeHtml(ing.displayName) +
+              (ing.amount ? ' (' + escapeHtml(ing.amount) + ')' : '');
+          }).join(', ');
+      } else {
+        unmatchedEl.style.display = 'none';
+      }
+
+      mixerStage.classList.remove('active');
+      results.classList.add('active');
+      mixBtn.disabled = false;
+      results.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }, 2400);
+  });
+})();
+</script>
+
+</body>
+</html>
