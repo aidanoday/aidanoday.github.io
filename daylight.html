@@ -15,6 +15,7 @@
     background:var(--bg); color:var(--ink);
     font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
     display:flex; flex-direction:column; overflow:hidden;
+    position:relative;
   }
   header{
     display:flex; align-items:baseline; gap:16px;
@@ -46,7 +47,13 @@
   }
   #track{flex:0 0 auto; margin:auto 0; position:relative; cursor:crosshair;}
   canvas{display:block;}
-  .city-tags{position:absolute; left:0; top:0; pointer-events:none;}
+  .city-tags{position:absolute; left:0; top:0; pointer-events:none; z-index:10;}
+  .day-pins{position:absolute; left:0; top:0; pointer-events:none; z-index:9;}
+  .day-pin{
+    position:absolute; transform:translateY(-50%);
+    font:600 11px/1 system-ui, sans-serif; white-space:nowrap;
+    background:var(--bg); padding:3px 5px 3px 12px; border-radius:0 3px 3px 0;
+  }
   .city-tag{
     position:absolute; left:14px;
     font: 600 11px/1 system-ui, sans-serif; letter-spacing:.14em;
@@ -81,8 +88,55 @@
   .marker.dragging .marker-hit, .marker.dragging .marker-chip{cursor:grabbing;}
   .marker.flip .marker-chip{left:auto; right:9px;}
   footer{
-    padding:10px 22px; border-top:1px solid var(--line);
+    position:absolute; left:0; right:0; bottom:0; z-index:30;
+    padding:10px 44px 10px 22px; border-top:1px solid var(--line);
+    background:rgba(246,244,239,.95); backdrop-filter:blur(4px);
     font-size:11px; color:var(--muted); display:flex; gap:18px; flex-wrap:wrap;
+    transform-origin: calc(100% - 31px) 140%;   /* anchor at the info pill */
+  }
+  footer.genie-out{ animation: genie-out .34s cubic-bezier(.55,0,.8,.4) forwards; }
+  footer.genie-in{ animation: genie-in .34s cubic-bezier(.2,.6,.3,1); }
+  @keyframes genie-out{
+    0%  { transform:none; opacity:1; }
+    45% { transform: scale(.72,.9) skewX(4deg); opacity:.95; }
+    100%{ transform: translateY(26%) scale(.04,.14) skewX(14deg); opacity:0; }
+  }
+  @keyframes genie-in{
+    0%  { transform: translateY(26%) scale(.04,.14) skewX(14deg); opacity:0; }
+    55% { transform: scale(.86,.96) skewX(-2deg); opacity:1; }
+    100%{ transform:none; opacity:1; }
+  }
+  .foot-x{
+    position:absolute; top:7px; right:10px;
+    border:none; background:transparent; color:var(--muted);
+    font:600 13px/1 system-ui, sans-serif; cursor:pointer;
+    padding:4px 7px; border-radius:6px;
+  }
+  .foot-x:hover{color:var(--now); background:rgba(232,66,95,.08);}
+  .foot-x:focus-visible{outline:2px solid var(--now); outline-offset:2px;}
+  body.info-collapsed footer{display:none;}
+  .info-pill{
+    position:absolute; right:16px; bottom:16px; z-index:30;
+    width:30px; height:30px; border-radius:50%;
+    border:1px solid rgba(43,46,51,.35); background:rgba(246,244,239,.92);
+    color:var(--ink); font:italic 600 14px/1 Georgia, "Times New Roman", serif;
+    cursor:pointer; display:none; box-shadow:0 2px 8px rgba(20,22,26,.15);
+  }
+  body.info-collapsed .info-pill{
+    display:block;
+    animation: pill-pop .26s cubic-bezier(.34,1.56,.64,1) .16s backwards;
+  }
+  @keyframes pill-pop{
+    from{ transform:scale(.2); opacity:0; }
+    70% { transform:scale(1.12); }
+    to  { transform:scale(1); opacity:1; }
+  }
+  .info-pill:hover{border-color:var(--pin); color:var(--pin);}
+  .info-pill:focus-visible{outline:2px solid var(--pin); outline-offset:2px;}
+  @media (prefers-reduced-motion: reduce){
+    footer.genie-out, footer.genie-in, body.info-collapsed .info-pill{
+      animation-duration:.01ms !important; animation-delay:0ms !important;
+    }
   }
   .key{display:inline-flex; align-items:center; gap:6px;}
   .chip{width:22px; height:10px; border-radius:3px; display:inline-block;}
@@ -156,7 +210,7 @@
   .cap-note{margin-top:12px; font-size:11px; color:var(--muted);}
 </style>
 </head>
-<body>
+<body class="info-collapsed">
 <header>
   <h1 id="title"></h1>
   <span class="sub">daylight &amp; darkness, hour by hour · scroll sideways · click to pin a time, drag to move it</span>
@@ -171,9 +225,12 @@
     <div id="track"></div>
   </div>
   <div class="city-tags" id="tags"></div>
+  <div class="day-pins" id="dayPins"></div>
+  <button class="info-pill" id="infoPill" type="button" aria-label="Show legend and info">i</button>
 </div>
 
 <footer>
+  <button class="foot-x" id="footClose" type="button" aria-label="Hide legend and info">×</button>
   <span class="key"><span class="chip day"></span> daylight (gold = sunrise / sunset)</span>
   <span class="key"><span class="chip night"></span> night</span>
   <span class="key"><span class="chip nowc"></span> current moment</span>
@@ -624,6 +681,7 @@ function rebuild(){
   /* canvases */
   track.innerHTML = '';
   tags.innerHTML = '';
+  dayPins.innerHTML = '';
   track.style.width = WIDTH + 'px';
   track.style.height = HEIGHT + 'px';
   const DPR = Math.min(window.devicePixelRatio || 1, 2);
@@ -664,6 +722,10 @@ function rebuild(){
     el.appendChild(sm);
     tags.appendChild(el);
     c.tagEl = el;
+    const pin = document.createElement('div');
+    pin.className = 'day-pin';
+    dayPins.appendChild(pin);
+    c.pinEl = pin;
     topCursor += CITY_H + GAP;
   }
   placeTags();
@@ -683,6 +745,34 @@ function placeTags(){
   const offset = track.offsetTop - scroller.scrollTop;
   for (const c of cities) if (c.tagEl)
     c.tagEl.style.top = (offset + c.top + LABEL_H + 10) + 'px';
+  updateDayPins();
+}
+
+/* frozen current-day labels: pinned at the left edge, pushed out by the next midnight.
+   PIN_X matches the canvas's own label offsets (±12px from a midnight), and the pin's
+   text is styled identically to the painted labels, so it "hands off" seamlessly:
+   at a day boundary the pin sits exactly over the painted flank label, then takes
+   over as the painted one scrolls away. padding-left occludes the departing ghost. */
+function updateDayPins(){
+  const vx = scroller.scrollLeft;
+  const t = tOf(vx + 1);
+  const offTop = track.offsetTop - scroller.scrollTop;
+  for (const c of cities){
+    const el = c.pinEl;
+    if (!el) continue;
+    const dayStart = localMidnight(t, c.tz);
+    const nextMid  = localMidnight(dayStart + DAY + 3600000, c.tz);
+    const p = tzParts(dayStart + DAY/2, c.tz);
+    el.textContent = `${p.weekday.toUpperCase()} ${+p.month}/${+p.day}`;
+    const todayP = tzParts(NOW, c.tz);
+    const isToday = +p.month === +todayP.month && +p.day === +todayP.day;
+    const wknd = p.weekday === 'Sat' || p.weekday === 'Sun';
+    el.style.color = isToday ? '#b0720a' : (wknd ? 'rgba(106,79,173,.9)' : 'rgba(43,46,51,.85)');
+    const w = el.offsetWidth - 12 - 5;          // text width (minus occlusion padding)
+    const textX = Math.min(12, (xOf(nextMid) - vx) - 12 - w);
+    el.style.left = (textX - 12) + 'px';        // bg extends 12px left of the text
+    el.style.top = (offTop + c.top + LABEL_H/2) + 'px';
+  }
 }
 window.addEventListener('resize', placeTags);
 scroller.addEventListener('scroll', placeTags);
@@ -940,6 +1030,42 @@ document.getElementById('mAdd').addEventListener('click', ()=>{
   addCity({ name, country:'', tz, lat, lng, code:null });
   for (const id of ['mName','mTz','mLat','mLng']) document.getElementById(id).value = '';
 });
+
+/* ---------- info panel collapse (genie animation) ---------- */
+const footerEl = document.querySelector('footer');
+let infoCollapsed = true, infoAnimating = false;
+function afterGenie(fn){            // animationend can be flaky — settle either way
+  let done = false;
+  const finish = () => { if (done) return; done = true; fn(); };
+  footerEl.addEventListener('animationend', finish, { once:true });
+  setTimeout(finish, 420);
+}
+function setInfoCollapsed(v){
+  if (v === infoCollapsed || infoAnimating) return;
+  infoAnimating = true;
+  infoCollapsed = v;
+  if (v){
+    /* shrink the panel down into the pill, then swap */
+    footerEl.classList.add('genie-out');
+    afterGenie(()=>{
+      footerEl.classList.remove('genie-out');
+      document.body.classList.add('info-collapsed');   // hides footer, pops the pill in
+      infoAnimating = false;
+      document.getElementById('infoPill').focus?.();
+    });
+  } else {
+    /* reveal the panel growing out of the pill */
+    document.body.classList.remove('info-collapsed');
+    footerEl.classList.add('genie-in');
+    afterGenie(()=>{
+      footerEl.classList.remove('genie-in');
+      infoAnimating = false;
+    });
+    document.getElementById('footClose').focus?.();
+  }
+}
+document.getElementById('footClose').addEventListener('click', ()=> setInfoCollapsed(true));
+document.getElementById('infoPill').addEventListener('click', ()=> setInfoCollapsed(false));
 
 /* ---------- boot ---------- */
 rebuild();
