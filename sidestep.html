@@ -13,6 +13,13 @@
   gtag('config', 'G-DYDCM8KNK6');
 </script>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚖️</text></svg>">
+<script>
+  // apply the saved theme before first paint to avoid a flash
+  try{
+    var t = JSON.parse(localStorage.getItem('sidestep.theme.v1'));
+    if(t === 'light' || t === 'dark') document.documentElement.dataset.theme = t;
+  }catch(e){}
+</script>
 <!--
   Data: assets/sp500_data.js — S&P 500 daily closes from FRED (series SP500, trailing 10y).
   To refresh the baseline data file, run from the repo root:
@@ -25,8 +32,13 @@
         '// S&P 500 daily closes (source: FRED series SP500)\n'
         + 'window.SP500_DATA = '+JSON.stringify(rows)+';\n');
       console.log(rows.length+' rows through '+rows[rows.length-1][0]);"
-  The app also tries a live refresh through a CORS proxy on load and caches it in localStorage,
-  so the committed file only needs occasional refreshes.
+  assets/vigax_data.js — VIGAX daily NAV closes from the Yahoo Finance chart API
+  (https://query1.finance.yahoo.com/v8/finance/chart/VIGAX?range=10y&interval=1d, with a
+  browser User-Agent header): rows of [YYYY-MM-DD from each timestamp's UTC date, close],
+  null closes skipped, written as window.VIGAX_DATA in the same format as above.
+
+  The app also tries a live refresh of the selected benchmark through a CORS proxy on load
+  and caches it in localStorage, so the committed files only need occasional refreshes.
 -->
 <style>
   :root{
@@ -52,6 +64,15 @@
       --wash:rgba(255,255,255,.06);
     }
   }
+  :root[data-theme="dark"]{
+    color-scheme: dark;
+    --page:#0d0d0d; --surface:#1a1a19;
+    --ink:#ffffff; --ink-2:#c3c2b7; --muted:#898781;
+    --grid:#2c2c2a; --baseline:#383835; --border:rgba(255,255,255,.10);
+    --spx:#3987e5; --strategy:#d95926; --alt:#199e70;
+    --invest:#008300; --up:#0ca30c; --down:#e66767;
+    --wash:rgba(255,255,255,.06);
+  }
   *{box-sizing:border-box; margin:0; padding:0;}
   body{
     background:var(--page); color:var(--ink);
@@ -63,10 +84,24 @@
     padding:18px 22px 14px; border-bottom:1px solid var(--grid);
   }
   h1{font-size:15px; font-weight:600; letter-spacing:.02em;}
+  .theme{
+    font-size:14px; line-height:1; color:var(--ink-2); background:transparent;
+    border:1px solid var(--border); border-radius:999px;
+    width:30px; height:30px; cursor:pointer; align-self:center;
+  }
+  .theme:hover{color:var(--ink); border-color:var(--ink-2);}
+  .theme:focus-visible{outline:2px solid var(--spx); outline-offset:2px;}
   .sub{font-size:12px; color:var(--muted);}
   .spacer{flex:1;}
   main{max-width:1060px; margin:0 auto; padding:18px 22px 60px;}
   .controls{display:flex; align-items:center; gap:14px; flex-wrap:wrap; margin:6px 0 16px;}
+  .bench{
+    font:12px/1 ui-monospace,"SF Mono",Menlo,monospace; letter-spacing:.04em;
+    color:var(--ink); background:var(--surface);
+    border:1px solid var(--border); border-radius:999px;
+    padding:8px 12px; cursor:pointer;
+  }
+  .bench:focus-visible{outline:2px solid var(--spx); outline-offset:1px;}
   .seg{display:flex; border:1px solid var(--border); border-radius:999px; overflow:hidden;}
   .seg button{
     font:12px/1 ui-monospace,"SF Mono",Menlo,monospace; letter-spacing:.04em;
@@ -205,6 +240,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.3.1/umd/react-dom.production.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.26.4/babel.min.js"></script>
 <script src="assets/sp500_data.js"></script>
+<script src="assets/vigax_data.js"></script>
 
 <script type="text/babel">
 const {useState, useEffect, useMemo, useRef, useCallback} = React;
@@ -215,8 +251,10 @@ const LS = {
   basis:   'sidestep.basis.v1',
   rate:    'sidestep.rate.v1',
   horizon: 'sidestep.horizon.v1',
-  cache:   'sidestep.cache.v1',
+  bench:   'sidestep.bench.v1',
+  theme:   'sidestep.theme.v1',
 };
+const cacheKey = bm => 'sidestep.cache.' + bm + '.v1';
 const HORIZONS = [ ['1Y',1], ['3Y',3], ['5Y',5], ['10Y',10] ];
 const MS_DAY = 86400000;
 
@@ -244,6 +282,34 @@ function parseFredCsv(text){
     .filter(([d,c]) => d && /^\d{4}-\d{2}-\d{2}$/.test(d) && c && c !== '.' && !isNaN(parseFloat(c)))
     .map(([d,c]) => [d, parseFloat(c)]);
 }
+function parseYahooChart(text){
+  try{
+    const res = JSON.parse(text).chart.result[0];
+    const ts = res.timestamp, close = res.indicators.quote[0].close;
+    const out = [];
+    for(let i = 0; i < ts.length; i++){
+      if(close[i] == null) continue;
+      out.push([new Date(ts[i]*1000).toISOString().slice(0,10), Math.round(close[i]*100)/100]);
+    }
+    return out;
+  }catch(e){ return []; }
+}
+
+/* ---------- benchmarks ---------- */
+const BENCHMARKS = {
+  SPX: {
+    label: 'S&P 500 index', short: 'S&P 500',
+    bundled: () => window.SP500_DATA || [],
+    refreshUrl: 'https://fred.stlouisfed.org/graph/fredgraph.csv?id=SP500',
+    parse: parseFredCsv,
+  },
+  VIGAX: {
+    label: 'VIGAX · Vanguard Growth Index', short: 'VIGAX',
+    bundled: () => window.VIGAX_DATA || [],
+    refreshUrl: 'https://query1.finance.yahoo.com/v8/finance/chart/VIGAX?range=10y&interval=1d',
+    parse: parseYahooChart,
+  },
+};
 
 /* ---------- formatting ---------- */
 const fmtUSD  = v => v.toLocaleString('en-US', {style:'currency', currency:'USD', maximumFractionDigits:0});
@@ -296,6 +362,22 @@ function timeTicks(msLo, msHi){
 // Growth of $1 in the money market from msFrom to msTo at APY r (annual compounding pro-rated by calendar days)
 const mmGrow = (msFrom, msTo, r) => Math.pow(1 + r, (msTo - msFrom) / (365 * MS_DAY));
 
+// Close price for a date, falling back to the nearest trading day in this
+// dataset (benchmarks come from different sources with slightly different calendars)
+function makePriceFor(data){
+  const map = new Map(data);
+  return date => {
+    const v = map.get(date);
+    if(v !== undefined) return v;
+    const ms = toMs(date);
+    let lo = 0, hi = data.length - 1;
+    while(lo < hi){ const mid = (lo + hi) >> 1; if(toMs(data[mid][0]) < ms) lo = mid + 1; else hi = mid; }
+    const a = data[lo], b = data[lo - 1];
+    if(!b) return a[1];
+    return Math.abs(toMs(a[0]) - ms) <= Math.abs(toMs(b[0]) - ms) ? a[1] : b[1];
+  };
+}
+
 /*
  For each mark:
    divest  = moved $ out of the S&P into the money market on that date
@@ -311,9 +393,9 @@ const mmGrow = (msFrom, msTo, r) => Math.pow(1 + r, (msTo - msFrom) / (365 * MS_
 */
 function computeSeries(data, marks, rate, basis){
   if(!marks.length && !basis) return null;
-  const closeByDate = new Map(data);
+  const priceFor = makePriceFor(data);
   const sorted = [...marks].sort((a,b) => a.date < b.date ? -1 : 1);
-  const basisMs = basis && closeByDate.has(basis.date) ? toMs(basis.date) : Infinity;
+  const basisMs = basis ? toMs(basis.date) : Infinity;
   const firstMs = Math.min(sorted.length ? toMs(sorted[0].date) : Infinity, basisMs);
   if(firstMs === Infinity) return null;
   const actual = new Array(data.length).fill(null);
@@ -324,13 +406,13 @@ function computeSeries(data, marks, rate, basis){
     if(ms < firstMs) continue;
     let a = 0, c = 0;
     if(basisMs <= ms){
-      const g = basis.amount * close / closeByDate.get(basis.date);
+      const g = basis.amount * close / priceFor(basis.date);
       a += g; c += g;
     }
     for(const m of sorted){
       const mMs = toMs(m.date);
       if(mMs > ms) break;
-      const p0 = closeByDate.get(m.date);
+      const p0 = priceFor(m.date);
       const spx = m.amount * close / p0;
       const mm  = m.amount * mmGrow(mMs, ms, rate);
       if(m.type === 'divest'){
@@ -344,9 +426,9 @@ function computeSeries(data, marks, rate, basis){
   return {actual, cf};
 }
 function markStats(data, mark, rate){
-  const closeByDate = new Map(data);
+  const priceFor = makePriceFor(data);
   const [lastDate, lastClose] = data[data.length-1];
-  const p0 = closeByDate.get(mark.date);
+  const p0 = priceFor(mark.date);
   const spx = mark.amount * lastClose / p0;
   const mm  = mark.amount * mmGrow(toMs(mark.date), toMs(lastDate), rate);
   const actualNow = mark.type === 'divest' ? mm : spx;
@@ -366,12 +448,23 @@ function linePath(pts){
 
 /* ---------- app ---------- */
 function App(){
-  const [data, setData] = useState(() => {
-    const cache = lsGet(LS.cache, null);
-    const base = window.SP500_DATA || [];
+  const loadSet = key => {
+    const cache = lsGet(cacheKey(key), null);
+    const base = BENCHMARKS[key].bundled();
     return cache && cache.rows ? mergeSeries(base, cache.rows) : base;
+  };
+  const [bench, setBench] = useState(() => BENCHMARKS[lsGet(LS.bench, 'SPX')] ? lsGet(LS.bench, 'SPX') : 'SPX');
+  const [theme, setTheme] = useState(() => {
+    const t = lsGet(LS.theme, 'auto');
+    return t === 'light' || t === 'dark' ? t : 'auto';
   });
-  const [live, setLive] = useState(false);
+  const [sysDark, setSysDark] = useState(() => window.matchMedia('(prefers-color-scheme: dark)').matches);
+  const [dataSets, setDataSets] = useState(() =>
+    Object.fromEntries(Object.keys(BENCHMARKS).map(k => [k, loadSet(k)])));
+  const [live, setLive] = useState({});
+  const refreshTried = useRef({});
+  const data = dataSets[bench];
+  const B = BENCHMARKS[bench];
   const [horizon, setHorizon] = useState(() => lsGet(LS.horizon, 3));
   const [rate, setRate] = useState(() => lsGet(LS.rate, 3.5));
   const [rateText, setRateText] = useState(() => String(lsGet(LS.rate, 3.5)));
@@ -385,28 +478,54 @@ function App(){
   const wrapRef = useRef(null);
   const [width, setWidth] = useState(1000);
 
-  /* live refresh through a CORS proxy; silent fallback to bundled data */
+  /* live refresh of the selected benchmark through public CORS proxies (tried in
+     order — they come and go); silent fallback to bundled/cached data */
   useEffect(() => {
-    const ctrl = new AbortController();
-    const t = setTimeout(() => ctrl.abort(), 12000);
-    fetch('https://api.allorigins.win/raw?url=' +
-          encodeURIComponent('https://fred.stlouisfed.org/graph/fredgraph.csv?id=SP500'),
-          {signal: ctrl.signal})
-      .then(r => r.ok ? r.text() : Promise.reject())
-      .then(text => {
-        const rows = parseFredCsv(text);
-        if(rows.length < 100) return;
-        lsSet(LS.cache, {fetched: new Date().toISOString(), rows});
-        setData(prev => mergeSeries(prev, rows));
-        setLive(true);
-      })
-      .catch(() => {})
-      .finally(() => clearTimeout(t));
-    return () => { ctrl.abort(); clearTimeout(t); };
-  }, []);
+    if(refreshTried.current[bench]) return;
+    refreshTried.current[bench] = true;
+    const cfg = BENCHMARKS[bench];
+    const proxies = [
+      u => 'https://api.allorigins.win/raw?url=' + encodeURIComponent(u),
+      u => 'https://api.codetabs.com/v1/proxy?quest=' + encodeURIComponent(u),
+    ];
+    let cancelled = false;
+    (async () => {
+      for(const wrap of proxies){
+        try{
+          const ctrl = new AbortController();
+          const t = setTimeout(() => ctrl.abort(), 8000);
+          const res = await fetch(wrap(cfg.refreshUrl), {signal: ctrl.signal});
+          clearTimeout(t);
+          if(!res.ok) continue;
+          const rows = cfg.parse(await res.text());
+          if(rows.length < 100 || cancelled) continue;
+          lsSet(cacheKey(bench), {fetched: new Date().toISOString(), rows});
+          setDataSets(ds => ({...ds, [bench]: mergeSeries(ds[bench], rows)}));
+          setLive(l => ({...l, [bench]: true}));
+          return;
+        }catch(e){}
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [bench]);
 
   useEffect(() => { lsSet(LS.marks, marks); }, [marks]);
   useEffect(() => { lsSet(LS.basis, basis); }, [basis]);
+  useEffect(() => { lsSet(LS.bench, bench); }, [bench]);
+
+  /* theme: explicit choice stamps <html data-theme>; 'auto' follows the OS */
+  useEffect(() => {
+    if(theme === 'auto') delete document.documentElement.dataset.theme;
+    else document.documentElement.dataset.theme = theme;
+    lsSet(LS.theme, theme);
+  }, [theme]);
+  useEffect(() => {
+    const mq = window.matchMedia('(prefers-color-scheme: dark)');
+    const on = e => setSysDark(e.matches);
+    mq.addEventListener('change', on);
+    return () => mq.removeEventListener('change', on);
+  }, []);
+  const isDark = theme === 'auto' ? sysDark : theme === 'dark';
   useEffect(() => { lsSet(LS.rate, rate); }, [rate]);
   useEffect(() => { lsSet(LS.horizon, horizon); }, [horizon]);
 
@@ -587,18 +706,15 @@ function App(){
   const totalInvested = perMark.reduce((s,x) => s + (x.m.type === 'invest' ? x.m.amount : 0), 0);
   const principal = basis ? basis.amount + totalInvested : totalMoved;
 
-  /* did divestments ever exceed the tracked S&P holding? */
+  /* did divestments ever exceed the tracked benchmark holding? */
   let overdrawn = false;
   if(basis){
-    const map = new Map(data);
-    const bp = map.get(basis.date);
-    if(bp){
-      let units = basis.amount / bp;
-      for(const m of sortedMarks){
-        if(toMs(m.date) < toMs(basis.date)) continue;
-        units += (m.type === 'invest' ? 1 : -1) * m.amount / map.get(m.date);
-        if(units < -1e-9){ overdrawn = true; break; }
-      }
+    const pf = makePriceFor(data);
+    let units = basis.amount / pf(basis.date);
+    for(const m of sortedMarks){
+      if(toMs(m.date) < toMs(basis.date)) continue;
+      units += (m.type === 'invest' ? 1 : -1) * m.amount / pf(m.date);
+      if(units < -1e-9){ overdrawn = true; break; }
     }
   }
   const hover = hoverIdx !== null && hoverIdx < rows.length ? hoverIdx : null;
@@ -606,10 +722,10 @@ function App(){
   const hoverGlobal = hover !== null ? i0 + hover : null;
 
   /* mark points within window */
-  const closeMap = new Map(data);
+  const priceFor = makePriceFor(data);
   const markPts = sortedMarks
     .filter(m => toMs(m.date) >= view.startMs)
-    .map(m => ({...m, x: xOf(toMs(m.date)), y: yP(closeMap.get(m.date))}));
+    .map(m => ({...m, x: xOf(toMs(m.date)), y: yP(priceFor(m.date))}));
 
   const editorDate = editor ? editor.date : null;
   const editorLeft = editor ? Math.min(Math.max(8, editor.px - 115), width - 238) : 0;
@@ -628,12 +744,22 @@ function App(){
     <React.Fragment>
       <header>
         <h1>Sidestep</h1>
-        <div className="sub">S&amp;P 500 vs money market — what your moves cost or saved</div>
+        <div className="sub">{B.short} vs money market — what your moves cost or saved</div>
         <div className="spacer"></div>
-        <div className="sub">data through {fmtDate(lastDate)}{live ? ' · live' : ''}</div>
+        <div className="sub">data through {fmtDate(lastDate)}{live[bench] ? ' · live' : ''}</div>
+        <button className="theme" title={isDark ? 'Switch to light theme' : 'Switch to dark theme'}
+                aria-label={isDark ? 'Switch to light theme' : 'Switch to dark theme'}
+                onClick={() => setTheme(isDark ? 'light' : 'dark')}>
+          {isDark ? '☀' : '☾'}
+        </button>
       </header>
       <main>
         <div className="controls">
+          <select className="bench" value={bench} aria-label="Benchmark"
+                  onChange={e => { setBench(e.target.value); setEditor(null); setRowEdit(null); setHoverIdx(null); }}>
+            {Object.entries(BENCHMARKS).map(([k, b]) =>
+              <option key={k} value={k}>{b.label}</option>)}
+          </select>
           <div className="seg" role="tablist" aria-label="Time horizon">
             {HORIZONS.map(([label, yrs]) =>
               <button key={label} className={horizon === yrs ? 'on' : ''}
@@ -684,10 +810,10 @@ function App(){
           {/* ---- top panel: S&P 500 ---- */}
           <div className="panel">
             <h2>
-              S&amp;P 500 index
+              {B.label}
               <span className="legend">
                 <span className="key"><span className="chip" style={{borderColor:'var(--spx)'}}></span>close</span>
-                <span className="key"><span className="tri" style={{color:'var(--invest)'}}>▲</span>invest (into S&amp;P)</span>
+                <span className="key"><span className="tri" style={{color:'var(--invest)'}}>▲</span>invest (into {B.short})</span>
                 <span className="key"><span className="tri" style={{color:'var(--strategy)'}}>▼</span>divest (into money market)</span>
                 {basis && <span className="key"><span className="tri" style={{color:'var(--spx)'}}>◆</span>starting position</span>}
               </span>
@@ -707,12 +833,12 @@ function App(){
               <line x1={M.l} x2={M.l + iw} y1={H1 - M.b} y2={H1 - M.b} stroke="var(--baseline)" strokeWidth="1"/>
               <path d={linePath(pricePts)} fill="none" stroke="var(--spx)" strokeWidth="2" strokeLinejoin="round"/>
               <text x={M.l + iw + 6} y={pricePts.length ? pricePts[pricePts.length-1][1] + 4 : 0}
-                    fontSize="11" fill="var(--spx)" fontWeight="600">S&amp;P 500</text>
+                    fontSize="11" fill="var(--spx)" fontWeight="600">{B.short}</text>
               {hover !== null &&
                 <line x1={xOf(hoverMs)} x2={xOf(hoverMs)} y1={M.t} y2={H1 - M.b}
                       stroke="var(--baseline)" strokeWidth="1" strokeDasharray="3,3"/>}
-              {basis && closeMap.has(basis.date) && toMs(basis.date) >= view.startMs && (() => {
-                const bx = xOf(toMs(basis.date)), by = yP(closeMap.get(basis.date));
+              {basis && toMs(basis.date) >= view.startMs && (() => {
+                const bx = xOf(toMs(basis.date)), by = yP(priceFor(basis.date));
                 return (
                   <g style={{cursor:'pointer'}}
                      onClick={e => { e.stopPropagation(); setBasisForm({date: basis.date, amountText: String(basis.amount)}); }}>
@@ -737,7 +863,7 @@ function App(){
             {tipData &&
               <div className="tip" style={{left: tipLeft, top: 44}}>
                 <div className="d">{fmtDate(tipData.date)}</div>
-                <div className="r"><span className="k"><span className="chip" style={{borderColor:'var(--spx)'}}></span>S&amp;P 500</span><b>{tipData.close.toLocaleString('en-US',{maximumFractionDigits:2})}</b></div>
+                <div className="r"><span className="k"><span className="chip" style={{borderColor:'var(--spx)'}}></span>{B.short}</span><b>{tipData.close.toLocaleString('en-US',{maximumFractionDigits:2})}</b></div>
                 {tipData.a !== null && <div className="r"><span className="k"><span className="chip" style={{borderColor:'var(--strategy)'}}></span>your strategy</span><b>{fmtUSD(tipData.a)}</b></div>}
                 {tipData.a !== null && <div className="r"><span className="k"><span className="chip" style={{borderColor:'var(--alt)'}}></span>no moves</span><b>{fmtUSD(tipData.c)}</b></div>}
                 {tipData.a !== null && <div className="r"><span className="k">gap</span><b className={tipData.a - tipData.c >= 0 ? 'pos' : 'neg'}>{fmtSigned(tipData.a - tipData.c)}</b></div>}
@@ -749,7 +875,7 @@ function App(){
                   <button className={editor.type === 'divest' ? 'on' : ''}
                           onClick={() => setEditor({...editor, type:'divest'})}>▼ Divest to MM</button>
                   <button className={editor.type === 'invest' ? 'on' : ''}
-                          onClick={() => setEditor({...editor, type:'invest'})}>▲ Invest in S&amp;P</button>
+                          onClick={() => setEditor({...editor, type:'invest'})}>▲ Invest in {B.short}</button>
                 </div>
                 <form onSubmit={e => { e.preventDefault(); commitEditor(); }}>
                   <input placeholder="$ amount (e.g. 10k)" autoFocus value={editor.amount}
@@ -824,7 +950,7 @@ function App(){
               </svg>
             ) : (
               <div className="hint">
-                Click a point on the S&amp;P chart above to add an investment or divestment.<br/>
+                Click a point on the chart above to add an investment or divestment.<br/>
                 Marks are saved in your browser.
               </div>
             )}
@@ -860,8 +986,8 @@ function App(){
             </div>
             {overdrawn &&
               <div className="warn">
-                ⚠ Your divestments exceed the starting S&amp;P position at some point, so the portfolio lines
-                briefly assume a negative S&amp;P holding. Raise the starting amount if that's not intended.
+                ⚠ Your divestments exceed the starting {B.short} position at some point, so the portfolio lines
+                briefly assume a negative holding. Raise the starting amount if that's not intended.
                 (The deviation numbers are unaffected.)
               </div>}
 
@@ -921,7 +1047,7 @@ function App(){
                             <span style={{color: m.type === 'invest' ? 'var(--invest)' : 'var(--strategy)', fontSize:'10px'}}>
                               {m.type === 'invest' ? '▲' : '▼'}
                             </span>
-                            {m.type === 'invest' ? 'invest in S&P' : 'divest to MM'}
+                            {m.type === 'invest' ? 'invest in ' + B.short : 'divest to MM'}
                           </span>
                         </td>
                         <td>{fmtUSD(m.amount)}</td>
@@ -949,9 +1075,10 @@ function App(){
         Positive deviation = your move left you better off than doing nothing; negative = the move cost you.
         A starting position appears identically in both portfolio lines (divestments sell out of it) and adds
         nothing to the deviation — it only sets the scale of the portfolio view.
-        Money market growth assumes a constant APY compounded continuously pro-rata by calendar day; the S&amp;P
-        series is price-only (dividends not included), so S&amp;P outcomes are modestly understated.
-        Prices: FRED series SP500. Marks are stored only in this browser.
+        Money market growth assumes a constant APY compounded continuously pro-rata by calendar day. Benchmark
+        series are price/NAV-only (dividends and distributions not included), so stay-invested outcomes are
+        modestly understated. Marks apply to whichever benchmark is selected.
+        Prices: FRED (SP500), Yahoo Finance (VIGAX). Marks are stored only in this browser.
       </footer>
     </React.Fragment>
   );
