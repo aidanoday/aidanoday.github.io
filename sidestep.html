@@ -1,0 +1,963 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Sidestep | S&amp;P Deviation Tracker</title>
+<!-- Google tag (gtag.js) -->
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-DYDCM8KNK6"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+  gtag('config', 'G-DYDCM8KNK6');
+</script>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚖️</text></svg>">
+<!--
+  Data: assets/sp500_data.js — S&P 500 daily closes from FRED (series SP500, trailing 10y).
+  To refresh the baseline data file, run from the repo root:
+    curl -s "https://fred.stlouisfed.org/graph/fredgraph.csv?id=SP500" -o /tmp/sp500.csv && node -e "
+      const fs=require('fs');
+      const rows=fs.readFileSync('/tmp/sp500.csv','utf8').trim().split('\n').slice(1)
+        .map(l=>l.split(',')).filter(([d,c])=>c&&c!=='.'&&!isNaN(parseFloat(c)))
+        .map(([d,c])=>[d,parseFloat(c)]);
+      fs.writeFileSync('assets/sp500_data.js',
+        '// S&P 500 daily closes (source: FRED series SP500)\n'
+        + 'window.SP500_DATA = '+JSON.stringify(rows)+';\n');
+      console.log(rows.length+' rows through '+rows[rows.length-1][0]);"
+  The app also tries a live refresh through a CORS proxy on load and caches it in localStorage,
+  so the committed file only needs occasional refreshes.
+-->
+<style>
+  :root{
+    color-scheme: light;
+    --page:#f9f9f7; --surface:#fcfcfb;
+    --ink:#0b0b0b; --ink-2:#52514e; --muted:#898781;
+    --grid:#e1e0d9; --baseline:#c3c2b7; --border:rgba(11,11,11,.10);
+    --spx:#2a78d6;            /* S&P index line */
+    --strategy:#eb6834;       /* your strategy line + divest marks */
+    --alt:#1baf7a;            /* do-nothing alternative line */
+    --invest:#008300;         /* invest marks */
+    --up:#006300; --down:#d03b3b;
+    --wash:rgba(11,11,11,.045);
+  }
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
+      color-scheme: dark;
+      --page:#0d0d0d; --surface:#1a1a19;
+      --ink:#ffffff; --ink-2:#c3c2b7; --muted:#898781;
+      --grid:#2c2c2a; --baseline:#383835; --border:rgba(255,255,255,.10);
+      --spx:#3987e5; --strategy:#d95926; --alt:#199e70;
+      --invest:#008300; --up:#0ca30c; --down:#e66767;
+      --wash:rgba(255,255,255,.06);
+    }
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  body{
+    background:var(--page); color:var(--ink);
+    font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+    min-height:100vh;
+  }
+  header{
+    display:flex; align-items:baseline; gap:16px; flex-wrap:wrap;
+    padding:18px 22px 14px; border-bottom:1px solid var(--grid);
+  }
+  h1{font-size:15px; font-weight:600; letter-spacing:.02em;}
+  .sub{font-size:12px; color:var(--muted);}
+  .spacer{flex:1;}
+  main{max-width:1060px; margin:0 auto; padding:18px 22px 60px;}
+  .controls{display:flex; align-items:center; gap:14px; flex-wrap:wrap; margin:6px 0 16px;}
+  .seg{display:flex; border:1px solid var(--border); border-radius:999px; overflow:hidden;}
+  .seg button{
+    font:12px/1 ui-monospace,"SF Mono",Menlo,monospace; letter-spacing:.04em;
+    background:transparent; color:var(--ink-2); border:none;
+    padding:8px 14px; cursor:pointer;
+  }
+  .seg button:hover{color:var(--ink); background:var(--wash);}
+  .seg button.on{background:var(--ink); color:var(--surface); font-weight:700;}
+  .ratebox{display:flex; align-items:center; gap:6px; font-size:12px; color:var(--ink-2);}
+  .ratebox input{
+    width:58px; font:13px ui-monospace,"SF Mono",Menlo,monospace; text-align:right;
+    color:var(--ink); background:var(--surface);
+    border:1px solid var(--border); border-radius:6px; padding:6px 6px;
+  }
+  .ratebox input:focus-visible{outline:2px solid var(--spx); outline-offset:1px;}
+  .note{font-size:11px; color:var(--muted);}
+  .ghost{
+    font:11px/1 ui-monospace,"SF Mono",Menlo,monospace; letter-spacing:.04em;
+    color:var(--ink-2); background:transparent; border:1px solid var(--border);
+    border-radius:999px; padding:7px 12px; cursor:pointer;
+  }
+  .ghost:hover{color:var(--down); border-color:var(--down);}
+  .ghost.armed{color:var(--down); border-color:var(--down); font-weight:700;}
+  .ghost.neutral:hover{color:var(--spx); border-color:var(--spx);}
+  .dia{color:var(--spx); font-size:10px;}
+  .warn{
+    font-size:12px; color:var(--down); line-height:1.5;
+    border:1px solid var(--border); border-radius:10px;
+    padding:10px 14px; margin:-6px 0 18px;
+  }
+  .panel{
+    background:var(--surface); border:1px solid var(--border); border-radius:10px;
+    padding:14px 10px 6px; margin-bottom:14px; position:relative;
+  }
+  .panel h2{
+    font-size:12px; font-weight:600; color:var(--ink-2); letter-spacing:.03em;
+    padding:0 8px 8px; display:flex; align-items:baseline; gap:14px; flex-wrap:wrap;
+  }
+  .legend{display:flex; gap:14px; font-weight:400; font-size:11px; color:var(--ink-2);}
+  .legend .key{display:inline-flex; align-items:center; gap:5px;}
+  .legend .chip{width:14px; height:0; border-top:2px solid; border-radius:1px;}
+  .legend .tri{font-size:10px;}
+  svg{display:block;}
+  svg text{font-family:system-ui,-apple-system,"Segoe UI",sans-serif;}
+  .clickable{cursor:crosshair;}
+  .hint{
+    padding:34px 8px 40px; text-align:center; color:var(--muted); font-size:13px;
+  }
+  .tiles{display:grid; grid-template-columns:repeat(auto-fit,minmax(170px,1fr)); gap:12px; margin:18px 0;}
+  .tile{
+    background:var(--surface); border:1px solid var(--border); border-radius:10px;
+    padding:14px 16px;
+  }
+  .tile .lbl{font-size:11px; color:var(--muted); letter-spacing:.03em; margin-bottom:6px;}
+  .tile .val{font-size:22px; font-weight:650;}
+  .tile .sub2{font-size:11px; color:var(--ink-2); margin-top:4px;}
+  .pos{color:var(--up);} .neg{color:var(--down);}
+  table{width:100%; border-collapse:collapse; font-size:13px;}
+  th{
+    text-align:right; font-size:11px; font-weight:600; color:var(--muted);
+    letter-spacing:.03em; padding:8px 10px; border-bottom:1px solid var(--grid);
+  }
+  th:first-child, th:nth-child(2){text-align:left;}
+  td{
+    text-align:right; padding:8px 10px; border-bottom:1px solid var(--grid);
+    font-variant-numeric:tabular-nums;
+  }
+  td:first-child, td:nth-child(2){text-align:left;}
+  td .act{display:inline-flex; align-items:center; gap:6px;}
+  tr:last-child td{border-bottom:none;}
+  .del{
+    background:transparent; border:none; color:var(--muted); cursor:pointer;
+    font-size:14px; padding:2px 6px; border-radius:4px;
+  }
+  .del:hover{color:var(--down); background:var(--wash);}
+  .del.pen:hover{color:var(--spx);}
+  .del.save:hover{color:var(--up);}
+  .del.save:disabled{opacity:.35; cursor:default;}
+  .rowinput{
+    font:12px ui-monospace,"SF Mono",Menlo,monospace; color:var(--ink);
+    background:var(--page); border:1px solid var(--border); border-radius:6px;
+    padding:5px 6px;
+  }
+  .rowinput.amt{width:92px; text-align:right;}
+  .rowinput:focus-visible{outline:2px solid var(--spx); outline-offset:1px;}
+  .typeseg.mini{display:inline-flex; gap:4px;}
+  .typeseg.mini button{
+    font-size:10px; padding:5px 7px; border-radius:6px; cursor:pointer;
+    border:1px solid var(--border); background:transparent; color:var(--ink-2);
+  }
+  .typeseg.mini button.on{border-color:var(--ink); color:var(--ink); font-weight:650; background:var(--wash);}
+  .pop{
+    position:absolute; z-index:10; width:230px;
+    background:var(--surface); border:1px solid var(--border); border-radius:10px;
+    box-shadow:0 6px 24px rgba(0,0,0,.18); padding:12px;
+  }
+  .pop .date{font:12px ui-monospace,"SF Mono",Menlo,monospace; color:var(--ink-2); margin-bottom:8px;}
+  .pop .date b{color:var(--ink);}
+  .pop .typeseg{display:flex; gap:6px; margin-bottom:8px;}
+  .pop .typeseg button{
+    flex:1; font-size:11px; padding:7px 4px; border-radius:6px; cursor:pointer;
+    border:1px solid var(--border); background:transparent; color:var(--ink-2);
+  }
+  .pop .typeseg button.on{border-color:var(--ink); color:var(--ink); font-weight:650; background:var(--wash);}
+  .pop input{
+    width:100%; font:14px ui-monospace,"SF Mono",Menlo,monospace;
+    color:var(--ink); background:var(--page); border:1px solid var(--border);
+    border-radius:6px; padding:8px; margin-bottom:8px;
+  }
+  .pop input:focus-visible{outline:2px solid var(--spx); outline-offset:1px;}
+  .pop .row{display:flex; gap:6px;}
+  .pop .row button{
+    flex:1; font-size:12px; padding:8px 4px; border-radius:6px; cursor:pointer;
+    border:1px solid var(--border); background:transparent; color:var(--ink-2);
+  }
+  .pop .row .add{background:var(--ink); color:var(--surface); border-color:var(--ink); font-weight:650;}
+  .pop .row .add:disabled{opacity:.4; cursor:default;}
+  .pop .row .danger{color:var(--down); border-color:var(--down);}
+  .tip{
+    position:absolute; z-index:5; pointer-events:none;
+    background:var(--surface); border:1px solid var(--border); border-radius:8px;
+    padding:8px 10px; font-size:11px; box-shadow:0 4px 14px rgba(0,0,0,.14);
+    white-space:nowrap;
+  }
+  .tip .d{font:11px ui-monospace,"SF Mono",Menlo,monospace; color:var(--muted); margin-bottom:3px;}
+  .tip .r{display:flex; justify-content:space-between; gap:14px; font-variant-numeric:tabular-nums;}
+  .tip .r .k{color:var(--ink-2); display:inline-flex; align-items:center; gap:5px;}
+  .tip .r .chip{width:10px; height:0; border-top:2px solid; display:inline-block;}
+  footer{max-width:1060px; margin:0 auto; padding:0 22px 30px; font-size:11px; color:var(--muted); line-height:1.6;}
+</style>
+</head>
+<body>
+<div id="root"></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.3.1/umd/react.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.3.1/umd/react-dom.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.26.4/babel.min.js"></script>
+<script src="assets/sp500_data.js"></script>
+
+<script type="text/babel">
+const {useState, useEffect, useMemo, useRef, useCallback} = React;
+
+/* ---------- constants / storage ---------- */
+const LS = {
+  marks:   'sidestep.marks.v1',
+  basis:   'sidestep.basis.v1',
+  rate:    'sidestep.rate.v1',
+  horizon: 'sidestep.horizon.v1',
+  cache:   'sidestep.cache.v1',
+};
+const HORIZONS = [ ['1Y',1], ['3Y',3], ['5Y',5], ['10Y',10] ];
+const MS_DAY = 86400000;
+
+function lsGet(key, fallback){
+  try{ const v = localStorage.getItem(key); return v == null ? fallback : JSON.parse(v); }
+  catch(e){ return fallback; }
+}
+function lsSet(key, val){
+  try{ localStorage.setItem(key, JSON.stringify(val)); }catch(e){}
+}
+
+/* ---------- data ---------- */
+function toMs(dstr){
+  const [y,m,d] = dstr.split('-').map(Number);
+  return Date.UTC(y, m-1, d);
+}
+function mergeSeries(a, b){ // arrays of [dateStr, close]; b wins on ties
+  const map = new Map(a);
+  for(const [d,c] of b) map.set(d, c);
+  return [...map.entries()].sort((x,y) => x[0] < y[0] ? -1 : 1);
+}
+function parseFredCsv(text){
+  return text.trim().split('\n').slice(1)
+    .map(l => l.split(','))
+    .filter(([d,c]) => d && /^\d{4}-\d{2}-\d{2}$/.test(d) && c && c !== '.' && !isNaN(parseFloat(c)))
+    .map(([d,c]) => [d, parseFloat(c)]);
+}
+
+/* ---------- formatting ---------- */
+const fmtUSD  = v => v.toLocaleString('en-US', {style:'currency', currency:'USD', maximumFractionDigits:0});
+const fmtUSDc = v => v.toLocaleString('en-US', {style:'currency', currency:'USD', minimumFractionDigits:2, maximumFractionDigits:2});
+const fmtSigned = v => (v >= 0 ? '+' : '−') + fmtUSD(Math.abs(v));
+const fmtPct  = v => (v >= 0 ? '+' : '−') + Math.abs(v*100).toFixed(1) + '%';
+function fmtAxis$(v){
+  const a = Math.abs(v);
+  if(a >= 1e6) return '$' + (v/1e6).toFixed(a >= 1e7 ? 0 : 1) + 'M';
+  if(a >= 1e3) return '$' + (v/1e3).toFixed(a >= 1e5 ? 0 : 1) + 'k';
+  return '$' + Math.round(v);
+}
+const fmtDate = d => new Date(toMs(d)).toLocaleDateString('en-US', {timeZone:'UTC', year:'numeric', month:'short', day:'numeric'});
+function parseAmount(s){
+  const m = String(s).trim().toLowerCase().replace(/[$,\s]/g,'').match(/^(\d*\.?\d+)(k|m)?$/);
+  if(!m) return NaN;
+  return parseFloat(m[1]) * (m[2] === 'k' ? 1e3 : m[2] === 'm' ? 1e6 : 1);
+}
+
+/* ---------- scales ---------- */
+function niceTicks(lo, hi, n){
+  if(!(hi > lo)) return [lo];
+  const span = hi - lo, step0 = span / n, mag = Math.pow(10, Math.floor(Math.log10(step0)));
+  const step = [1,2,2.5,5,10].map(m => m*mag).find(s => span/s <= n) || 10*mag;
+  const ticks = [];
+  for(let t = Math.ceil(lo/step)*step; t <= hi + 1e-9; t += step) ticks.push(t);
+  return ticks;
+}
+function timeTicks(msLo, msHi){
+  const years = (msHi - msLo) / (365.25*MS_DAY);
+  const out = [];
+  const d0 = new Date(msLo), d1 = new Date(msHi);
+  if(years <= 1.6){ // month ticks (skip every other if crowded)
+    const every = years > 0.9 ? 2 : 1;
+    const d = new Date(Date.UTC(d0.getUTCFullYear(), d0.getUTCMonth()+1, 1));
+    while(d.getTime() <= msHi){
+      if(d.getUTCMonth() % every === 0)
+        out.push({ms: d.getTime(), label: d.toLocaleDateString('en-US',{timeZone:'UTC', month:'short'}) + (d.getUTCMonth() === 0 ? ' ’' + String(d.getUTCFullYear()).slice(2) : '')});
+      d.setUTCMonth(d.getUTCMonth()+1);
+    }
+  } else {
+    const every = years > 6 ? 1 : 1;
+    for(let y = d0.getUTCFullYear()+1; y <= d1.getUTCFullYear(); y += every)
+      out.push({ms: Date.UTC(y,0,1), label: String(y)});
+  }
+  return out;
+}
+
+/* ---------- finance ---------- */
+// Growth of $1 in the money market from msFrom to msTo at APY r (annual compounding pro-rated by calendar days)
+const mmGrow = (msFrom, msTo, r) => Math.pow(1 + r, (msTo - msFrom) / (365 * MS_DAY));
+
+/*
+ For each mark:
+   divest  = moved $ out of the S&P into the money market on that date
+   invest  = moved $ out of the money market into the S&P on that date
+ actual(t)      = value given what you did
+ counterfactual = value had you not made any move
+
+ With a starting position (basis), the lines are whole-portfolio values:
+ the basis grows with the S&P in BOTH scenarios (it adds nothing to the
+ deviation), and a divestment sells out of that held position — its S&P
+ leg is subtracted from actual instead of credited to the counterfactual.
+ The actual−cf gap is identical either way.
+*/
+function computeSeries(data, marks, rate, basis){
+  if(!marks.length && !basis) return null;
+  const closeByDate = new Map(data);
+  const sorted = [...marks].sort((a,b) => a.date < b.date ? -1 : 1);
+  const basisMs = basis && closeByDate.has(basis.date) ? toMs(basis.date) : Infinity;
+  const firstMs = Math.min(sorted.length ? toMs(sorted[0].date) : Infinity, basisMs);
+  if(firstMs === Infinity) return null;
+  const actual = new Array(data.length).fill(null);
+  const cf     = new Array(data.length).fill(null);
+  for(let i = 0; i < data.length; i++){
+    const [d, close] = data[i];
+    const ms = toMs(d);
+    if(ms < firstMs) continue;
+    let a = 0, c = 0;
+    if(basisMs <= ms){
+      const g = basis.amount * close / closeByDate.get(basis.date);
+      a += g; c += g;
+    }
+    for(const m of sorted){
+      const mMs = toMs(m.date);
+      if(mMs > ms) break;
+      const p0 = closeByDate.get(m.date);
+      const spx = m.amount * close / p0;
+      const mm  = m.amount * mmGrow(mMs, ms, rate);
+      if(m.type === 'divest'){
+        if(mMs >= basisMs){ a += mm - spx; }   // sold out of the held basis
+        else              { a += mm; c += spx; }
+      }
+      else { a += spx; c += mm; }
+    }
+    actual[i] = a; cf[i] = c;
+  }
+  return {actual, cf};
+}
+function markStats(data, mark, rate){
+  const closeByDate = new Map(data);
+  const [lastDate, lastClose] = data[data.length-1];
+  const p0 = closeByDate.get(mark.date);
+  const spx = mark.amount * lastClose / p0;
+  const mm  = mark.amount * mmGrow(toMs(mark.date), toMs(lastDate), rate);
+  const actualNow = mark.type === 'divest' ? mm : spx;
+  const cfNow     = mark.type === 'divest' ? spx : mm;
+  return {actualNow, cfNow, dev: actualNow - cfNow};
+}
+
+/* ---------- svg path helpers ---------- */
+function linePath(pts){
+  let d = '';
+  for(const p of pts){
+    if(p === null){ continue; }
+    d += (d === '' ? 'M' : 'L') + p[0].toFixed(1) + ',' + p[1].toFixed(1);
+  }
+  return d;
+}
+
+/* ---------- app ---------- */
+function App(){
+  const [data, setData] = useState(() => {
+    const cache = lsGet(LS.cache, null);
+    const base = window.SP500_DATA || [];
+    return cache && cache.rows ? mergeSeries(base, cache.rows) : base;
+  });
+  const [live, setLive] = useState(false);
+  const [horizon, setHorizon] = useState(() => lsGet(LS.horizon, 3));
+  const [rate, setRate] = useState(() => lsGet(LS.rate, 3.5));
+  const [rateText, setRateText] = useState(() => String(lsGet(LS.rate, 3.5)));
+  const [marks, setMarks] = useState(() => lsGet(LS.marks, []));
+  const [basis, setBasis] = useState(() => lsGet(LS.basis, null)); // {date, amount} | null
+  const [basisForm, setBasisForm] = useState(null); // {date, amountText} | null
+  const [editor, setEditor] = useState(null);   // {mode:'add'|'edit', id?, date, px, py, type, amount}
+  const [rowEdit, setRowEdit] = useState(null); // {id, date, type, amountText}
+  const [clearArm, setClearArm] = useState(false);
+  const [hoverIdx, setHoverIdx] = useState(null); // index into visible slice
+  const wrapRef = useRef(null);
+  const [width, setWidth] = useState(1000);
+
+  /* live refresh through a CORS proxy; silent fallback to bundled data */
+  useEffect(() => {
+    const ctrl = new AbortController();
+    const t = setTimeout(() => ctrl.abort(), 12000);
+    fetch('https://api.allorigins.win/raw?url=' +
+          encodeURIComponent('https://fred.stlouisfed.org/graph/fredgraph.csv?id=SP500'),
+          {signal: ctrl.signal})
+      .then(r => r.ok ? r.text() : Promise.reject())
+      .then(text => {
+        const rows = parseFredCsv(text);
+        if(rows.length < 100) return;
+        lsSet(LS.cache, {fetched: new Date().toISOString(), rows});
+        setData(prev => mergeSeries(prev, rows));
+        setLive(true);
+      })
+      .catch(() => {})
+      .finally(() => clearTimeout(t));
+    return () => { ctrl.abort(); clearTimeout(t); };
+  }, []);
+
+  useEffect(() => { lsSet(LS.marks, marks); }, [marks]);
+  useEffect(() => { lsSet(LS.basis, basis); }, [basis]);
+  useEffect(() => { lsSet(LS.rate, rate); }, [rate]);
+  useEffect(() => { lsSet(LS.horizon, horizon); }, [horizon]);
+
+  useEffect(() => {
+    const measure = () => { if(wrapRef.current) setWidth(wrapRef.current.clientWidth); };
+    measure();
+    window.addEventListener('resize', measure);
+    return () => window.removeEventListener('resize', measure);
+  }, []);
+
+  /* close editor on outside click / escape */
+  useEffect(() => {
+    if(!editor) return;
+    const onKey = e => { if(e.key === 'Escape') setEditor(null); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [editor]);
+
+  /* disarm the clear-all confirmation after a few seconds */
+  useEffect(() => {
+    if(!clearArm) return;
+    const t = setTimeout(() => setClearArm(false), 4000);
+    return () => clearTimeout(t);
+  }, [clearArm]);
+
+  const r = rate / 100;
+
+  /* window slice for selected horizon */
+  const view = useMemo(() => {
+    if(data.length < 2) return null;
+    const lastMs = toMs(data[data.length-1][0]);
+    const startMs = lastMs - horizon * 365.25 * MS_DAY;
+    let i0 = data.findIndex(([d]) => toMs(d) >= startMs);
+    if(i0 < 0) i0 = 0;
+    return {i0, rows: data.slice(i0), startMs: toMs(data[Math.max(i0,0)][0]), endMs: lastMs};
+  }, [data, horizon]);
+
+  const series = useMemo(() => computeSeries(data, marks, r, basis), [data, marks, r, basis]);
+
+  /* layout */
+  const M = {l:56, r:96, t:14, b:26};
+  const H1 = 300, H2 = 210;
+  const iw = Math.max(200, width - M.l - M.r);
+
+  if(!view) return <main><div className="hint">No price data available.</div></main>;
+
+  const {rows, i0} = view;
+  const xOf = ms => M.l + (ms - view.startMs) / (view.endMs - view.startMs) * iw;
+
+  /* top panel scale */
+  let pLo = Infinity, pHi = -Infinity;
+  for(const [,c] of rows){ if(c < pLo) pLo = c; if(c > pHi) pHi = c; }
+  const pPad = (pHi - pLo) * 0.06 || 1;
+  pLo -= pPad; pHi += pPad;
+  const yP = v => M.t + (pHi - v) / (pHi - pLo) * (H1 - M.t - M.b);
+
+  /* bottom panel scale */
+  let vis = null;
+  if(series){
+    let lo = Infinity, hi = -Infinity, any = false;
+    for(let i = i0; i < data.length; i++){
+      const a = series.actual[i], c = series.cf[i];
+      if(a === null) continue;
+      any = true;
+      lo = Math.min(lo, a, c); hi = Math.max(hi, a, c);
+    }
+    if(any){
+      const pad = (hi - lo) * 0.08 || Math.max(hi * 0.05, 1);
+      vis = {lo: lo - pad, hi: hi + pad};
+    }
+  }
+  const yV = vis ? (v => M.t + (vis.hi - v) / (vis.hi - vis.lo) * (H2 - M.t - M.b)) : null;
+
+  const tTicks = timeTicks(view.startMs, view.endMs);
+  const pricePts = rows.map(([d,c]) => [xOf(toMs(d)), yP(c)]);
+
+  /* pointer helpers */
+  const idxFromEvent = (e, svg) => {
+    const rect = svg.getBoundingClientRect();
+    const px = e.clientX - rect.left;
+    const frac = Math.min(1, Math.max(0, (px - M.l) / iw));
+    const ms = view.startMs + frac * (view.endMs - view.startMs);
+    let best = 0, bestD = Infinity;
+    for(let i = 0; i < rows.length; i++){
+      const d = Math.abs(toMs(rows[i][0]) - ms);
+      if(d < bestD){ bestD = d; best = i; }
+    }
+    return best;
+  };
+
+  const onChartClick = e => {
+    if(editor){ setEditor(null); return; }
+    const svg = e.currentTarget;
+    const idx = idxFromEvent(e, svg);
+    const wrapRect = wrapRef.current.getBoundingClientRect();
+    const svgRect = svg.getBoundingClientRect();
+    const px = xOf(toMs(rows[idx][0])) + (svgRect.left - wrapRect.left);
+    const py = yP(rows[idx][1]) + (svgRect.top - wrapRect.top);
+    setEditor({mode:'add', date: rows[idx][0], px, py, type:'divest', amount:''});
+  };
+
+  const onMarkClick = (e, m) => {
+    e.stopPropagation();
+    const svg = e.currentTarget.ownerSVGElement;
+    const wrapRect = wrapRef.current.getBoundingClientRect();
+    const svgRect = svg.getBoundingClientRect();
+    setEditor({mode:'edit', id: m.id, date: m.date,
+               px: m.x + (svgRect.left - wrapRect.left),
+               py: m.y + (svgRect.top - wrapRect.top),
+               type: m.type, amount: String(m.amount)});
+  };
+
+  const commitEditor = () => {
+    const amount = parseAmount(editor.amount);
+    if(!(amount > 0)) return;
+    if(editor.mode === 'edit')
+      setMarks(ms => ms.map(x => x.id === editor.id ? {...x, type: editor.type, amount} : x));
+    else
+      setMarks(ms => [...ms, {id: Date.now() + '' + Math.floor(Math.random()*1e6),
+                              date: editor.date, type: editor.type, amount}]);
+    setEditor(null);
+  };
+
+  /* table row editing */
+  const snapTradingDay = dstr => {
+    const ms = toMs(dstr);
+    let best = null, bd = Infinity;
+    for(const [d] of data){
+      const diff = Math.abs(toMs(d) - ms);
+      if(diff < bd){ bd = diff; best = d; }
+    }
+    return best;
+  };
+  const rowEditValid = re => {
+    if(!re) return false;
+    if(!(parseAmount(re.amountText) > 0)) return false;
+    if(!re.date || !/^\d{4}-\d{2}-\d{2}$/.test(re.date)) return false;
+    const ms = toMs(re.date);
+    return ms >= toMs(data[0][0]) && ms <= toMs(data[data.length-1][0]);
+  };
+  const saveRowEdit = () => {
+    if(!rowEditValid(rowEdit)) return;
+    const amount = parseAmount(rowEdit.amountText);
+    const date = snapTradingDay(rowEdit.date);
+    setMarks(ms => ms.map(x => x.id === rowEdit.id ? {...x, date, type: rowEdit.type, amount} : x));
+    setRowEdit(null);
+  };
+
+  /* starting position */
+  const basisFormValid = basisForm !== null
+    && parseAmount(basisForm.amountText) > 0
+    && /^\d{4}-\d{2}-\d{2}$/.test(basisForm.date || '')
+    && toMs(basisForm.date) >= toMs(data[0][0])
+    && toMs(basisForm.date) <= toMs(data[data.length-1][0]);
+  const saveBasis = () => {
+    if(!basisFormValid) return;
+    setBasis({date: snapTradingDay(basisForm.date), amount: parseAmount(basisForm.amountText)});
+    setBasisForm(null);
+  };
+
+  const commitRate = () => {
+    const v = parseFloat(rateText);
+    if(isFinite(v) && v >= 0 && v <= 25){ setRate(v); setRateText(String(v)); }
+    else setRateText(String(rate));
+  };
+
+  /* summary */
+  const sortedMarks = [...marks].sort((a,b) => a.date < b.date ? -1 : 1);
+  const perMark = sortedMarks.map(m => ({m, ...markStats(data, m, r)}));
+  const totalMoved = perMark.reduce((s,x) => s + x.m.amount, 0);
+  const totalDev = perMark.reduce((s,x) => s + x.dev, 0);
+
+  const lastDate = data[data.length-1][0];
+
+  /* portfolio-level values: series already includes the basis in both lines */
+  const portActual = series ? series.actual[data.length-1] : 0;
+  const portCf     = series ? series.cf[data.length-1] : 0;
+  const totalInvested = perMark.reduce((s,x) => s + (x.m.type === 'invest' ? x.m.amount : 0), 0);
+  const principal = basis ? basis.amount + totalInvested : totalMoved;
+
+  /* did divestments ever exceed the tracked S&P holding? */
+  let overdrawn = false;
+  if(basis){
+    const map = new Map(data);
+    const bp = map.get(basis.date);
+    if(bp){
+      let units = basis.amount / bp;
+      for(const m of sortedMarks){
+        if(toMs(m.date) < toMs(basis.date)) continue;
+        units += (m.type === 'invest' ? 1 : -1) * m.amount / map.get(m.date);
+        if(units < -1e-9){ overdrawn = true; break; }
+      }
+    }
+  }
+  const hover = hoverIdx !== null && hoverIdx < rows.length ? hoverIdx : null;
+  const hoverMs = hover !== null ? toMs(rows[hover][0]) : null;
+  const hoverGlobal = hover !== null ? i0 + hover : null;
+
+  /* mark points within window */
+  const closeMap = new Map(data);
+  const markPts = sortedMarks
+    .filter(m => toMs(m.date) >= view.startMs)
+    .map(m => ({...m, x: xOf(toMs(m.date)), y: yP(closeMap.get(m.date))}));
+
+  const editorDate = editor ? editor.date : null;
+  const editorLeft = editor ? Math.min(Math.max(8, editor.px - 115), width - 238) : 0;
+  const editorTop = editor ? Math.min(editor.py + 14, H1 - 40) : 0;
+
+  /* tooltip */
+  const tipData = hover !== null ? {
+    date: rows[hover][0],
+    close: rows[hover][1],
+    a: series && hoverGlobal !== null ? series.actual[hoverGlobal] : null,
+    c: series && hoverGlobal !== null ? series.cf[hoverGlobal] : null,
+  } : null;
+  const tipLeft = hover !== null ? Math.min(Math.max(8, xOf(hoverMs) + 12), width - 210) : 0;
+
+  return (
+    <React.Fragment>
+      <header>
+        <h1>Sidestep</h1>
+        <div className="sub">S&amp;P 500 vs money market — what your moves cost or saved</div>
+        <div className="spacer"></div>
+        <div className="sub">data through {fmtDate(lastDate)}{live ? ' · live' : ''}</div>
+      </header>
+      <main>
+        <div className="controls">
+          <div className="seg" role="tablist" aria-label="Time horizon">
+            {HORIZONS.map(([label, yrs]) =>
+              <button key={label} className={horizon === yrs ? 'on' : ''}
+                      onClick={() => setHorizon(yrs)}>{label}</button>)}
+          </div>
+          <div className="ratebox">
+            <label htmlFor="rate">Money market APY</label>
+            <input id="rate" value={rateText}
+                   onChange={e => setRateText(e.target.value)}
+                   onBlur={commitRate}
+                   onKeyDown={e => { if(e.key === 'Enter') e.target.blur(); }}/>
+            <span>%</span>
+          </div>
+          {basisForm !== null
+            ? <div className="ratebox">
+                <label>Starting position</label>
+                <input type="date" className="rowinput" value={basisForm.date}
+                       min={data[0][0]} max={lastDate}
+                       onChange={e => setBasisForm({...basisForm, date: e.target.value})}/>
+                <input className="rowinput amt" placeholder="$ amount" autoFocus={!basisForm.amountText}
+                       value={basisForm.amountText}
+                       onChange={e => setBasisForm({...basisForm, amountText: e.target.value})}
+                       onKeyDown={e => { if(e.key === 'Enter') saveBasis(); if(e.key === 'Escape') setBasisForm(null); }}/>
+                <button className="del save" title="Save starting position" disabled={!basisFormValid} onClick={saveBasis}>✓</button>
+                <button className="del" title="Cancel" onClick={() => setBasisForm(null)}>✕</button>
+              </div>
+            : basis
+              ? <div className="ratebox">
+                  <span><span className="dia">◆</span> basis {fmtUSD(basis.amount)} · {fmtDate(basis.date)}</span>
+                  <button className="del pen" title="Edit starting position"
+                          onClick={() => setBasisForm({date: basis.date, amountText: String(basis.amount)})}>✎</button>
+                  <button className="del" title="Remove starting position" onClick={() => setBasis(null)}>✕</button>
+                </div>
+              : <button className="ghost neutral"
+                        onClick={() => setBasisForm({date: rows[0][0], amountText: ''})}>
+                  ＋ starting position
+                </button>}
+          <div className="note">Click the chart to add a move</div>
+          <div className="spacer"></div>
+          {marks.length > 0 && (clearArm
+            ? <button className="ghost armed" onClick={() => { setMarks([]); setClearArm(false); }}>
+                really clear {marks.length} mark{marks.length > 1 ? 's' : ''}?
+              </button>
+            : <button className="ghost" onClick={() => setClearArm(true)}>clear all marks</button>)}
+        </div>
+
+        <div ref={wrapRef} style={{position:'relative'}}>
+          {/* ---- top panel: S&P 500 ---- */}
+          <div className="panel">
+            <h2>
+              S&amp;P 500 index
+              <span className="legend">
+                <span className="key"><span className="chip" style={{borderColor:'var(--spx)'}}></span>close</span>
+                <span className="key"><span className="tri" style={{color:'var(--invest)'}}>▲</span>invest (into S&amp;P)</span>
+                <span className="key"><span className="tri" style={{color:'var(--strategy)'}}>▼</span>divest (into money market)</span>
+                {basis && <span className="key"><span className="tri" style={{color:'var(--spx)'}}>◆</span>starting position</span>}
+              </span>
+            </h2>
+            <svg className="clickable" width={width - 22} height={H1}
+                 onClick={onChartClick}
+                 onMouseMove={e => setHoverIdx(idxFromEvent(e, e.currentTarget))}
+                 onMouseLeave={() => setHoverIdx(null)}>
+              {niceTicks(pLo, pHi, 5).map(t =>
+                <g key={t}>
+                  <line x1={M.l} x2={M.l + iw} y1={yP(t)} y2={yP(t)} stroke="var(--grid)" strokeWidth="1"/>
+                  <text x={M.l - 8} y={yP(t) + 3.5} textAnchor="end" fontSize="11" fill="var(--muted)"
+                        style={{fontVariantNumeric:'tabular-nums'}}>{Math.round(t).toLocaleString()}</text>
+                </g>)}
+              {tTicks.map(t =>
+                <text key={t.ms} x={xOf(t.ms)} y={H1 - 8} textAnchor="middle" fontSize="11" fill="var(--muted)">{t.label}</text>)}
+              <line x1={M.l} x2={M.l + iw} y1={H1 - M.b} y2={H1 - M.b} stroke="var(--baseline)" strokeWidth="1"/>
+              <path d={linePath(pricePts)} fill="none" stroke="var(--spx)" strokeWidth="2" strokeLinejoin="round"/>
+              <text x={M.l + iw + 6} y={pricePts.length ? pricePts[pricePts.length-1][1] + 4 : 0}
+                    fontSize="11" fill="var(--spx)" fontWeight="600">S&amp;P 500</text>
+              {hover !== null &&
+                <line x1={xOf(hoverMs)} x2={xOf(hoverMs)} y1={M.t} y2={H1 - M.b}
+                      stroke="var(--baseline)" strokeWidth="1" strokeDasharray="3,3"/>}
+              {basis && closeMap.has(basis.date) && toMs(basis.date) >= view.startMs && (() => {
+                const bx = xOf(toMs(basis.date)), by = yP(closeMap.get(basis.date));
+                return (
+                  <g style={{cursor:'pointer'}}
+                     onClick={e => { e.stopPropagation(); setBasisForm({date: basis.date, amountText: String(basis.amount)}); }}>
+                    <title>{'Starting position: ' + fmtUSD(basis.amount) + ' on ' + fmtDate(basis.date) + ' — click to edit'}</title>
+                    <circle cx={bx} cy={by} r="13" fill="transparent"/>
+                    <path d={`M${bx},${by - 9} l7,9 l-7,9 l-7,-9 Z`}
+                          fill="var(--spx)" stroke="var(--surface)" strokeWidth="2"/>
+                  </g>
+                );
+              })()}
+              {markPts.map(m =>
+                <g key={m.id} style={{cursor:'pointer'}} onClick={e => onMarkClick(e, m)}>
+                  <title>{(m.type === 'invest' ? 'Invested ' : 'Divested ') + fmtUSD(m.amount) + ' on ' + fmtDate(m.date) + ' — click to edit'}</title>
+                  <circle cx={m.x} cy={m.y} r="13" fill="transparent"/>
+                  <path d={m.type === 'invest'
+                    ? `M${m.x},${m.y - 13} l6.5,11 l-13,0 Z`
+                    : `M${m.x},${m.y + 13} l6.5,-11 l-13,0 Z`}
+                    fill={m.type === 'invest' ? 'var(--invest)' : 'var(--strategy)'}
+                    stroke="var(--surface)" strokeWidth="2"/>
+                </g>)}
+            </svg>
+            {tipData &&
+              <div className="tip" style={{left: tipLeft, top: 44}}>
+                <div className="d">{fmtDate(tipData.date)}</div>
+                <div className="r"><span className="k"><span className="chip" style={{borderColor:'var(--spx)'}}></span>S&amp;P 500</span><b>{tipData.close.toLocaleString('en-US',{maximumFractionDigits:2})}</b></div>
+                {tipData.a !== null && <div className="r"><span className="k"><span className="chip" style={{borderColor:'var(--strategy)'}}></span>your strategy</span><b>{fmtUSD(tipData.a)}</b></div>}
+                {tipData.a !== null && <div className="r"><span className="k"><span className="chip" style={{borderColor:'var(--alt)'}}></span>no moves</span><b>{fmtUSD(tipData.c)}</b></div>}
+                {tipData.a !== null && <div className="r"><span className="k">gap</span><b className={tipData.a - tipData.c >= 0 ? 'pos' : 'neg'}>{fmtSigned(tipData.a - tipData.c)}</b></div>}
+              </div>}
+            {editor &&
+              <div className="pop" style={{left: editorLeft, top: editorTop}} onClick={e => e.stopPropagation()}>
+                <div className="date">{editor.mode === 'edit' ? 'edit mark on ' : 'on '}<b>{fmtDate(editorDate)}</b></div>
+                <div className="typeseg">
+                  <button className={editor.type === 'divest' ? 'on' : ''}
+                          onClick={() => setEditor({...editor, type:'divest'})}>▼ Divest to MM</button>
+                  <button className={editor.type === 'invest' ? 'on' : ''}
+                          onClick={() => setEditor({...editor, type:'invest'})}>▲ Invest in S&amp;P</button>
+                </div>
+                <form onSubmit={e => { e.preventDefault(); commitEditor(); }}>
+                  <input placeholder="$ amount (e.g. 10k)" autoFocus value={editor.amount}
+                         onChange={e => setEditor({...editor, amount: e.target.value})}/>
+                  <div className="row">
+                    {editor.mode === 'edit' &&
+                      <button type="button" className="danger"
+                              onClick={() => { setMarks(ms => ms.filter(x => x.id !== editor.id)); setEditor(null); }}>
+                        delete
+                      </button>}
+                    <button type="button" onClick={() => setEditor(null)}>cancel</button>
+                    <button type="submit" className="add" disabled={!(parseAmount(editor.amount) > 0)}>
+                      {editor.mode === 'edit' ? 'save' : 'add'}
+                    </button>
+                  </div>
+                </form>
+              </div>}
+          </div>
+
+          {/* ---- bottom panel: strategy vs do-nothing ---- */}
+          <div className="panel">
+            <h2>
+              {basis ? 'Portfolio value' : 'Value of moved dollars'}
+              <span className="legend">
+                <span className="key"><span className="chip" style={{borderColor:'var(--strategy)'}}></span>your strategy</span>
+                <span className="key"><span className="chip" style={{borderColor:'var(--alt)'}}></span>had you not moved</span>
+              </span>
+            </h2>
+            {vis ? (
+              <svg width={width - 22} height={H2}
+                   onMouseMove={e => setHoverIdx(idxFromEvent(e, e.currentTarget))}
+                   onMouseLeave={() => setHoverIdx(null)}>
+                {niceTicks(vis.lo, vis.hi, 4).map(t =>
+                  <g key={t}>
+                    <line x1={M.l} x2={M.l + iw} y1={yV(t)} y2={yV(t)} stroke="var(--grid)" strokeWidth="1"/>
+                    <text x={M.l - 8} y={yV(t) + 3.5} textAnchor="end" fontSize="11" fill="var(--muted)"
+                          style={{fontVariantNumeric:'tabular-nums'}}>{fmtAxis$(t)}</text>
+                  </g>)}
+                {tTicks.map(t =>
+                  <text key={t.ms} x={xOf(t.ms)} y={H2 - 8} textAnchor="middle" fontSize="11" fill="var(--muted)">{t.label}</text>)}
+                <line x1={M.l} x2={M.l + iw} y1={H2 - M.b} y2={H2 - M.b} stroke="var(--baseline)" strokeWidth="1"/>
+                {(() => {
+                  const defs = [['cf','var(--alt)','no moves'], ['actual','var(--strategy)','strategy']];
+                  const built = defs.map(([key, color, label]) => {
+                    const pts = [];
+                    let lastY = null;
+                    for(let i = i0; i < data.length; i++){
+                      const v = series[key][i];
+                      if(v === null){ pts.push(null); continue; }
+                      lastY = yV(v);
+                      pts.push([xOf(toMs(data[i][0])), lastY]);
+                    }
+                    return {key, color, label, pts, labelY: lastY};
+                  });
+                  // nudge end labels apart when the line ends nearly coincide
+                  const [a, b] = built;
+                  if(a.labelY !== null && b.labelY !== null && Math.abs(a.labelY - b.labelY) < 13){
+                    const mid = (a.labelY + b.labelY) / 2;
+                    const [up, dn] = a.labelY <= b.labelY ? [a, b] : [b, a];
+                    up.labelY = mid - 7; dn.labelY = mid + 7;
+                  }
+                  return built.map(s =>
+                    <g key={s.key}>
+                      <path d={linePath(s.pts)} fill="none" stroke={s.color} strokeWidth="2" strokeLinejoin="round"/>
+                      {s.labelY !== null &&
+                        <text x={M.l + iw + 6} y={s.labelY + 4} fontSize="11" fill={s.color} fontWeight="600">{s.label}</text>}
+                    </g>);
+                })()}
+                {hover !== null &&
+                  <line x1={xOf(hoverMs)} x2={xOf(hoverMs)} y1={M.t} y2={H2 - M.b}
+                        stroke="var(--baseline)" strokeWidth="1" strokeDasharray="3,3"/>}
+              </svg>
+            ) : (
+              <div className="hint">
+                Click a point on the S&amp;P chart above to add an investment or divestment.<br/>
+                Marks are saved in your browser.
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* ---- summary ---- */}
+        {perMark.length > 0 && (
+          <React.Fragment>
+            <div className="tiles">
+              <div className="tile">
+                <div className="lbl">TOTAL MOVED</div>
+                <div className="val">{fmtUSD(totalMoved)}</div>
+                <div className="sub2">{perMark.length} move{perMark.length > 1 ? 's' : ''}{basis ? ' · ' + fmtUSD(basis.amount) + ' basis' : ''}</div>
+              </div>
+              <div className="tile">
+                <div className="lbl">YOUR STRATEGY, NOW</div>
+                <div className="val">{fmtUSD(portActual)}</div>
+                <div className="sub2">{fmtSigned(portActual - principal)} vs principal{basis ? ' · incl. basis' : ''}</div>
+              </div>
+              <div className="tile">
+                <div className="lbl">HAD YOU NOT MOVED</div>
+                <div className="val">{fmtUSD(portCf)}</div>
+                <div className="sub2">{fmtSigned(portCf - principal)} vs principal{basis ? ' · incl. basis' : ''}</div>
+              </div>
+              <div className="tile">
+                <div className="lbl">NET DEVIATION</div>
+                <div className={'val ' + (totalDev >= 0 ? 'pos' : 'neg')}>{fmtSigned(totalDev)}</div>
+                <div className={'sub2 ' + (totalDev >= 0 ? 'pos' : 'neg')}>
+                  {fmtPct(totalDev / totalMoved)} of moved capital{basis && portCf > 0 ? ' · ' + fmtPct(totalDev / portCf) + ' of portfolio' : ''}
+                </div>
+              </div>
+            </div>
+            {overdrawn &&
+              <div className="warn">
+                ⚠ Your divestments exceed the starting S&amp;P position at some point, so the portfolio lines
+                briefly assume a negative S&amp;P holding. Raise the starting amount if that's not intended.
+                (The deviation numbers are unaffected.)
+              </div>}
+
+            <div className="panel" style={{padding:'6px 8px'}}>
+              <table>
+                <thead>
+                  <tr>
+                    <th>DATE</th><th>ACTION</th><th>AMOUNT</th>
+                    <th>VALUE NOW</th><th>IF NOT MOVED</th><th>DEVIATION</th><th></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {perMark.map(({m, actualNow, cfNow, dev}) => {
+                    if(rowEdit && rowEdit.id === m.id){
+                      const valid = rowEditValid(rowEdit);
+                      const draft = valid
+                        ? markStats(data, {date: snapTradingDay(rowEdit.date), type: rowEdit.type,
+                                           amount: parseAmount(rowEdit.amountText)}, r)
+                        : null;
+                      return (
+                        <tr key={m.id}>
+                          <td>
+                            <input type="date" className="rowinput" value={rowEdit.date}
+                                   min={data[0][0]} max={data[data.length-1][0]}
+                                   onChange={e => setRowEdit({...rowEdit, date: e.target.value})}/>
+                          </td>
+                          <td>
+                            <span className="typeseg mini">
+                              <button className={rowEdit.type === 'divest' ? 'on' : ''}
+                                      onClick={() => setRowEdit({...rowEdit, type:'divest'})}>▼ divest</button>
+                              <button className={rowEdit.type === 'invest' ? 'on' : ''}
+                                      onClick={() => setRowEdit({...rowEdit, type:'invest'})}>▲ invest</button>
+                            </span>
+                          </td>
+                          <td>
+                            <input className="rowinput amt" value={rowEdit.amountText}
+                                   onChange={e => setRowEdit({...rowEdit, amountText: e.target.value})}
+                                   onKeyDown={e => { if(e.key === 'Enter') saveRowEdit(); if(e.key === 'Escape') setRowEdit(null); }}/>
+                          </td>
+                          <td>{draft ? fmtUSDc(draft.actualNow) : '—'}</td>
+                          <td>{draft ? fmtUSDc(draft.cfNow) : '—'}</td>
+                          <td className={draft && draft.dev >= 0 ? 'pos' : 'neg'}>
+                            {draft ? <React.Fragment>{fmtSigned(draft.dev)} <span style={{opacity:.75}}>({fmtPct(draft.dev / parseAmount(rowEdit.amountText))})</span></React.Fragment> : '—'}
+                          </td>
+                          <td style={{whiteSpace:'nowrap'}}>
+                            <button className="del save" title="Save changes" disabled={!valid} onClick={saveRowEdit}>✓</button>
+                            <button className="del" title="Cancel" onClick={() => setRowEdit(null)}>✕</button>
+                          </td>
+                        </tr>
+                      );
+                    }
+                    return (
+                      <tr key={m.id}>
+                        <td>{fmtDate(m.date)}</td>
+                        <td>
+                          <span className="act">
+                            <span style={{color: m.type === 'invest' ? 'var(--invest)' : 'var(--strategy)', fontSize:'10px'}}>
+                              {m.type === 'invest' ? '▲' : '▼'}
+                            </span>
+                            {m.type === 'invest' ? 'invest in S&P' : 'divest to MM'}
+                          </span>
+                        </td>
+                        <td>{fmtUSD(m.amount)}</td>
+                        <td>{fmtUSDc(actualNow)}</td>
+                        <td>{fmtUSDc(cfNow)}</td>
+                        <td className={dev >= 0 ? 'pos' : 'neg'}>
+                          {fmtSigned(dev)} <span style={{opacity:.75}}>({fmtPct(dev / m.amount)})</span>
+                        </td>
+                        <td style={{whiteSpace:'nowrap'}}>
+                          <button className="del pen" title="Edit mark"
+                                  onClick={() => setRowEdit({id: m.id, date: m.date, type: m.type, amountText: String(m.amount)})}>✎</button>
+                          <button className="del" title="Remove mark"
+                                  onClick={() => setMarks(ms => ms.filter(x => x.id !== m.id))}>✕</button>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </React.Fragment>
+        )}
+      </main>
+      <footer>
+        Positive deviation = your move left you better off than doing nothing; negative = the move cost you.
+        A starting position appears identically in both portfolio lines (divestments sell out of it) and adds
+        nothing to the deviation — it only sets the scale of the portfolio view.
+        Money market growth assumes a constant APY compounded continuously pro-rata by calendar day; the S&amp;P
+        series is price-only (dividends not included), so S&amp;P outcomes are modestly understated.
+        Prices: FRED series SP500. Marks are stored only in this browser.
+      </footer>
+    </React.Fragment>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App/>);
+</script>
+</body>
+</html>
