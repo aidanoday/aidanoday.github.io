@@ -13,6 +13,13 @@
   gtag('config', 'G-DYDCM8KNK6');
 </script>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚖️</text></svg>">
+<script>
+  // apply the saved theme before first paint to avoid a flash
+  try{
+    var t = JSON.parse(localStorage.getItem('sidestep.theme.v1'));
+    if(t === 'light' || t === 'dark') document.documentElement.dataset.theme = t;
+  }catch(e){}
+</script>
 <!--
   Data: assets/sp500_data.js — S&P 500 daily closes from FRED (series SP500, trailing 10y).
   To refresh the baseline data file, run from the repo root:
@@ -57,6 +64,15 @@
       --wash:rgba(255,255,255,.06);
     }
   }
+  :root[data-theme="dark"]{
+    color-scheme: dark;
+    --page:#0d0d0d; --surface:#1a1a19;
+    --ink:#ffffff; --ink-2:#c3c2b7; --muted:#898781;
+    --grid:#2c2c2a; --baseline:#383835; --border:rgba(255,255,255,.10);
+    --spx:#3987e5; --strategy:#d95926; --alt:#199e70;
+    --invest:#008300; --up:#0ca30c; --down:#e66767;
+    --wash:rgba(255,255,255,.06);
+  }
   *{box-sizing:border-box; margin:0; padding:0;}
   body{
     background:var(--page); color:var(--ink);
@@ -68,6 +84,13 @@
     padding:18px 22px 14px; border-bottom:1px solid var(--grid);
   }
   h1{font-size:15px; font-weight:600; letter-spacing:.02em;}
+  .theme{
+    font-size:14px; line-height:1; color:var(--ink-2); background:transparent;
+    border:1px solid var(--border); border-radius:999px;
+    width:30px; height:30px; cursor:pointer; align-self:center;
+  }
+  .theme:hover{color:var(--ink); border-color:var(--ink-2);}
+  .theme:focus-visible{outline:2px solid var(--spx); outline-offset:2px;}
   .sub{font-size:12px; color:var(--muted);}
   .spacer{flex:1;}
   main{max-width:1060px; margin:0 auto; padding:18px 22px 60px;}
@@ -229,6 +252,7 @@ const LS = {
   rate:    'sidestep.rate.v1',
   horizon: 'sidestep.horizon.v1',
   bench:   'sidestep.bench.v1',
+  theme:   'sidestep.theme.v1',
 };
 const cacheKey = bm => 'sidestep.cache.' + bm + '.v1';
 const HORIZONS = [ ['1Y',1], ['3Y',3], ['5Y',5], ['10Y',10] ];
@@ -430,6 +454,11 @@ function App(){
     return cache && cache.rows ? mergeSeries(base, cache.rows) : base;
   };
   const [bench, setBench] = useState(() => BENCHMARKS[lsGet(LS.bench, 'SPX')] ? lsGet(LS.bench, 'SPX') : 'SPX');
+  const [theme, setTheme] = useState(() => {
+    const t = lsGet(LS.theme, 'auto');
+    return t === 'light' || t === 'dark' ? t : 'auto';
+  });
+  const [sysDark, setSysDark] = useState(() => window.matchMedia('(prefers-color-scheme: dark)').matches);
   const [dataSets, setDataSets] = useState(() =>
     Object.fromEntries(Object.keys(BENCHMARKS).map(k => [k, loadSet(k)])));
   const [live, setLive] = useState({});
@@ -483,6 +512,20 @@ function App(){
   useEffect(() => { lsSet(LS.marks, marks); }, [marks]);
   useEffect(() => { lsSet(LS.basis, basis); }, [basis]);
   useEffect(() => { lsSet(LS.bench, bench); }, [bench]);
+
+  /* theme: explicit choice stamps <html data-theme>; 'auto' follows the OS */
+  useEffect(() => {
+    if(theme === 'auto') delete document.documentElement.dataset.theme;
+    else document.documentElement.dataset.theme = theme;
+    lsSet(LS.theme, theme);
+  }, [theme]);
+  useEffect(() => {
+    const mq = window.matchMedia('(prefers-color-scheme: dark)');
+    const on = e => setSysDark(e.matches);
+    mq.addEventListener('change', on);
+    return () => mq.removeEventListener('change', on);
+  }, []);
+  const isDark = theme === 'auto' ? sysDark : theme === 'dark';
   useEffect(() => { lsSet(LS.rate, rate); }, [rate]);
   useEffect(() => { lsSet(LS.horizon, horizon); }, [horizon]);
 
@@ -704,6 +747,11 @@ function App(){
         <div className="sub">{B.short} vs money market — what your moves cost or saved</div>
         <div className="spacer"></div>
         <div className="sub">data through {fmtDate(lastDate)}{live[bench] ? ' · live' : ''}</div>
+        <button className="theme" title={isDark ? 'Switch to light theme' : 'Switch to dark theme'}
+                aria-label={isDark ? 'Switch to light theme' : 'Switch to dark theme'}
+                onClick={() => setTheme(isDark ? 'light' : 'dark')}>
+          {isDark ? '☀' : '☾'}
+        </button>
       </header>
       <main>
         <div className="controls">
