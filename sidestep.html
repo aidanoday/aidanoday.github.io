@@ -21,24 +21,16 @@
   }catch(e){}
 </script>
 <!--
-  Data: assets/sp500_data.js — S&P 500 daily closes from FRED (series SP500, trailing 10y).
-  To refresh the baseline data file, run from the repo root:
-    curl -s "https://fred.stlouisfed.org/graph/fredgraph.csv?id=SP500" -o /tmp/sp500.csv && node -e "
-      const fs=require('fs');
-      const rows=fs.readFileSync('/tmp/sp500.csv','utf8').trim().split('\n').slice(1)
-        .map(l=>l.split(',')).filter(([d,c])=>c&&c!=='.'&&!isNaN(parseFloat(c)))
-        .map(([d,c])=>[d,parseFloat(c)]);
-      fs.writeFileSync('assets/sp500_data.js',
-        '// S&P 500 daily closes (source: FRED series SP500)\n'
-        + 'window.SP500_DATA = '+JSON.stringify(rows)+';\n');
-      console.log(rows.length+' rows through '+rows[rows.length-1][0]);"
-  assets/vigax_data.js — VIGAX daily NAV closes from the Yahoo Finance chart API
-  (https://query1.finance.yahoo.com/v8/finance/chart/VIGAX?range=10y&interval=1d, with a
-  browser User-Agent header): rows of [YYYY-MM-DD from each timestamp's UTC date, close],
-  null closes skipped, written as window.VIGAX_DATA in the same format as above.
+  Data: assets/sp500_data.js (FRED series SP500) and assets/vigax_data.js (Yahoo Finance
+  chart API) hold the trailing ~10y of daily closes for each benchmark.
 
-  The app also tries a live refresh of the selected benchmark through a CORS proxy on load
-  and caches it in localStorage, so the committed files only need occasional refreshes.
+  They are regenerated every market night by the "Update market data" GitHub Action
+  (.github/workflows/update-market-data.yml), which runs scripts/update_market_data.mjs
+  and commits the refreshed files. To refresh manually: node scripts/update_market_data.mjs
+
+  On load the app additionally tries a live refresh of the selected benchmark through
+  public CORS proxies and caches the result in localStorage, so the page can be current
+  to the latest close even before the nightly commit lands.
 -->
 <style>
   :root{
