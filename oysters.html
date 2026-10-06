@@ -1,0 +1,854 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Rack Tracker</title>
+<style>
+  :root {
+    --ink: #1b2a38;
+    --panel: #ffffff;
+    --ready: #2f7ff2;      /* blue: ready to harvest */
+    --dirty: #f28c2f;      /* orange: needs cleaning */
+    --neutral: #6b7f8e;    /* gray: nothing due */
+    --danger: #d64545;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height: 100%; overflow: hidden; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+  body { background: #9ec7d8; color: var(--ink); }
+  #topbar, #hint, #legend, #viewport {
+    user-select: none; -webkit-user-select: none;
+  }
+
+  /* ---------- Map viewport ---------- */
+  #viewport {
+    position: fixed; inset: 0;
+    overflow: hidden;
+    touch-action: none;
+    cursor: grab;
+  }
+  #viewport.panning { cursor: grabbing; }
+  #viewport.placing { cursor: crosshair; }
+
+  #world {
+    position: absolute; top: 0; left: 0;
+    transform-origin: 0 0;
+    will-change: transform;
+  }
+  #bayImg, #baySvg {
+    position: absolute; top: 0; left: 0;
+    width: 100%; height: 100%;
+    user-select: none; -webkit-user-drag: none;
+    pointer-events: none;
+  }
+  #bayImg { object-fit: cover; display: none; }
+
+  /* ---------- Rack dots ---------- */
+  .rack {
+    position: absolute;
+    width: 44px; height: 44px;
+    margin: -22px 0 0 -22px;   /* center on its point */
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-weight: 700; font-size: 16px; color: #fff;
+    background: var(--neutral);
+    border: 3px solid rgba(255,255,255,0.9);
+    box-shadow: 0 2px 6px rgba(0,0,0,0.35);
+    cursor: pointer;
+    touch-action: none;
+    user-select: none; -webkit-user-select: none;
+  }
+  .rack.ready  { background: var(--ready); }
+  .rack.dirty  { background: var(--dirty); }
+  .rack.ready.dirty {
+    background: var(--ready);
+    border-color: var(--dirty);
+  }
+  .rack.moving {
+    opacity: 0.85;
+    box-shadow: 0 0 0 6px rgba(255,255,255,0.45), 0 4px 12px rgba(0,0,0,0.4);
+    z-index: 5;
+  }
+
+  /* ---------- Top bar ---------- */
+  #topbar {
+    position: fixed; top: 0; left: 0; right: 0;
+    display: flex; align-items: center; gap: 10px;
+    padding: 10px 14px;
+    background: linear-gradient(rgba(10,30,45,0.75), rgba(10,30,45,0.0));
+    pointer-events: none;
+    z-index: 10;
+  }
+  #topbar h1 {
+    font-size: 18px; color: #fff; letter-spacing: 0.3px;
+    text-shadow: 0 1px 3px rgba(0,0,0,0.5);
+    margin-right: auto;
+  }
+  #topbar button {
+    pointer-events: auto;
+    border: none; border-radius: 10px;
+    padding: 10px 16px;
+    font-size: 15px; font-weight: 600;
+    background: var(--panel); color: var(--ink);
+    box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+    cursor: pointer;
+  }
+  #topbar button.active { background: var(--ink); color: #fff; }
+
+  /* ---------- Legend ---------- */
+  #legend {
+    position: fixed; left: 12px; bottom: 12px;
+    background: rgba(255,255,255,0.92);
+    border-radius: 12px;
+    padding: 10px 14px;
+    font-size: 13px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.25);
+    z-index: 10;
+    line-height: 1.9;
+  }
+  .chip {
+    display: inline-block; width: 14px; height: 14px;
+    border-radius: 50%; vertical-align: -2px; margin-right: 7px;
+    border: 2px solid #fff; box-shadow: 0 0 0 1px rgba(0,0,0,0.15);
+  }
+  .chip.ready { background: var(--ready); }
+  .chip.dirty { background: var(--dirty); }
+  .chip.neutral { background: var(--neutral); }
+  .chip.both { background: var(--ready); border-color: var(--dirty); }
+
+  /* ---------- Hint banner ---------- */
+  #hint {
+    position: fixed; top: 64px; left: 50%; transform: translateX(-50%);
+    background: var(--ink); color: #fff;
+    padding: 10px 18px; border-radius: 999px;
+    font-size: 14px; z-index: 10;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.35);
+    display: none;
+    pointer-events: none;
+  }
+
+  /* ---------- Modal ---------- */
+  #overlay {
+    position: fixed; inset: 0;
+    background: rgba(10,25,38,0.45);
+    display: none;
+    align-items: center; justify-content: center;
+    z-index: 20;
+    padding: 16px;
+  }
+  #overlay.open { display: flex; }
+  #modal {
+    background: var(--panel);
+    border-radius: 16px;
+    width: 100%; max-width: 380px;
+    padding: 20px;
+    box-shadow: 0 10px 40px rgba(0,0,0,0.35);
+  }
+  #modal .head {
+    display: flex; align-items: center; gap: 10px; margin-bottom: 14px;
+  }
+  #modal .dot {
+    width: 34px; height: 34px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    color: #fff; font-weight: 700; font-size: 14px;
+    background: var(--neutral); border: 3px solid #fff;
+    box-shadow: 0 0 0 1px rgba(0,0,0,0.15);
+    flex-shrink: 0;
+  }
+  #modal .dot.ready { background: var(--ready); }
+  #modal .dot.dirty { background: var(--dirty); }
+  #modal .dot.ready.dirty { background: var(--ready); border-color: var(--dirty); }
+  #modalName { font-size: 20px; font-weight: 700; flex: 1; min-width: 0; }
+  #nameInput {
+    font-size: 18px; font-weight: 600; width: 100%;
+    padding: 8px 10px; border: 2px solid #cfd8de; border-radius: 8px;
+    display: none;
+  }
+
+  .statRow {
+    display: flex; justify-content: space-between; align-items: baseline;
+    padding: 9px 0; border-bottom: 1px solid #eef1f3;
+    font-size: 15px;
+  }
+  .statRow .label { color: #5a6b78; }
+  .statRow .val { font-weight: 600; text-align: right; }
+  .statRow .val small { display: block; font-weight: 400; color: #8195a2; font-size: 12px; }
+  .statRow .val.overdue { color: var(--dirty); }
+  .statRow .val.due { color: var(--ready); }
+
+  .btnRow { display: flex; gap: 10px; margin-top: 16px; }
+  .btnRow button {
+    flex: 1; border: none; border-radius: 10px;
+    padding: 13px 8px; font-size: 15px; font-weight: 700;
+    cursor: pointer; color: #fff;
+  }
+  #harvestBtn { background: var(--ready); }
+  #cleanBtn { background: var(--dirty); }
+
+  .btnRow2 { display: flex; gap: 10px; margin-top: 10px; }
+  .btnRow2 button {
+    flex: 1; border-radius: 10px;
+    padding: 11px 8px; font-size: 14px; font-weight: 600;
+    background: #fff; color: var(--ink);
+    border: 2px solid #cfd8de; cursor: pointer;
+  }
+  .btnRow2 #deleteBtn { color: var(--danger); border-color: #eecaca; }
+  .btnRow2 #deleteBtn.confirm { background: var(--danger); color: #fff; border-color: var(--danger); }
+  #closeBtn {
+    margin-top: 12px; width: 100%;
+    background: #f0f3f5; border: none; border-radius: 10px;
+    padding: 11px; font-size: 14px; font-weight: 600;
+    color: #5a6b78; cursor: pointer;
+  }
+
+  @media (max-width: 500px) {
+    #topbar h1 { font-size: 15px; }
+    #legend { font-size: 12px; padding: 8px 11px; }
+  }
+</style>
+</head>
+<body>
+
+<div id="viewport">
+  <div id="world">
+    <!-- Barnstable Harbor, redrawn. Drop the real screenshot at assets/oyster_bay.jpg and it takes over automatically. -->
+    <svg id="baySvg" viewBox="0 0 2000 1120" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg"
+         font-family="-apple-system, Roboto, sans-serif">
+      <!-- water -->
+      <rect width="2000" height="1120" fill="#9adbe8"/>
+      <!-- darker shoal near White Rock -->
+      <path d="M615,790 C650,765 760,760 830,785 C880,802 885,825 850,838 C790,858 670,850 625,825 C605,813 600,800 615,790 Z" fill="#7ccfe4"/>
+
+      <!-- Sand Island complex (top left) -->
+      <path d="M0,360 C40,330 90,345 110,380 C150,360 200,375 215,410 C260,395 310,420 320,460 C340,510 300,555 250,560 C210,590 140,585 100,560 C50,570 10,545 0,510 Z" fill="#f7f9f8"/>
+      <path d="M20,395 C60,370 110,380 130,410 C170,395 220,410 235,445 C270,440 300,465 300,495 C305,530 270,550 235,545 C200,565 140,560 105,540 C65,545 30,525 22,495 C10,460 8,420 20,395 Z" fill="#d3ecd5"/>
+      <!-- small white islets above Sand Island -->
+      <path d="M210,300 C240,280 290,285 305,310 C315,330 295,345 265,343 C230,342 195,320 210,300 Z" fill="#f7f9f8"/>
+      <path d="M300,262 C320,250 350,255 358,272 C363,286 345,295 325,292 C305,290 288,275 300,262 Z" fill="#f7f9f8"/>
+
+      <!-- long white sliver island above Huckins -->
+      <path d="M420,300 C440,265 520,230 590,222 C660,214 730,235 745,265 C755,290 720,320 660,340 C590,362 500,362 450,340 C425,328 412,315 420,300 Z" fill="#f7f9f8"/>
+
+      <!-- Huckins Island -->
+      <path d="M385,395 C400,345 470,315 550,310 C640,305 730,330 762,370 C790,405 775,455 730,495 C690,535 620,580 550,595 C490,608 430,590 405,550 C380,510 372,440 385,395 Z" fill="#f7f9f8"/>
+      <path d="M410,410 C425,365 485,340 555,336 C635,332 710,353 738,388 C760,418 748,460 708,495 C670,530 608,568 545,580 C492,590 442,575 420,540 C398,505 398,450 410,410 Z" fill="#d3ecd5"/>
+      <!-- creeks on Huckins -->
+      <path d="M470,400 C520,420 560,455 600,500 M540,370 C560,420 600,455 655,470" stroke="#8fd3e2" stroke-width="7" fill="none" stroke-linecap="round"/>
+
+      <!-- Mollys Island -->
+      <path d="M65,640 C90,605 170,595 240,605 C300,613 330,635 322,660 C312,688 240,700 170,695 C110,690 50,675 65,640 Z" fill="#f7f9f8"/>
+      <path d="M85,642 C108,615 175,608 235,617 C285,624 308,640 302,658 C293,680 232,688 172,684 C120,680 72,668 85,642 Z" fill="#d3ecd5"/>
+
+      <!-- Jules Island (big, bottom left) -->
+      <path d="M0,790 C60,755 180,745 300,760 C420,775 510,810 545,860 C575,905 560,960 510,1005 C460,1050 380,1090 290,1110 L0,1120 Z" fill="#f7f9f8"/>
+      <path d="M0,810 C60,778 170,770 285,784 C395,798 480,830 512,872 C540,912 526,960 480,1000 C432,1042 358,1078 275,1096 L0,1105 Z" fill="#d3ecd5"/>
+      <!-- creeks on Jules -->
+      <path d="M120,830 C180,870 240,930 280,1010 M300,810 C340,870 390,920 450,950" stroke="#8fd3e2" stroke-width="7" fill="none" stroke-linecap="round"/>
+      <!-- islets off Jules -->
+      <path d="M380,742 C420,725 480,728 500,748 C512,764 488,778 445,777 C405,776 362,758 380,742 Z" fill="#f7f9f8"/>
+      <path d="M530,880 C560,868 600,872 612,890 C620,905 598,915 568,912 C542,910 518,893 530,880 Z" fill="#f7f9f8"/>
+
+      <!-- Phillis Island (top right) -->
+      <path d="M1175,235 C1195,175 1290,150 1365,180 C1430,145 1545,150 1590,195 C1650,245 1665,320 1610,360 C1570,400 1480,395 1425,372 C1360,398 1265,385 1220,335 C1188,305 1163,270 1175,235 Z" fill="#f7f9f8"/>
+      <path d="M1280,200 C1300,240 1290,290 1255,320 M1360,185 C1380,240 1430,275 1420,330 M1475,350 C1440,320 1440,270 1470,235" stroke="#8fd3e2" stroke-width="7" fill="none" stroke-linecap="round"/>
+      <!-- islet dots east of Phillis -->
+      <circle cx="1695" cy="290" r="14" fill="#f7f9f8"/>
+      <circle cx="1725" cy="325" r="9" fill="#f7f9f8"/>
+      <circle cx="1755" cy="350" r="7" fill="#f7f9f8"/>
+      <circle cx="1780" cy="368" r="6" fill="#f7f9f8"/>
+
+      <!-- mainland (bottom) -->
+      <path d="M600,1120 C610,1010 655,930 730,880 C800,835 870,835 935,880 C980,912 1040,935 1110,942 C1200,952 1290,935 1390,948 C1490,960 1590,938 1690,950 C1790,962 1890,942 1960,952 L2000,958 L2000,1120 Z" fill="#f2f3f2"/>
+      <!-- Salten Point -->
+      <path d="M1955,850 C1985,840 2000,845 2000,860 L2000,958 L1950,952 C1930,920 1935,875 1955,850 Z" fill="#f2f3f2"/>
+      <!-- faint roads on mainland -->
+      <path d="M790,1120 C810,1030 850,970 920,950 M920,950 C1000,975 1080,985 1105,1120 M1440,955 C1450,1010 1455,1065 1450,1120" stroke="#dddfde" stroke-width="8" fill="none"/>
+
+      <!-- labels -->
+      <g font-size="26" font-style="italic" fill="#5f6b73">
+        <text x="100" y="432">Sand Island</text>
+        <text x="500" y="500">Huckins Island</text>
+        <text x="90" y="645">Mollys Island</text>
+        <text x="100" y="782">Jules Island</text>
+        <text x="595" y="738">White Rock</text>
+        <text x="1365" y="218">Phillis Island</text>
+        <text x="1180" y="833">Hinckley Rock</text>
+        <text x="1340" y="858">Cone Rock</text>
+        <text x="1595" y="832">Red Rock</text>
+        <text x="1535" y="872">Flying</text>
+        <text x="1520" y="900">Fish Rock</text>
+        <text x="1830" y="596">Blind Rock</text>
+        <text x="1790" y="692">Tongue Rock</text>
+      </g>
+      <g font-size="26" fill="#00838f">
+        <text x="985" y="132" text-anchor="middle">Black Bank</text>
+        <text x="985" y="162" text-anchor="middle">Channel</text>
+      </g>
+      <g font-size="26" fill="#3d8a4e">
+        <text x="250" y="938">Jules Island</text>
+        <text x="1013" y="950" text-anchor="middle">Scudder's Lane</text>
+        <text x="1013" y="978" text-anchor="middle">Town Landing</text>
+        <text x="1958" y="875" text-anchor="end">Salten Point</text>
+      </g>
+      <text x="1320" y="990" font-size="26" fill="#5f6b73">Barnstable Yacht Club</text>
+      <circle cx="1585" cy="982" r="13" fill="#546e7a"/>
+      <circle cx="1585" cy="982" r="5" fill="#fff"/>
+    </svg>
+    <img id="bayImg" alt="Bay map" draggable="false">
+  </div>
+</div>
+
+<div id="topbar">
+  <h1>🦪 Rack Tracker</h1>
+  <button id="moveAllBtn">✥ Move</button>
+  <button id="addBtn">＋ Add Rack</button>
+</div>
+
+<div id="hint"></div>
+
+<div id="legend">
+  <div><span class="chip ready"></span>Ready to harvest</div>
+  <div><span class="chip dirty"></span>Needs cleaning (20+ days)</div>
+  <div><span class="chip both"></span>Both</div>
+  <div><span class="chip neutral"></span>All good</div>
+</div>
+
+<div id="overlay">
+  <div id="modal">
+    <div class="head">
+      <div class="dot" id="modalDot"></div>
+      <div id="modalName"></div>
+      <input id="nameInput" maxlength="40">
+    </div>
+    <div class="statRow">
+      <span class="label">Last harvest</span>
+      <span class="val" id="harvestVal"></span>
+    </div>
+    <div class="statRow">
+      <span class="label">Last clean</span>
+      <span class="val" id="cleanVal"></span>
+    </div>
+    <div class="btnRow">
+      <button id="harvestBtn">🦪 Harvest</button>
+      <button id="cleanBtn">🧽 Clean</button>
+    </div>
+    <div class="btnRow2">
+      <button id="renameBtn">✏️ Rename</button>
+      <button id="moveBtn">✥ Move</button>
+      <button id="deleteBtn">🗑 Delete</button>
+    </div>
+    <button id="closeBtn">Close</button>
+  </div>
+</div>
+
+<script>
+(() => {
+  'use strict';
+
+  // ---------- Config ----------
+  const WORLD_W = 2000, WORLD_H = 1120;
+  const HARVEST_READY_DAYS = 60;   // blue when it's been this long since harvest
+  const CLEAN_OVERDUE_DAYS = 20;   // orange when it's been longer than this since cleaning
+  const STORAGE_KEY = 'oysterRacks_v2';
+  const BAY_IMAGE = 'assets/oyster_bay.jpg';   // your real photo, when you add it
+
+  // ---------- Data ----------
+  // Rack: { id, name, x, y (0..1 of world), lastHarvest, lastClean (ISO date or null) }
+  const daysAgo = n => {
+    const d = new Date();
+    d.setDate(d.getDate() - n);
+    return d.toISOString().slice(0, 10);
+  };
+
+  function mockData() {
+    // Positions hand-placed in open water on the placeholder bay.
+    const spots = [
+      [0.42,0.35],[0.48,0.28],[0.55,0.42],[0.62,0.50],[0.70,0.45],
+      [0.78,0.50],[0.85,0.42],[0.90,0.55],[0.80,0.62],[0.72,0.68],
+      [0.63,0.72],[0.55,0.65],[0.47,0.58],[0.40,0.52],[0.36,0.64],
+      [0.50,0.20],[0.40,0.15],[0.88,0.30],[0.93,0.68],[0.58,0.57],
+    ];
+    // Mix of statuses: some ready (old harvest), some dirty (old clean), some both, some fresh.
+    const harvests = [70, 5, 90, 12, 65, 30, 110, 8, 75, 20, 61, 45, 100, 3, 68, 15, 80, 55, 62, 25];
+    const cleans   = [10, 25, 30,  5, 15, 40,  8, 22,  2, 35, 18, 50, 12, 28,  4, 45,  9, 60, 21,  6];
+    return spots.map(([x, y], i) => ({
+      id: 'r' + (i + 1),
+      name: 'Rack ' + (i + 1),
+      x, y,
+      lastHarvest: daysAgo(harvests[i]),
+      lastClean: daysAgo(cleans[i]),
+    }));
+  }
+
+  let racks;
+  try {
+    racks = JSON.parse(localStorage.getItem(STORAGE_KEY)) || null;
+  } catch (e) { racks = null; }
+  if (!Array.isArray(racks) || racks.length === 0) {
+    racks = mockData();
+    save();
+  }
+
+  function save() {
+    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(racks)); } catch (e) {}
+  }
+
+  // ---------- Date helpers ----------
+  const MS_DAY = 86400000;
+  function daysSince(iso) {
+    if (!iso) return Infinity;
+    const then = new Date(iso + 'T00:00:00');
+    const now = new Date();
+    now.setHours(0, 0, 0, 0);
+    return Math.round((now - then) / MS_DAY);
+  }
+  function fmtDate(iso) {
+    if (!iso) return 'Never';
+    const d = new Date(iso + 'T00:00:00');
+    return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+  }
+  function fmtAgo(iso) {
+    const n = daysSince(iso);
+    if (n === Infinity) return '';
+    if (n === 0) return 'today';
+    if (n === 1) return 'yesterday';
+    return n + ' days ago';
+  }
+  // Racks with no history yet show as neutral until first harvest/clean is logged
+  const isReady = r => !!r.lastHarvest && daysSince(r.lastHarvest) >= HARVEST_READY_DAYS;
+  const isDirty = r => !!r.lastClean && daysSince(r.lastClean) > CLEAN_OVERDUE_DAYS;
+
+  // ---------- DOM ----------
+  const viewport = document.getElementById('viewport');
+  const world = document.getElementById('world');
+  const overlay = document.getElementById('overlay');
+  const hint = document.getElementById('hint');
+  const addBtn = document.getElementById('addBtn');
+
+  world.style.width = WORLD_W + 'px';
+  world.style.height = WORLD_H + 'px';
+
+  // Real bay photo, if present
+  const bayImg = document.getElementById('bayImg');
+  bayImg.onload = () => {
+    bayImg.style.display = 'block';
+    document.getElementById('baySvg').style.display = 'none';
+  };
+  bayImg.src = BAY_IMAGE;
+
+  // ---------- Pan / zoom ----------
+  let scale = 1, tx = 0, ty = 0;
+  let minScale = 0.2;
+  const MAX_SCALE = 6;
+
+  function fitToScreen() {
+    const vw = viewport.clientWidth, vh = viewport.clientHeight;
+    const s = Math.min(vw / WORLD_W, vh / WORLD_H);
+    minScale = s * 0.9;
+    scale = s;
+    tx = (vw - WORLD_W * s) / 2;
+    ty = (vh - WORLD_H * s) / 2;
+    applyTransform();
+  }
+
+  function clampPan() {
+    const vw = viewport.clientWidth, vh = viewport.clientHeight;
+    const w = WORLD_W * scale, h = WORLD_H * scale;
+    const margin = 80; // keep some map on screen
+    tx = Math.min(vw - margin, Math.max(margin - w, tx));
+    ty = Math.min(vh - margin, Math.max(margin - h, ty));
+  }
+
+  function applyTransform() {
+    clampPan();
+    world.style.transform = `translate(${tx}px, ${ty}px) scale(${scale})`;
+    // Counter-scale rack dots so they stay a constant screen size
+    const inv = 1 / scale;
+    for (const el of world.querySelectorAll('.rack')) {
+      el.style.transform = `scale(${inv})`;
+    }
+  }
+
+  function zoomAt(cx, cy, factor) {
+    const ns = Math.min(MAX_SCALE, Math.max(minScale, scale * factor));
+    const f = ns / scale;
+    tx = cx - (cx - tx) * f;
+    ty = cy - (cy - ty) * f;
+    scale = ns;
+    applyTransform();
+  }
+
+  viewport.addEventListener('wheel', e => {
+    e.preventDefault();
+    zoomAt(e.clientX, e.clientY, Math.exp(-e.deltaY * 0.002));
+  }, { passive: false });
+
+  // Pointer handling: 1 pointer pans (or drags a rack in move mode), 2 pointers pinch-zoom
+  const pointers = new Map();
+  let pinchStart = null;
+  let panStart = null;
+  let movedBeyondTap = false;
+
+  viewport.addEventListener('pointerdown', e => {
+    // Rack drag in move mode is handled by the rack's own listeners
+    if (movingRack && e.target.classList.contains('rack')) return;
+    viewport.setPointerCapture(e.pointerId);
+    pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    movedBeyondTap = false;
+    if (pointers.size === 1) {
+      panStart = { x: e.clientX, y: e.clientY, tx, ty };
+      viewport.classList.add('panning');
+    } else if (pointers.size === 2) {
+      panStart = null;
+      const [a, b] = [...pointers.values()];
+      pinchStart = {
+        dist: Math.hypot(a.x - b.x, a.y - b.y),
+        scale,
+        cx: (a.x + b.x) / 2,
+        cy: (a.y + b.y) / 2,
+        tx, ty,
+      };
+    }
+  });
+
+  viewport.addEventListener('pointermove', e => {
+    if (!pointers.has(e.pointerId)) return;
+    pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    if (pointers.size === 1 && panStart) {
+      const dx = e.clientX - panStart.x, dy = e.clientY - panStart.y;
+      if (Math.hypot(dx, dy) > 8) movedBeyondTap = true;
+      tx = panStart.tx + dx;
+      ty = panStart.ty + dy;
+      applyTransform();
+    } else if (pointers.size === 2 && pinchStart) {
+      movedBeyondTap = true;
+      const [a, b] = [...pointers.values()];
+      const dist = Math.hypot(a.x - b.x, a.y - b.y);
+      const cx = (a.x + b.x) / 2, cy = (a.y + b.y) / 2;
+      const ns = Math.min(MAX_SCALE, Math.max(minScale, pinchStart.scale * dist / pinchStart.dist));
+      const f = ns / pinchStart.scale;
+      tx = cx - (pinchStart.cx - pinchStart.tx) * f;
+      ty = cy - (pinchStart.cy - pinchStart.ty) * f;
+      scale = ns;
+      applyTransform();
+    }
+  });
+
+  function endPointer(e) {
+    if (!pointers.has(e.pointerId)) return;
+    pointers.delete(e.pointerId);
+    if (pointers.size === 0) {
+      viewport.classList.remove('panning');
+      // Tap (not drag) on empty map
+      if (!movedBeyondTap && placing && !e.target.classList.contains('rack')) {
+        placeNewRack(e.clientX, e.clientY);
+      }
+      panStart = null;
+      pinchStart = null;
+    } else if (pointers.size === 1) {
+      pinchStart = null;
+      const [p] = [...pointers.values()];
+      panStart = { x: p.x, y: p.y, tx, ty };
+    }
+  }
+  viewport.addEventListener('pointerup', endPointer);
+  viewport.addEventListener('pointercancel', endPointer);
+
+  window.addEventListener('resize', () => { applyTransform(); });
+
+  // ---------- Rendering racks ----------
+  const rackEls = new Map();
+
+  function renderRack(r) {
+    let el = rackEls.get(r.id);
+    if (!el) {
+      el = document.createElement('div');
+      el.className = 'rack';
+      el.dataset.id = r.id;
+      world.appendChild(el);
+      rackEls.set(r.id, el);
+      attachRackEvents(el);
+    }
+    el.textContent = String(r.name.match(/\d+/) ? r.name.match(/\d+/)[0] : r.name.charAt(0).toUpperCase());
+    el.title = r.name;
+    el.style.left = (r.x * WORLD_W) + 'px';
+    el.style.top = (r.y * WORLD_H) + 'px';
+    el.style.transform = `scale(${1 / scale})`;
+    el.classList.toggle('ready', isReady(r));
+    el.classList.toggle('dirty', isDirty(r));
+  }
+
+  function renderAll() {
+    for (const [id, el] of rackEls) {
+      if (!racks.find(r => r.id === id)) { el.remove(); rackEls.delete(id); }
+    }
+    racks.forEach(renderRack);
+  }
+
+  // ---------- Rack tap & move ----------
+  let movingRack = null;   // rack being repositioned
+
+  function attachRackEvents(el) {
+    let downPos = null, dragged = false;
+
+    el.addEventListener('pointerdown', e => {
+      e.stopPropagation();
+      el.setPointerCapture(e.pointerId);
+      downPos = { x: e.clientX, y: e.clientY };
+      dragged = false;
+    });
+
+    el.addEventListener('pointermove', e => {
+      if (!downPos) return;
+      const r = racks.find(x => x.id === el.dataset.id);
+      if (movingRack === r || moveAllMode) {
+        if (Math.hypot(e.clientX - downPos.x, e.clientY - downPos.y) > 4) dragged = true;
+        // world coords from screen coords
+        r.x = Math.min(1, Math.max(0, (e.clientX - tx) / scale / WORLD_W));
+        r.y = Math.min(1, Math.max(0, (e.clientY - ty) / scale / WORLD_H));
+        renderRack(r);
+      }
+    });
+
+    function up(e) {
+      if (!downPos) return;
+      const wasDrag = dragged;
+      downPos = null;
+      dragged = false;
+      const r = racks.find(x => x.id === el.dataset.id);
+      if (!r) return;
+      if (moveAllMode) {
+        // in move mode taps do nothing; drags reposition and stay in the mode
+        if (wasDrag) save();
+        return;
+      }
+      if (movingRack === r) {
+        if (wasDrag) {
+          // finished a drag → done moving
+          save();
+          exitMoveMode();
+        }
+        // a plain tap while in move mode: stay in move mode so they can drag
+        return;
+      }
+      openModal(r);
+    }
+    el.addEventListener('pointerup', up);
+    el.addEventListener('pointercancel', () => { downPos = null; dragged = false; });
+  }
+
+  function enterMoveMode(r) {
+    movingRack = r;
+    rackEls.get(r.id).classList.add('moving');
+    showHint(`Drag “${r.name}” to its new spot`);
+  }
+  function exitMoveMode() {
+    if (movingRack) rackEls.get(movingRack.id)?.classList.remove('moving');
+    movingRack = null;
+    hideHint();
+  }
+
+  // ---------- Move mode (all racks draggable) ----------
+  const moveAllBtn = document.getElementById('moveAllBtn');
+  let moveAllMode = false;
+
+  moveAllBtn.addEventListener('click', () => {
+    moveAllMode = !moveAllMode;
+    if (moveAllMode) {
+      if (placing) addBtn.click();
+      exitMoveMode();
+      moveAllBtn.classList.add('active');
+      moveAllBtn.textContent = '✓ Done';
+      showHint('Drag racks to reposition, then tap Done');
+      for (const el of rackEls.values()) el.classList.add('moving');
+    } else {
+      moveAllBtn.classList.remove('active');
+      moveAllBtn.textContent = '✥ Move';
+      hideHint();
+      for (const el of rackEls.values()) el.classList.remove('moving');
+      save();
+    }
+  });
+
+  // ---------- Add rack ----------
+  let placing = false;
+
+  addBtn.addEventListener('click', () => {
+    if (!placing && moveAllMode) moveAllBtn.click();
+    placing = !placing;
+    exitMoveMode();
+    addBtn.classList.toggle('active', placing);
+    addBtn.textContent = placing ? '✕ Cancel' : '＋ Add Rack';
+    viewport.classList.toggle('placing', placing);
+    if (placing) showHint('Tap the water to place the new rack');
+    else hideHint();
+  });
+
+  function placeNewRack(clientX, clientY) {
+    const x = (clientX - tx) / scale / WORLD_W;
+    const y = (clientY - ty) / scale / WORLD_H;
+    if (x < 0 || x > 1 || y < 0 || y > 1) return;
+    let n = 1;
+    while (racks.some(r => r.name === 'Rack ' + n)) n++;
+    const r = {
+      id: 'r' + Date.now(),
+      name: 'Rack ' + n,
+      x, y,
+      lastHarvest: null,
+      lastClean: null,
+    };
+    racks.push(r);
+    save();
+    renderRack(r);
+    // exit placing mode and open it for naming
+    addBtn.click();
+    openModal(r, true);
+  }
+
+  // ---------- Hint ----------
+  function showHint(msg) { hint.textContent = msg; hint.style.display = 'block'; }
+  function hideHint() { hint.style.display = 'none'; }
+
+  // ---------- Modal ----------
+  const modalDot = document.getElementById('modalDot');
+  const modalName = document.getElementById('modalName');
+  const nameInput = document.getElementById('nameInput');
+  const harvestVal = document.getElementById('harvestVal');
+  const cleanVal = document.getElementById('cleanVal');
+  let currentRack = null;
+
+  function openModal(r, startRenaming) {
+    currentRack = r;
+    refreshModal();
+    overlay.classList.add('open');
+    // defer so trailing focus/click events from placement don't immediately blur the input
+    if (startRenaming) setTimeout(beginRename, 60);
+  }
+
+  function refreshModal() {
+    const r = currentRack;
+    if (!r) return;
+    modalDot.className = 'dot' + (isReady(r) ? ' ready' : '') + (isDirty(r) ? ' dirty' : '');
+    modalDot.textContent = r.name.match(/\d+/) ? r.name.match(/\d+/)[0] : r.name.charAt(0).toUpperCase();
+    modalName.textContent = r.name;
+    modalName.style.display = 'block';
+    nameInput.style.display = 'none';
+
+    harvestVal.innerHTML = r.lastHarvest
+      ? `${fmtDate(r.lastHarvest)}<small>${fmtAgo(r.lastHarvest)}</small>`
+      : 'Never';
+    harvestVal.className = 'val' + (isReady(r) ? ' due' : '');
+    cleanVal.innerHTML = r.lastClean
+      ? `${fmtDate(r.lastClean)}<small>${fmtAgo(r.lastClean)}</small>`
+      : 'Never';
+    cleanVal.className = 'val' + (isDirty(r) ? ' overdue' : '');
+  }
+
+  function closeModal(commitRename) {
+    if (nameInput.style.display !== 'none') endRename(commitRename !== false);
+    disarmDelete();
+    overlay.classList.remove('open');
+    currentRack = null;
+  }
+
+  overlay.addEventListener('pointerdown', e => {
+    if (e.target === overlay) closeModal();
+  });
+  document.getElementById('closeBtn').addEventListener('click', () => closeModal());
+
+  document.getElementById('harvestBtn').addEventListener('click', () => {
+    if (!currentRack) return;
+    currentRack.lastHarvest = daysAgo(0);
+    save();
+    renderRack(currentRack);
+    refreshModal();
+  });
+  document.getElementById('cleanBtn').addEventListener('click', () => {
+    if (!currentRack) return;
+    currentRack.lastClean = daysAgo(0);
+    save();
+    renderRack(currentRack);
+    refreshModal();
+  });
+
+  // Rename
+  function beginRename() {
+    if (!currentRack) return;
+    nameInput.value = currentRack.name;
+    modalName.style.display = 'none';
+    nameInput.style.display = 'block';
+    nameInput.focus();
+    nameInput.select();
+  }
+  function endRename(commit) {
+    if (!currentRack) return;
+    if (commit) {
+      const v = nameInput.value.trim();
+      if (v) currentRack.name = v;
+      save();
+      renderRack(currentRack);
+    }
+    refreshModal();
+  }
+  document.getElementById('renameBtn').addEventListener('click', () => {
+    if (nameInput.style.display === 'none') beginRename();
+    else endRename(true);
+  });
+  nameInput.addEventListener('keydown', e => {
+    if (e.key === 'Enter') endRename(true);
+    if (e.key === 'Escape') endRename(false);
+  });
+  nameInput.addEventListener('blur', () => endRename(true));
+
+  document.getElementById('moveBtn').addEventListener('click', () => {
+    const r = currentRack;
+    closeModal();
+    enterMoveMode(r);
+  });
+
+  // Two-tap delete: first tap arms the button, second tap within 4s deletes
+  const deleteBtn = document.getElementById('deleteBtn');
+  let deleteArmTimer = null;
+  function disarmDelete() {
+    clearTimeout(deleteArmTimer);
+    deleteBtn.classList.remove('confirm');
+    deleteBtn.textContent = '🗑 Delete';
+  }
+  deleteBtn.addEventListener('click', () => {
+    if (!currentRack) return;
+    if (!deleteBtn.classList.contains('confirm')) {
+      deleteBtn.classList.add('confirm');
+      deleteBtn.textContent = 'Sure?';
+      deleteArmTimer = setTimeout(disarmDelete, 4000);
+      return;
+    }
+    disarmDelete();
+    racks = racks.filter(r => r.id !== currentRack.id);
+    save();
+    closeModal();
+    renderAll();
+  });
+
+  // Escape exits any mode
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Escape') {
+      if (overlay.classList.contains('open')) closeModal(false);
+      else if (movingRack) exitMoveMode();
+      else if (moveAllMode) moveAllBtn.click();
+      else if (placing) addBtn.click();
+    }
+  });
+
+  // ---------- Boot ----------
+  (function boot() {
+    if (viewport.clientWidth === 0 || viewport.clientHeight === 0) {
+      requestAnimationFrame(boot);
+      return;
+    }
+    fitToScreen();
+    renderAll();
+  })();
+})();
+</script>
+</body>
+</html>
