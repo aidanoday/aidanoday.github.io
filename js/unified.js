@@ -150,6 +150,14 @@ const PROJECT_DATA = {
     external: true,
     subtitle: "Build: Timezone visualizer for helping remote teams visualize and coordinate across disparate timezones.",
     desc: "Summer 2026 - One morning when I was trying to reschedule a call with teammembers in Hong Kong and Bengaluru, I struggled to track and articulate the meeting time in a way that made sense to everyone.  I built this app to easily map and articulate temporal relationships between distant timezones.  I built this app using Claude Code. "
+  },
+  "rack-tracker": {
+    title: "Rack Tracker",
+    image: "assets/oysters_cover.png",
+    link: "https://www.aidanoday.me/oysters.html",
+    external: true,
+    subtitle: "Build: Interactive map for tracking oyster rack harvests and cleanings on Barnstable Harbor.",
+    desc: "Fall 2026 - My sister was working with a local oyster farmer on Cape Cod who tracks the status of all his oyster racks in his head. Out on the water, he needs to know which racks are ready to harvest and which are overdue for a cleaning. This pan-and-zoom map of the bay tracks both for every rack, color coding each one so the day's work is obvious at a glance. I built this app using Claude Code."
   }
   // ... (Keep the rest of your data here)
 };
