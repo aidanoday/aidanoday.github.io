@@ -866,6 +866,7 @@ function rebuild(){
     const cv = document.createElement('canvas');
     cv.width = WIDTH * DPR; cv.height = CITY_H * DPR;
     cv.style.cssText = `position:absolute; left:0; top:${topCursor}px; width:${WIDTH}px; height:${CITY_H}px;`;
+    c.canvasEl = cv;
     track.appendChild(cv);
     const ctx = cv.getContext('2d');
     ctx.scale(DPR, DPR);
@@ -882,6 +883,7 @@ function rebuild(){
     /* bridge through the gap below (except after last bar) */
     if (i < cities.length - 1){
       const bridge = document.createElement('div');
+      bridge.className = 'now-bridge';
       bridge.style.cssText = `position:absolute; left:${nx-1}px; width:2px; background:rgba(232,66,95,.95);
         top:${topCursor+CITY_H}px; height:${GAP}px;`;
       track.appendChild(bridge);
@@ -910,6 +912,34 @@ function rebuild(){
     cities.map(c => escapeHtml(c.name)).join(' <span class="swap">⇄</span> ');
   setReadout(NOW);
   saveCities();
+}
+/* rebuild, then FLIP-slide each surviving row from its old slot to its new one */
+function rebuildAnimated(){
+  const oldTops = new Map();
+  for (const c of cities) if (c.top !== undefined) oldTops.set(c, c.top);
+  const oldStart = startT;
+  rebuild();
+  if (startT !== oldStart){       // top city (the date anchor) changed — keep the same
+    scroller.scrollLeft += (oldStart - startT) * PX_PER_MS;   // wall-clock time in view
+    placeTags();
+  }
+  let anyMoved = false;
+  for (const c of cities){
+    const was = oldTops.get(c);
+    if (was === undefined || was === c.top) continue;
+    const dy = was - c.top;
+    anyMoved = true;
+    for (const [el, base] of [[c.canvasEl,null],[c.tagEl,null],[c.pinEl,'-50%']]){
+      if (!el) continue;
+      el.animate(
+        { transform: [base ? `translateY(calc(${base} + ${dy}px))` : `translateY(${dy}px)`,
+                      base ? `translateY(${base})` : 'none'] },
+        { duration: 300, easing: 'cubic-bezier(.2,.72,.28,1)' });
+    }
+  }
+  if (!anyMoved) return;
+  for (const el of [...track.querySelectorAll('.now-bridge'), ...markers.map(m => m.el).filter(Boolean)])
+    el.animate({ opacity: [0, 0, 1] }, { duration: 450 });
 }
 function escapeHtml(s){ return s.replace(/[&<>"']/g, ch =>
   ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch])); }
@@ -1090,7 +1120,7 @@ function refreshModal(){
     rm.disabled = cities.length <= MIN_CITIES;
     rm.addEventListener('click', ()=>{
       cities.splice(cities.indexOf(c), 1);
-      rebuild(); refreshModal();
+      rebuildAnimated(); refreshModal();
     });
     li.append(gr, nm, tz, rm);
     li.addEventListener('pointerdown', e => startRowDrag(e, li));
@@ -1108,44 +1138,55 @@ function refreshModal(){
 function startRowDrag(e, li){
   if (e.button !== undefined && e.button !== 0) return;
   if (e.target.closest('.row-x')) return;          // ✕ is not a drag handle
-  if (cityRows.children.length < 2) return;
+  const rows = [...cityRows.children];
+  if (rows.length < 2) return;
   e.preventDefault();
-  li.setPointerCapture(e.pointerId);
+  /* the DOM is never reordered mid-drag (that drops pointer capture);
+     rows shift with transforms and the array is committed on release */
+  const startIndex = rows.indexOf(li);
+  const rects = rows.map(r => r.getBoundingClientRect());
+  const step = rects[startIndex].height + (rects[1].top - rects[0].bottom);
+  const startY = e.clientY;
+  const minDy = rects[0].top - rects[startIndex].top;
+  const maxDy = rects[rects.length-1].bottom - rects[startIndex].bottom;
+  let targetIndex = startIndex;
   li.classList.add('drag-row');
-  const startOrder = [...cityRows.children].map(x => x._city);
+  for (const o of rows) if (o !== li) o.style.transition = 'transform .15s ease';
 
   function move(ev){
-    const rows = [...cityRows.children];
-    const liIndex = rows.indexOf(li);
-    for (const other of rows){
-      if (other === li) continue;
-      const r = other.getBoundingClientRect();
-      const mid = r.top + r.height/2;
-      const oIndex = rows.indexOf(other);
-      if (oIndex < liIndex && ev.clientY < mid){ cityRows.insertBefore(li, other); break; }
-      if (oIndex > liIndex && ev.clientY > mid){ cityRows.insertBefore(li, other.nextSibling); break; }
-    }
+    const dy = Math.max(minDy, Math.min(maxDy, ev.clientY - startY));
+    li.style.transform = `translateY(${dy}px)`;
+    targetIndex = Math.max(0, Math.min(rows.length - 1, startIndex + Math.round(dy / step)));
+    rows.forEach((o, i) => {
+      if (o === li) return;
+      let shift = 0;
+      if (i > startIndex && i <= targetIndex) shift = -step;
+      if (i < startIndex && i >= targetIndex) shift = step;
+      o.style.transform = shift ? `translateY(${shift}px)` : '';
+    });
   }
   function up(){
+    window.removeEventListener('pointermove', move);
+    window.removeEventListener('pointerup', up);
+    window.removeEventListener('pointercancel', up);
     li.classList.remove('drag-row');
-    li.removeEventListener('pointermove', move);
-    li.removeEventListener('pointerup', up);
-    li.removeEventListener('pointercancel', up);
-    const newOrder = [...cityRows.children].map(x => x._city);
-    if (newOrder.some((c, i) => c !== startOrder[i])){
-      cities = newOrder;
-      rebuild(); refreshModal();
+    for (const o of rows){ o.style.transform = ''; o.style.transition = ''; }
+    li.style.transform = '';
+    if (targetIndex !== startIndex){
+      const c = cities.splice(startIndex, 1)[0];
+      cities.splice(targetIndex, 0, c);
+      rebuildAnimated(); refreshModal();
     }
   }
-  li.addEventListener('pointermove', move);
-  li.addEventListener('pointerup', up);
-  li.addEventListener('pointercancel', up);
+  window.addEventListener('pointermove', move);
+  window.addEventListener('pointerup', up);
+  window.addEventListener('pointercancel', up);
 }
 
 function addCity(city){
   if (cities.length >= MAX_CITIES) return;
   cities.push(city);
-  rebuild(); refreshModal();
+  rebuildAnimated(); refreshModal();
   searchInput.value = '';
   resultsBox.hidden = true;
 }
