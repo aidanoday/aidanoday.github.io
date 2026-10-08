@@ -1,0 +1,941 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Shadow Fountain</title>
+<link rel="shortcut icon" href="assets/apod.ico" type="image/x-icon"/>
+<style>
+  html, body { margin: 0; height: 100%; background: #000; overflow: hidden; font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  canvas { position: fixed; inset: 0; width: 100vw; height: 100vh; display: block; }
+  #scene { z-index: 0; }
+  #scene.goo { filter: url(#goo); }
+  #overlay { z-index: 1; }
+  #video { display: none; }
+  body.hideui { cursor: none; }
+  .panel { position: fixed; z-index: 2; background: rgba(0,0,0,.65); color: #ddd; font-size: 13px; line-height: 1.5;
+           padding: 10px 12px; border-radius: 8px; backdrop-filter: blur(6px); transition: opacity .3s; }
+  body.hideui .panel, body.cal .panel { opacity: 0; pointer-events: none; }
+  #ui { top: 12px; left: 12px; min-width: 260px; }
+  #ui select, #ui button { font: inherit; margin: 2px 4px 2px 0; }
+  #ui button.on { background: #2b6cff; color: #fff; border-color: #2b6cff; }
+  #ui select { max-width: 240px; }
+  #status { color: #9ad; margin-top: 4px; white-space: pre-line; }
+  .sliders { margin-top: 6px; display: grid; grid-template-columns: 1fr; gap: 2px; }
+  .sliders label { display: flex; align-items: center; gap: 8px; }
+  .sliders input[type=range] { flex: 1; }
+  #help { right: 12px; bottom: 12px; max-width: 420px; }
+  #help b { color: #fff; }
+  kbd { display: inline-block; background: #333; border: 1px solid #555; border-radius: 3px; padding: 0 5px; font-family: ui-monospace, Menlo, monospace; font-size: 12px; color: #fff; }
+</style>
+</head>
+<body>
+<!-- the classic CSS/SVG "gooey" filter: blur, then snap the alpha back to a hard edge -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <filter id="goo" x="-10%" y="-10%" width="120%" height="120%" color-interpolation-filters="sRGB">
+      <feGaussianBlur id="gooBlur" in="SourceGraphic" stdDeviation="6" result="blur"/>
+      <feColorMatrix in="blur" type="matrix" values="1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 19 -8" result="goo"/>
+      <feComposite in="SourceGraphic" in2="goo" operator="atop"/>
+    </filter>
+  </defs>
+</svg>
+<canvas id="scene"></canvas>
+<canvas id="overlay"></canvas>
+<video id="video" playsinline muted autoplay></video>
+
+<div id="ui" class="panel">
+  <div><b>Shadow Fountain</b></div>
+  <div>
+    <select id="camSelect"><option value="">(no camera)</option></select>
+    <button id="camStart">Start camera</button>
+  </div>
+  <div>
+    <button id="btnCal">Calibrate (C)</button>
+    <button id="btnDebug">Debug (D)</button>
+    <button id="btnFull">Fullscreen (F)</button>
+    <button id="btnMode">Mode (M)</button>
+  </div>
+  <div>
+    <button id="btnMarker">Marker (P)</button>
+    <button id="btnClear">Clear drawing (X)</button>
+  </div>
+  <div class="sliders">
+    <label>Position <input type="range" id="slX" min="0.02" max="0.98" step="0.01"></label>
+    <label>Width <input type="range" id="slW" min="0.02" max="1" step="0.01"></label>
+    <label>Volume <input type="range" id="slV" min="100" max="8000" step="100"></label>
+    <label><input type="checkbox" id="ckBasin"> Basin at bottom (B)</label>
+    <label>Drain position <input type="range" id="slDX" min="0.02" max="0.98" step="0.01"></label>
+    <label>Drain size <input type="range" id="slDW" min="0" max="0.5" step="0.01"></label>
+  </div>
+  <div id="status"></div>
+</div>
+
+<div id="help" class="panel">
+  <div><b>Keys</b></div>
+  <div><kbd>C</kbd> calibrate · <kbd>D</kbd> debug · <kbd>F</kbd> fullscreen · <kbd>M</kbd> waterfall / fountain</div>
+  <div><kbd>←</kbd> <kbd>→</kbd> flow position · <kbd>↑</kbd> <kbd>↓</kbd> flow volume · <kbd>Shift</kbd>+<kbd>←</kbd> <kbd>→</kbd> flow width · <kbd>B</kbd> basin (drain via sliders)</div>
+  <div><kbd>[</kbd> <kbd>]</kbd> shadow threshold · <kbd>-</kbd> <kbd>=</kbd> background brightness · <kbd>,</kbd> <kbd>.</kbd> particle budget</div>
+  <div><kbd>G</kbd> goo / streak render · <kbd>K</kbd> camera channel / water color · <kbd>I</kbd> invert mask · <kbd>R</kbd> reset calibration</div>
+  <div><kbd>U</kbd> hide panels · <kbd>H</kbd> toggle this help</div>
+  <div><b>Mouse</b> hold to cast a shadow · scroll to resize it · <kbd>T</kbd> sticky cursor shadow</div>
+  <div><b>Marker</b> <kbd>P</kbd> toggle · drag draws shadow · <kbd>Shift</kbd>-drag or right-drag erases · <kbd>X</kbd> clear</div>
+</div>
+
+<script>
+(() => {
+'use strict';
+
+// ------------------------------------------------------------------ settings
+const LS_KEY = 'shadowFountain.v2';
+const DEF = { mode: 'waterfall', factor: 0.5, floor: 255, count: 12000, invert: false, cal: null, camId: null, help: true, channel: 'blue',
+              emitX: 0.5, emitW: 0.4, rate: 1500, basin: false, drainX: 0.5, drainW: 0.08, goo: true };
+
+// The camera only reads ONE color channel. The background is white and the
+// water is drawn in colors that keep that channel fully saturated, so the
+// camera cannot tell water from empty wall. Real shadows are dark in every
+// channel, so they still show up.
+const CHANNELS = {
+  blue:  { idx: 2, main: 'rgba(40,125,255,0.7)', solid: 'rgb(40,125,255)' },
+  green: { idx: 1, main: 'rgba(20,255,150,0.7)', solid: 'rgb(20,255,150)' },
+  red:   { idx: 0, main: 'rgba(255,105,45,0.7)', solid: 'rgb(255,105,45)' },
+};
+const CHANNEL_ORDER = ['blue', 'green', 'red'];
+const S = Object.assign({}, DEF, loadSettings());
+function loadSettings() { try { return JSON.parse(localStorage.getItem(LS_KEY)) || {}; } catch (e) { return {}; } }
+function saveSettings() { try { localStorage.setItem(LS_KEY, JSON.stringify(S)); } catch (e) {} }
+
+const $ = id => document.getElementById(id);
+const scene = $('scene'), overlay = $('overlay'), video = $('video');
+const sctx = scene.getContext('2d');
+const octx = overlay.getContext('2d');
+
+// ------------------------------------------------------------------ geometry
+// The simulation runs on a coarse grid in projector space. MW cells across,
+// MH chosen to match the window aspect so cells are roughly square.
+const MW = 160;
+let MH = 90;
+let W = 0, H = 0, dpr = 1;
+
+// Calibration targets: four markers inset from the projector corners.
+const MARGIN = 0.06;
+const PROJ_PTS = [[MARGIN, MARGIN], [1 - MARGIN, MARGIN], [1 - MARGIN, 1 - MARGIN], [MARGIN, 1 - MARGIN]];
+const CORNER_NAMES = ['top-left', 'top-right', 'bottom-right', 'bottom-left'];
+
+// Mask buffers (allocated in resize)
+let raw, ema, field, solid, nrmX, nrmY, warped, lut, maskImg, maskCanvas, maskCtx;
+
+// ------------------------------------------------------------------ camera
+const camCanvas = document.createElement('canvas');
+const cctx = camCanvas.getContext('2d', { willReadFrequently: true });
+let camW = 320, camH = 180;
+let gray = new Uint8Array(camW * camH);
+let stream = null, camActive = false, camLabel = 'none';
+const hist = new Uint32Array(256);
+let lastP80 = 0, lastThresh = 0;
+
+async function listCameras() {
+  const sel = $('camSelect');
+  const devices = (await navigator.mediaDevices.enumerateDevices()).filter(d => d.kind === 'videoinput');
+  sel.innerHTML = '';
+  devices.forEach((d, i) => {
+    const o = document.createElement('option');
+    o.value = d.deviceId;
+    o.textContent = d.label || ('Camera ' + (i + 1));
+    sel.appendChild(o);
+  });
+  if (S.camId && devices.some(d => d.deviceId === S.camId)) sel.value = S.camId;
+}
+
+async function startCamera(deviceId) {
+  stopCamera();
+  const video_c = { width: { ideal: 640 }, height: { ideal: 360 }, frameRate: { ideal: 30 } };
+  if (deviceId) video_c.deviceId = { exact: deviceId };
+  try {
+    stream = await navigator.mediaDevices.getUserMedia({ video: video_c, audio: false });
+  } catch (err) {
+    setStatus('Camera failed: ' + err.message + '\nMouse shadows still work.');
+    return;
+  }
+  video.srcObject = stream;
+  await video.play().catch(() => {});
+  const track = stream.getVideoTracks()[0];
+  camLabel = track.label || 'camera';
+  S.camId = track.getSettings().deviceId || deviceId || null;
+  saveSettings();
+  // Lock exposure when the browser lets us. Auto-exposure otherwise drifts as
+  // people step into the beam, which the adaptive threshold partly absorbs.
+  try {
+    const caps = track.getCapabilities ? track.getCapabilities() : {};
+    if (caps.exposureMode && caps.exposureMode.includes('manual')) {
+      await track.applyConstraints({ advanced: [{ exposureMode: 'manual' }] });
+    }
+  } catch (e) {}
+  const vw = video.videoWidth || 640, vh = video.videoHeight || 360;
+  camW = 320; camH = Math.max(2, Math.round(camW * vh / vw));
+  camCanvas.width = camW; camCanvas.height = camH;
+  gray = new Uint8Array(camW * camH);
+  camActive = true;
+  buildLUT();
+  await listCameras();
+  setStatus('Camera: ' + camLabel);
+}
+
+function stopCamera() {
+  if (stream) stream.getTracks().forEach(t => t.stop());
+  stream = null; camActive = false;
+}
+
+// ------------------------------------------------------------------ homography
+// Solve H (3x3, h33 = 1) mapping src -> dst for four point pairs by DLT.
+function homography(src, dst) {
+  const A = [], b = [];
+  for (let i = 0; i < 4; i++) {
+    const [x, y] = src[i], [u, v] = dst[i];
+    A.push([x, y, 1, 0, 0, 0, -u * x, -u * y]); b.push(u);
+    A.push([0, 0, 0, x, y, 1, -v * x, -v * y]); b.push(v);
+  }
+  // Gaussian elimination with partial pivoting
+  const n = 8;
+  for (let c = 0; c < n; c++) {
+    let p = c;
+    for (let r = c + 1; r < n; r++) if (Math.abs(A[r][c]) > Math.abs(A[p][c])) p = r;
+    [A[c], A[p]] = [A[p], A[c]]; [b[c], b[p]] = [b[p], b[c]];
+    const piv = A[c][c] || 1e-12;
+    for (let r = c + 1; r < n; r++) {
+      const f = A[r][c] / piv;
+      for (let k = c; k < n; k++) A[r][k] -= f * A[c][k];
+      b[r] -= f * b[c];
+    }
+  }
+  const h = new Array(8);
+  for (let r = n - 1; r >= 0; r--) {
+    let s = b[r];
+    for (let k = r + 1; k < n; k++) s -= A[r][k] * h[k];
+    h[r] = s / (A[r][r] || 1e-12);
+  }
+  return [h[0], h[1], h[2], h[3], h[4], h[5], h[6], h[7], 1];
+}
+
+function applyH(Hm, x, y) {
+  const w = Hm[6] * x + Hm[7] * y + Hm[8];
+  return [(Hm[0] * x + Hm[1] * y + Hm[2]) / w, (Hm[3] * x + Hm[4] * y + Hm[5]) / w];
+}
+
+// Lookup table: each mask cell -> camera pixel index (or -1 when outside the frame)
+function buildLUT() {
+  const dst = S.cal || PROJ_PTS;           // no calibration: camera frame == projector frame
+  const Hm = homography(PROJ_PTS, dst);
+  for (let j = 0; j < MH; j++) {
+    for (let i = 0; i < MW; i++) {
+      const [u, v] = applyH(Hm, (i + 0.5) / MW, (j + 0.5) / MH);
+      const px = Math.round(u * camW), py = Math.round(v * camH);
+      lut[j * MW + i] = (px >= 0 && px < camW && py >= 0 && py < camH) ? py * camW + px : -1;
+    }
+  }
+}
+
+// ------------------------------------------------------------------ marker
+// Shadows you draw in by hand. They live on the mask grid, are merged into the
+// shadow mask every frame, render dark on the field (so the camera agrees they
+// are shadow), and persist in localStorage.
+const DRAWN_KEY = 'shadowFountain.drawn';
+let drawn, drawnDirty = true, drawnCanvas, drawnCtx, drawnImg;
+let markerMode = false, painting = false, erasing = false, lastPaint = null;
+
+function paintDisc(cx, cy, erase) {
+  const r = mouseR, r2 = r * r;
+  const i0 = Math.max(0, Math.floor(cx - r)), i1 = Math.min(MW - 1, Math.ceil(cx + r));
+  const j0 = Math.max(0, Math.floor(cy - r)), j1 = Math.min(MH - 1, Math.ceil(cy + r));
+  for (let j = j0; j <= j1; j++) for (let i = i0; i <= i1; i++) {
+    const dx = i + 0.5 - cx, dy = j + 0.5 - cy;
+    if (dx * dx + dy * dy < r2) drawn[j * MW + i] = erase ? 0 : 1;
+  }
+  drawnDirty = true;
+}
+
+function paintStroke(mx, my, erase) {
+  const cx = mx / W * MW, cy = my / H * MH;
+  if (lastPaint) {
+    const d = Math.hypot(cx - lastPaint[0], cy - lastPaint[1]);
+    const steps = Math.max(1, Math.ceil(d / Math.max(0.5, mouseR * 0.4)));
+    for (let s = 1; s <= steps; s++) {
+      const t = s / steps;
+      paintDisc(lastPaint[0] + (cx - lastPaint[0]) * t, lastPaint[1] + (cy - lastPaint[1]) * t, erase);
+    }
+  } else paintDisc(cx, cy, erase);
+  lastPaint = [cx, cy];
+}
+
+function clearDrawn() { drawn.fill(0); drawnDirty = true; saveDrawn(); }
+
+function saveDrawn() {
+  try {
+    let s = ''; for (let i = 0; i < drawn.length; i++) s += drawn[i] ? '1' : '0';
+    localStorage.setItem(DRAWN_KEY, JSON.stringify({ w: MW, h: MH, bits: btoa(s) }));
+  } catch (e) {}
+}
+
+// load (or resample from an old grid size) into the current grid
+function restoreDrawn(src, sw, sh) {
+  if (!src) { try { const o = JSON.parse(localStorage.getItem(DRAWN_KEY)); if (o && o.bits) { const s = atob(o.bits); src = Uint8Array.from(s, c => c === '1' ? 1 : 0); sw = o.w; sh = o.h; } } catch (e) {} }
+  if (!src || !sw || !sh) return;
+  for (let j = 0; j < MH; j++) {
+    const sj = Math.min(sh - 1, Math.floor(j * sh / MH));
+    for (let i = 0; i < MW; i++) drawn[j * MW + i] = src[sj * sw + Math.min(sw - 1, Math.floor(i * sw / MW))];
+  }
+  drawnDirty = true;
+}
+
+function drawDrawnShadows() {
+  if (drawnDirty) {
+    const d = drawnImg.data;
+    for (let i = 0, k = 0; i < MW * MH; i++, k += 4) { d[k] = 28; d[k + 1] = 28; d[k + 2] = 32; d[k + 3] = drawn[i] ? 255 : 0; }
+    drawnCtx.putImageData(drawnImg, 0, 0);
+    drawnDirty = false;
+  }
+  sctx.imageSmoothingEnabled = !!S.goo;   // goo rounds the edges; streak mode stays crisp
+  sctx.drawImage(drawnCanvas, 0, 0, W, H);
+}
+
+// ------------------------------------------------------------------ mask
+let mouseX = -1, mouseY = -1, mouseDown = false, mouseR = 10, stickyMouse = false;
+
+function updateMask() {
+  const N = MW * MH;
+  // 1. camera -> grayscale -> warped into projector space
+  let haveCam = false;
+  if (camActive && video.readyState >= 2) {
+    cctx.drawImage(video, 0, 0, camW, camH);
+    const d = cctx.getImageData(0, 0, camW, camH).data;
+    const ch = (CHANNELS[S.channel] || CHANNELS.blue).idx;
+    for (let i = 0, j = ch; i < gray.length; i++, j += 4) gray[i] = d[j];
+    hist.fill(0);
+    let count = 0;
+    for (let i = 0; i < N; i++) {
+      const k = lut[i];
+      if (k < 0) { warped[i] = 255; continue; }
+      const g = gray[k]; warped[i] = g; hist[g]++; count++;
+    }
+    // 2. adaptive threshold: a fraction of the 80th-percentile brightness, so
+    //    the "lit wall" level is tracked even when a big shadow covers the view
+    let acc = 0, p80 = 255;
+    for (let g = 0; g < 256; g++) { acc += hist[g]; if (acc >= count * 0.8) { p80 = g; break; } }
+    lastP80 = p80;
+    lastThresh = Math.max(6, p80 * S.factor);
+    haveCam = count > 0;
+  }
+  if (haveCam) {
+    const inv = S.invert ? 1 : 0;
+    for (let i = 0; i < N; i++) raw[i] = lut[i] < 0 ? 0 : ((warped[i] < lastThresh ? 1 : 0) ^ inv);
+  } else {
+    raw.fill(0);
+  }
+  // 3. drawn (marker) shadows, then the mouse shadow for testing
+  for (let i = 0; i < N; i++) if (drawn[i]) raw[i] = 1;
+  if ((mouseDown || stickyMouse) && !markerMode && mouseX >= 0) {
+    const cx = mouseX / W * MW, cy = mouseY / H * MH, r2 = mouseR * mouseR;
+    const i0 = Math.max(0, Math.floor(cx - mouseR)), i1 = Math.min(MW - 1, Math.ceil(cx + mouseR));
+    const j0 = Math.max(0, Math.floor(cy - mouseR)), j1 = Math.min(MH - 1, Math.ceil(cy + mouseR));
+    for (let j = j0; j <= j1; j++) for (let i = i0; i <= i1; i++) {
+      const dx = i + 0.5 - cx, dy = j + 0.5 - cy;
+      if (dx * dx + dy * dy < r2) raw[j * MW + i] = 1;
+    }
+  }
+  // 4. temporal smoothing to kill camera flicker
+  const a = 0.45;
+  for (let i = 0; i < N; i++) ema[i] += (raw[i] - ema[i]) * a;
+  // 5. 3x3 box blur -> continuous field; threshold low to dilate slightly;
+  //    the field gradient gives us surface normals for free
+  for (let j = 0; j < MH; j++) {
+    const jm = Math.max(0, j - 1) * MW, jc = j * MW, jp = Math.min(MH - 1, j + 1) * MW;
+    for (let i = 0; i < MW; i++) {
+      const im = Math.max(0, i - 1), ip = Math.min(MW - 1, i + 1);
+      field[jc + i] = (ema[jm + im] + ema[jm + i] + ema[jm + ip] +
+                       ema[jc + im] + ema[jc + i] + ema[jc + ip] +
+                       ema[jp + im] + ema[jp + i] + ema[jp + ip]) / 9;
+    }
+  }
+  for (let j = 0; j < MH; j++) {
+    const jm = Math.max(0, j - 1) * MW, jc = j * MW, jp = Math.min(MH - 1, j + 1) * MW;
+    for (let i = 0; i < MW; i++) {
+      const im = Math.max(0, i - 1), ip = Math.min(MW - 1, i + 1);
+      const k = jc + i;
+      solid[k] = field[k] > 0.35 ? 1 : 0;
+      // normal points out of the shadow: down the gradient
+      let gx = field[jm + ip] - field[jm + im] + 2 * (field[jc + ip] - field[jc + im]) + field[jp + ip] - field[jp + im];
+      let gy = field[jp + im] - field[jm + im] + 2 * (field[jp + i] - field[jm + i]) + field[jp + ip] - field[jm + ip];
+      const len = Math.hypot(gx, gy);
+      if (len > 1e-4) { nrmX[k] = -gx / len; nrmY[k] = -gy / len; } else { nrmX[k] = 0; nrmY[k] = 0; }
+    }
+  }
+  // 6. optional basin: floor and side walls so water can pool at the bottom,
+  //    with a gap in the floor (the drain) that water falls through
+  if (S.basin) {
+    const d0 = Math.round((S.drainX - S.drainW / 2) * MW), d1 = Math.round((S.drainX + S.drainW / 2) * MW);
+    for (let j = MH - 2; j < MH; j++) for (let i = 0; i < MW; i++) {
+      if (i >= d0 && i < d1) continue;
+      const k = j * MW + i; solid[k] = 1; nrmX[k] = 0; nrmY[k] = -1;
+    }
+    for (let j = 0; j < MH - 2; j++) {
+      solid[j * MW] = 1; nrmX[j * MW] = 1; nrmY[j * MW] = 0;
+      solid[j * MW + MW - 1] = 1; nrmX[j * MW + MW - 1] = -1; nrmY[j * MW + MW - 1] = 0;
+    }
+  }
+}
+
+// ------------------------------------------------------------------ particles
+// Falling water is free particles. Pooling comes from a cheap grid pressure
+// step: each cell counts its particles, crowded cells push particles toward
+// emptier neighbours, and a little viscosity settles them. Solid cells carry a
+// fixed pressure so water stacks on shadows instead of sinking into them.
+let P = null;
+let freeList, freeCount = 0, emitAcc = 0;
+let dens, pres, cvx, cvy, csp; // per-cell density, pressure, summed velocity, summed speed
+const G = 100;                // gravity, cells / s^2
+const DRAG = 0.9;             // air drag; terminal speed is G / DRAG
+const FRICTION = 0.96;        // tangential velocity kept after a contact
+const SPREAD = 0.4;           // share of impact speed turned into motion along the surface
+const SHOVE = 1.5;            // push from a surface, lets moving shadows displace water
+const JITTER = 0.6;           // tiny splash randomness on contact
+const STREAM_SPEED = 40;      // a cell must move together at least this fast to count as a stream
+const K_LATERAL = 1.6;        // horizontal pressure boost: water spreads sideways before it piles
+const POOL_DENSITY = 4;       // a cell this crowded counts as a pool surface for sliding
+const REST_DENSITY = 6;       // particles per cell before pressure pushes back
+const WALL_P = 0.6;           // extra pressure a solid cell carries over its wettest neighbour
+const MAX_P = 30;             // pressure cap; with K this sets the deepest pool that stays supported
+const K_PRESSURE = 250;
+const MAX_PDV = 50;           // largest velocity change pressure may apply per frame (stability)
+const VISC = 12;              // higher = calmer pools
+const MAX_SPEED = 140;
+const SLOW = 14;              // below this speed a particle is drawn as resting water
+
+function allocParticles(n) {
+  P = { n, x: new Float32Array(n), y: new Float32Array(n), px: new Float32Array(n), py: new Float32Array(n),
+        vx: new Float32Array(n), vy: new Float32Array(n), active: new Uint8Array(n), inPool: new Uint8Array(n) };
+  freeList = new Int32Array(n);
+  for (let i = 0; i < n; i++) freeList[i] = n - 1 - i;
+  freeCount = n; emitAcc = 0;
+}
+
+function spawn(i) {
+  const r = Math.random;
+  if (S.mode === 'fountain') {
+    const spread = 0.08 + S.emitW * 1.2;
+    const ang = -Math.PI / 2 + (r() - 0.5) * spread;
+    const spd = Math.min(MAX_SPEED, Math.sqrt(2 * G * MH * 0.9) * 1.2 * (0.85 + 0.15 * r()));
+    P.x[i] = S.emitX * MW + (r() - 0.5) * 2.5;
+    P.y[i] = MH - (S.basin ? 3.5 : 0.5);
+    P.vx[i] = Math.cos(ang) * spd;
+    P.vy[i] = Math.sin(ang) * spd;
+  } else {
+    P.x[i] = (S.emitX + (r() - 0.5) * S.emitW) * MW;
+    P.y[i] = -r() * 2;
+    P.vx[i] = (r() - 0.5) * 1.5;
+    P.vy[i] = 14 + r() * 10;
+  }
+  P.x[i] = Math.min(MW - 1.5, Math.max(1.5, P.x[i]));
+  P.px[i] = P.x[i]; P.py[i] = P.y[i];
+  P.active[i] = 1; P.inPool[i] = 0;
+}
+
+function kill(i) { P.active[i] = 0; freeList[freeCount++] = i; }
+
+// Particles only leave when they fall off the bottom or a side of the screen.
+// If the budget is fully in play (for example a basin has filled), the flow
+// pauses until some water exits; raise the budget with the period key.
+function emit(dt) {
+  emitAcc += S.rate * dt;
+  const want = Math.floor(emitAcc);
+  let k = Math.min(want, freeCount);
+  while (k-- > 0) spawn(freeList[--freeCount]);
+  emitAcc -= want;
+}
+
+// bilinear sample of the pressure field at continuous grid coords
+function sampleP(fx, fy) {
+  let u = fx - 0.5, v = fy - 0.5;
+  let i0 = Math.floor(u), j0 = Math.floor(v);
+  let tu = u - i0, tv = v - j0;
+  if (i0 < 0) { i0 = 0; tu = 0; } else if (i0 > MW - 2) { i0 = MW - 2; tu = 1; }
+  if (j0 < 0) { j0 = 0; tv = 0; } else if (j0 > MH - 2) { j0 = MH - 2; tv = 1; }
+  const k = j0 * MW + i0;
+  return (pres[k] * (1 - tu) + pres[k + 1] * tu) * (1 - tv) + (pres[k + MW] * (1 - tu) + pres[k + MW + 1] * tu) * tv;
+}
+
+function updateParticles(dt) {
+  emit(dt);
+  const { n, x, y, px, py, vx, vy, active, inPool } = P;
+  const N = MW * MH;
+  // 1. splat particles into the density / velocity grids
+  dens.fill(0); cvx.fill(0); cvy.fill(0); csp.fill(0);
+  for (let i = 0; i < n; i++) {
+    if (!active[i]) continue;
+    const spd = Math.hypot(vx[i], vy[i]);
+    let u = x[i] - 0.5, v = y[i] - 0.5;
+    let i0 = Math.floor(u), j0 = Math.floor(v);
+    let tu = u - i0, tv = v - j0;
+    if (i0 < 0) { i0 = 0; tu = 0; } else if (i0 > MW - 2) { i0 = MW - 2; tu = 1; }
+    if (j0 < 0) { j0 = 0; tv = 0; } else if (j0 > MH - 2) { j0 = MH - 2; tv = 1; }
+    const k = j0 * MW + i0;
+    const w00 = (1 - tu) * (1 - tv), w10 = tu * (1 - tv), w01 = (1 - tu) * tv, w11 = tu * tv;
+    dens[k] += w00; dens[k + 1] += w10; dens[k + MW] += w01; dens[k + MW + 1] += w11;
+    cvx[k] += w00 * vx[i]; cvx[k + 1] += w10 * vx[i]; cvx[k + MW] += w01 * vx[i]; cvx[k + MW + 1] += w11 * vx[i];
+    cvy[k] += w00 * vy[i]; cvy[k + 1] += w10 * vy[i]; cvy[k + MW] += w01 * vy[i]; cvy[k + MW + 1] += w11 * vy[i];
+    csp[k] += w00 * spd; csp[k + 1] += w10 * spd; csp[k + MW] += w01 * spd; csp[k + MW + 1] += w11 * spd;
+  }
+  // 2. pressure. Solid cells mirror the highest pressure of the water beside
+  //    them (plus a hair), so a barrier supports a pool without repelling it.
+  for (let k = 0; k < N; k++) pres[k] = solid[k] ? 0 : Math.min(MAX_P, Math.max(0, dens[k] - REST_DENSITY));
+  for (let j = 0; j < MH; j++) {
+    for (let i = 0; i < MW; i++) {
+      const k = j * MW + i;
+      if (!solid[k]) continue;
+      let m = 0;
+      if (i > 0 && !solid[k - 1]) m = Math.max(m, pres[k - 1]);
+      if (i < MW - 1 && !solid[k + 1]) m = Math.max(m, pres[k + 1]);
+      if (j > 0 && !solid[k - MW]) m = Math.max(m, pres[k - MW]);
+      if (j < MH - 1 && !solid[k + MW]) m = Math.max(m, pres[k + MW]);
+      pres[k] = m + WALL_P;
+    }
+  }
+  // 3. forces + integration
+  const SUB = 2, h = dt / SUB;
+  const vmix = Math.min(1, VISC * dt);
+  for (let i = 0; i < n; i++) {
+    if (!active[i]) continue;
+    px[i] = x[i]; py[i] = y[i];
+    const gx = sampleP(x[i] + 0.5, y[i]) - sampleP(x[i] - 0.5, y[i]);
+    const gy = sampleP(x[i], y[i] + 0.5) - sampleP(x[i], y[i] - 0.5);
+    const ci0 = Math.min(MW - 1, Math.max(0, x[i] | 0)), cj0 = Math.min(MH - 1, Math.max(0, y[i] | 0));
+    const k0 = cj0 * MW + ci0;
+    // Pressure is gated by coherence: a cell whose water all moves the same
+    // way at speed is a stream and is not sprayed apart by its own density.
+    // A pool, or the impact zone where fast water meets resting water, has
+    // low coherence and feels full pressure, so arrivals spread instead of
+    // plunging through.
+    let pscale = 1;
+    if (dens[k0] > 0.5) {
+      const inv = 1 / dens[k0], mvx = cvx[k0] * inv, mvy = cvy[k0] * inv;
+      vx[i] += (mvx - vx[i]) * vmix;   // viscosity: relax toward the cell's mean velocity
+      vy[i] += (mvy - vy[i]) * vmix;
+      const meanSpeed = csp[k0] * inv, meanVel = Math.hypot(mvx, mvy);
+      const coherence = (meanVel / (meanSpeed + 1e-3)) * Math.min(1, meanSpeed / STREAM_SPEED);
+      pscale = Math.max(0.08, 1 - coherence);
+      // Landing on water: on first entry into a pooled cell, turn part of the
+      // speed into the pool into a slide across its surface, toward the side
+      // holding less water. Same idea as the barrier contact.
+      const nowPool = dens[k0] >= POOL_DENSITY;
+      if (nowPool && !inPool[i]) {
+        const rel = vy[i] - mvy;
+        if (rel > 4) {
+          const dir = gx > 0.02 ? -1 : gx < -0.02 ? 1 : (Math.random() < 0.5 ? -1 : 1);
+          vx[i] += dir * rel * SPREAD;
+          vy[i] -= rel * SPREAD;
+        }
+      }
+      inPool[i] = nowPool ? 1 : 0;
+    } else inPool[i] = 0;
+    let pdx = -K_PRESSURE * K_LATERAL * gx * pscale * dt, pdy = -K_PRESSURE * gy * pscale * dt;
+    const pdm = Math.hypot(pdx, pdy);
+    if (pdm > MAX_PDV) { pdx *= MAX_PDV / pdm; pdy *= MAX_PDV / pdm; }
+    vx[i] += pdx;
+    vy[i] += G * dt + pdy;
+    const dragK = Math.max(0, 1 - DRAG * dt);
+    vx[i] *= dragK; vy[i] *= dragK;
+    const sp = Math.hypot(vx[i], vy[i]);
+    if (sp > MAX_SPEED) { vx[i] *= MAX_SPEED / sp; vy[i] *= MAX_SPEED / sp; }
+    // A particle swallowed by a shadow (no way out along the normal) freezes
+    // where it is and falls again once the shadow moves off it.
+    let stuck = false;
+    for (let s = 0; s < SUB && !stuck; s++) {
+      let nx = x[i] + vx[i] * h, ny = y[i] + vy[i] * h;
+      const ci = nx | 0, cj = ny | 0;
+      if (ci >= 0 && ci < MW && cj >= 0 && cj < MH && solid[cj * MW + ci]) {
+        // Contact: push out along the surface normal, then slide.
+        let k = cj * MW + ci, qx = nrmX[k], qy = nrmY[k];
+        if (qx === 0 && qy === 0) { stuck = true; break; }
+        let out = false;
+        for (let t = 0; t < 12; t++) {
+          nx += qx * 0.6; ny += qy * 0.6;
+          const ti = nx | 0, tj = ny | 0;
+          if (ti < 0 || ti >= MW || tj < 0 || tj >= MH) { out = true; break; }
+          k = tj * MW + ti;
+          if (!solid[k]) { out = true; break; }
+          if (nrmX[k] !== 0 || nrmY[k] !== 0) { qx = nrmX[k]; qy = nrmY[k]; }
+        }
+        if (!out) { stuck = true; break; }
+        nx += qx * 0.35; ny += qy * 0.35;   // settle fully into the fluid cell so the weight counts
+        // kill the velocity into the surface (no bounce), keep most of the slide
+        const vn = vx[i] * qx + vy[i] * qy;
+        if (vn < 0) {
+          vx[i] -= vn * qx; vy[i] -= vn * qy;
+          // Spread along the surface: part of the impact speed becomes motion
+          // along the tangent, toward whichever side holds less water.
+          if (vn < -4) {
+            const tx = -qy, ty = qx;
+            const dp = sampleP(nx + tx * 1.5, ny + ty * 1.5) - sampleP(nx - tx * 1.5, ny - ty * 1.5);
+            const dir = dp < -0.05 ? 1 : dp > 0.05 ? -1 : (Math.random() < 0.5 ? -1 : 1);
+            const add = -vn * SPREAD * dir;
+            vx[i] += tx * add; vy[i] += ty * add;
+          }
+        }
+        vx[i] = vx[i] * FRICTION + qx * SHOVE + (Math.random() - 0.5) * JITTER;
+        vy[i] = vy[i] * FRICTION + qy * SHOVE + (Math.random() - 0.5) * JITTER;
+      }
+      x[i] = nx; y[i] = ny;
+    }
+    if (stuck) { vx[i] = 0; vy[i] = 0; }
+    if (y[i] > MH + 2 || x[i] < -3 || x[i] > MW + 3) kill(i);
+  }
+}
+
+// ------------------------------------------------------------------ rendering
+function bgColor() {
+  // Neutral white (or gray when dimmed). Every channel equal, so the mask
+  // channel sees the same field no matter which one is selected.
+  const f = S.floor;
+  return `rgb(${f},${f},${f})`;
+}
+
+// Goo mode uses the classic SVG filter (blur, then a steep alpha contrast via
+// feColorMatrix) applied to the scene canvas with CSS. The canvas stays
+// transparent and the white field lives on the page background, so the
+// filter only sees the water. Particles are drawn as opaque dots and streaks
+// and the filter melts neighbours into one body.
+let lastBg = '';
+function applyGooMode() {
+  scene.classList.toggle('goo', !!S.goo);
+  const sx = W / MW;
+  $('gooBlur').setAttribute('stdDeviation', Math.max(2, sx * 0.42).toFixed(1));
+}
+
+function drawGooShapes(pal) {
+  const sx = W / MW, sy = H / MH;
+  const { n, x, y, px, py, active } = P;
+  const r = Math.max(1.5, sx * 0.42);
+  sctx.fillStyle = pal.solid;
+  sctx.strokeStyle = pal.solid;
+  sctx.lineCap = 'round';
+  sctx.lineWidth = r * 2;
+  sctx.beginPath();
+  for (let i = 0; i < n; i++) {
+    if (!active[i]) continue;
+    const X = x[i] * sx, Y = y[i] * sy, ax = px[i] * sx, ay = py[i] * sy;
+    if (Math.abs(X - ax) + Math.abs(Y - ay) < 0.5) { sctx.moveTo(X + r, Y); sctx.arc(X, Y, r, 0, 6.2832); }
+    else { sctx.moveTo(ax, ay); sctx.lineTo(X, Y); }
+  }
+  sctx.fill();
+  sctx.stroke();
+}
+
+function drawScene() {
+  const pal = CHANNELS[S.channel] || CHANNELS.blue;
+  const bg = bgColor();
+  if (bg !== lastBg) { document.body.style.background = bg; lastBg = bg; }
+  sctx.globalCompositeOperation = 'source-over';
+  if (S.goo) { sctx.clearRect(0, 0, W, H); drawDrawnShadows(); drawGooShapes(pal); return; }
+  sctx.fillStyle = bg;
+  sctx.fillRect(0, 0, W, H);
+  drawDrawnShadows();
+  const sx = W / MW, sy = H / MH;
+  const { n, x, y, px, py, vx, vy, active } = P;
+  // One stroke style for all water. Moving particles draw their motion streak;
+  // resting ones draw a short horizontal dash of the same width, so a pool
+  // reads as the same substance lying still rather than a different material.
+  const hl = sx * 0.35;
+  sctx.lineCap = 'round';
+  sctx.lineWidth = Math.max(1.5, sx * 0.28);
+  sctx.beginPath();
+  for (let i = 0; i < n; i++) {
+    if (!active[i]) continue;
+    const X = x[i] * sx, Y = y[i] * sy;
+    if (Math.abs(vx[i]) + Math.abs(vy[i]) < SLOW) {
+      sctx.moveTo(X - hl, Y); sctx.lineTo(X + hl, Y);
+    } else {
+      const ax = px[i] * sx, ay = py[i] * sy;
+      sctx.moveTo(ax, ay);
+      sctx.lineTo(X + (X === ax ? 0.01 : 0), Y);
+    }
+  }
+  sctx.strokeStyle = pal.main;
+  sctx.stroke();
+}
+
+// emitter guide, shown only while the panels are visible
+function drawEmitterGuide() {
+  const pal = CHANNELS[S.channel] || CHANNELS.blue;
+  octx.strokeStyle = pal.main; octx.lineWidth = 3; octx.setLineDash([6, 6]);
+  octx.beginPath();
+  if (S.mode === 'waterfall') {
+    const x0 = (S.emitX - S.emitW / 2) * W, x1 = (S.emitX + S.emitW / 2) * W;
+    octx.moveTo(x0, 4); octx.lineTo(x1, 4);
+  } else {
+    const X = S.emitX * W, Y = H - (S.basin ? 3 * H / MH : 0) - 4;
+    octx.moveTo(X - 12, Y); octx.lineTo(X + 12, Y);
+  }
+  octx.stroke();
+  if (S.basin && S.drainW > 0) {   // drain gap in the basin floor
+    const x0 = (S.drainX - S.drainW / 2) * W, x1 = (S.drainX + S.drainW / 2) * W;
+    octx.strokeStyle = '#333'; octx.lineWidth = 2;
+    octx.beginPath(); octx.moveTo(x0, H - 3); octx.lineTo(x1, H - 3); octx.stroke();
+  }
+  octx.setLineDash([]);
+}
+
+let debug = false, calMode = false, calPts = [];
+let fps = 0, fpsAcc = 0, fpsN = 0, fpsT = 0;
+
+function drawDebug() {
+  octx.clearRect(0, 0, W, H);
+  // mask overlay: aligned with the projection, so on the wall it should sit
+  // exactly on top of the real shadows
+  const d = maskImg.data;
+  for (let i = 0, k = 0; i < MW * MH; i++, k += 4) {
+    const s = solid[i];
+    d[k] = 255; d[k + 1] = 40; d[k + 2] = 200; d[k + 3] = s ? 110 : 0;
+  }
+  maskCtx.putImageData(maskImg, 0, 0);
+  octx.imageSmoothingEnabled = false;
+  octx.drawImage(maskCanvas, 0, 0, W, H);
+  // camera preview with the calibration quad
+  const pw = Math.min(360, W * 0.3), ph = pw * camH / camW, pxp = 12, pyp = H - ph - 12;
+  octx.fillStyle = 'rgba(0,0,0,.6)'; octx.fillRect(pxp - 4, pyp - 4, pw + 8, ph + 8);
+  if (camActive) octx.drawImage(camCanvas, pxp, pyp, pw, ph);
+  const quad = S.cal || PROJ_PTS;
+  octx.strokeStyle = '#ff0'; octx.lineWidth = 1.5; octx.beginPath();
+  quad.forEach(([u, v], i) => { const X = pxp + u * pw, Y = pyp + v * ph; i ? octx.lineTo(X, Y) : octx.moveTo(X, Y); });
+  octx.closePath(); octx.stroke();
+  // stats
+  const lines = [
+    `fps ${fps.toFixed(0)}   particles ${P.n - freeCount}/${P.n}   flow ${S.rate}/s   grid ${MW}x${MH}${S.basin ? '   basin' : ''}`,
+    `camera: ${camActive ? camLabel : 'none (mouse only)'}`,
+    `channel ${S.channel}   lit level p80 ${lastP80}   threshold ${lastThresh.toFixed(0)}   factor ${S.factor.toFixed(2)}${S.invert ? '   INVERTED' : ''}`,
+    `background ${S.floor}   mode ${S.mode}   calibration ${S.cal ? 'saved' : 'none (identity)'}`,
+  ];
+  octx.font = '13px ui-monospace, Menlo, monospace';
+  const tw = 520, th = lines.length * 18 + 12, tx = W - tw - 12, ty = 12;
+  octx.fillStyle = 'rgba(0,0,0,.6)'; octx.fillRect(tx, ty, tw, th);
+  octx.fillStyle = '#fff';
+  lines.forEach((l, i) => octx.fillText(l, tx + 10, ty + 20 + i * 18));
+}
+
+function previewRect() {
+  const pw = Math.min(W * 0.5, (H * 0.5) * camW / camH), ph = pw * camH / camW;
+  return { x: (W - pw) / 2, y: (H - ph) / 2 + 10, w: pw, h: ph };
+}
+
+function drawCalibration() {
+  // projector side: bright field with four numbered markers
+  sctx.globalCompositeOperation = 'source-over';
+  sctx.fillStyle = '#fff'; sctx.fillRect(0, 0, W, H);
+  PROJ_PTS.forEach(([u, v], i) => {
+    const X = u * W, Y = v * H;
+    sctx.fillStyle = '#000'; sctx.beginPath(); sctx.arc(X, Y, 22, 0, Math.PI * 2); sctx.fill();
+    sctx.fillStyle = '#fff'; sctx.beginPath(); sctx.arc(X, Y, 5, 0, Math.PI * 2); sctx.fill();
+    sctx.fillStyle = '#000'; sctx.font = 'bold 20px system-ui';
+    sctx.fillText(String(i + 1), X + (u < 0.5 ? 30 : -42), Y + (v < 0.5 ? 34 : -22));
+  });
+  // camera side: live preview, user clicks the markers in order
+  octx.clearRect(0, 0, W, H);
+  const r = previewRect();
+  const step = calPts.length;
+  const msg = step < 4 ? `Click marker ${step + 1} (${CORNER_NAMES[step]}) in this camera view.  Esc cancels.` : 'done';
+  octx.font = '16px system-ui';
+  const boxW = Math.max(r.w + 20, octx.measureText(msg).width + 20), boxX = (W - boxW) / 2;
+  octx.fillStyle = 'rgba(0,0,0,.75)'; octx.fillRect(boxX, r.y - 46, boxW, r.h + 66);
+  if (camActive && video.readyState >= 2) {
+    cctx.drawImage(video, 0, 0, camW, camH);
+    octx.drawImage(camCanvas, r.x, r.y, r.w, r.h);
+  } else {
+    octx.fillStyle = '#222'; octx.fillRect(r.x, r.y, r.w, r.h);
+    octx.fillStyle = '#aaa'; octx.font = '16px system-ui'; octx.fillText('no camera', r.x + 20, r.y + 30);
+  }
+  octx.font = '16px system-ui'; octx.fillStyle = '#fff';
+  octx.fillText(msg, boxX + 10, r.y - 18);
+  calPts.forEach(([u, v], i) => {
+    const X = r.x + u * r.w, Y = r.y + v * r.h;
+    octx.strokeStyle = '#0f0'; octx.lineWidth = 2; octx.beginPath(); octx.arc(X, Y, 8, 0, Math.PI * 2); octx.stroke();
+    octx.fillStyle = '#0f0'; octx.fillText(String(i + 1), X + 10, Y - 10);
+  });
+}
+
+function enterCalibration() { calMode = true; calPts = []; document.body.classList.add('cal'); }
+function exitCalibration(commit) {
+  if (commit && calPts.length === 4) { S.cal = calPts.slice(); saveSettings(); buildLUT(); setStatus('Calibration saved.'); }
+  calMode = false;
+  document.body.classList.remove('cal');
+  showUI();
+}
+
+// ------------------------------------------------------------------ main loop
+let last = performance.now();
+function frame(t) {
+  const dt = Math.min(0.033, (t - last) / 1000); last = t;
+  fpsAcc += dt; fpsN++;
+  if (t - fpsT > 500) { fps = fpsN / fpsAcc; fpsAcc = 0; fpsN = 0; fpsT = t; }
+  if (calMode) {
+    drawCalibration();
+  } else {
+    updateMask();
+    updateParticles(dt);
+    drawScene();
+    if (debug) drawDebug(); else octx.clearRect(0, 0, W, H);
+    if (!document.body.classList.contains('hideui')) drawEmitterGuide();
+    if (markerMode && mouseX >= 0) {   // brush ring
+      octx.strokeStyle = erasing ? '#c33' : '#222'; octx.lineWidth = 1.5; octx.setLineDash([4, 4]);
+      octx.beginPath(); octx.arc(mouseX, mouseY, mouseR * W / MW, 0, Math.PI * 2); octx.stroke(); octx.setLineDash([]);
+    }
+  }
+  requestAnimationFrame(frame);
+}
+
+// ------------------------------------------------------------------ layout
+function resize() {
+  dpr = Math.min(window.devicePixelRatio || 1, 2);
+  const oldDrawn = drawn, oldW = MW, oldH = MH;
+  W = window.innerWidth; H = window.innerHeight;
+  for (const c of [scene, overlay]) {
+    c.width = Math.round(W * dpr); c.height = Math.round(H * dpr);
+    c.getContext('2d').setTransform(dpr, 0, 0, dpr, 0, 0);
+  }
+  MH = Math.max(8, Math.round(MW * H / W));
+  const N = MW * MH;
+  raw = new Uint8Array(N); ema = new Float32Array(N); field = new Float32Array(N);
+  solid = new Uint8Array(N); nrmX = new Float32Array(N); nrmY = new Float32Array(N);
+  warped = new Uint8Array(N); lut = new Int32Array(N);
+  dens = new Float32Array(N); pres = new Float32Array(N); cvx = new Float32Array(N); cvy = new Float32Array(N); csp = new Float32Array(N);
+  maskCanvas = document.createElement('canvas'); maskCanvas.width = MW; maskCanvas.height = MH;
+  maskCtx = maskCanvas.getContext('2d'); maskImg = maskCtx.createImageData(MW, MH);
+  drawn = new Uint8Array(N);
+  drawnCanvas = document.createElement('canvas'); drawnCanvas.width = MW; drawnCanvas.height = MH;
+  drawnCtx = drawnCanvas.getContext('2d'); drawnImg = drawnCtx.createImageData(MW, MH);
+  restoreDrawn(oldDrawn, oldW, oldH);
+  buildLUT();
+  applyGooMode();
+  allocParticles(S.count);
+}
+
+// ------------------------------------------------------------------ ui
+let uiTimer = 0;
+function showUI() {
+  document.body.classList.remove('hideui');
+  clearTimeout(uiTimer);
+  uiTimer = setTimeout(() => { if (!calMode) document.body.classList.add('hideui'); }, 4000);
+}
+function setStatus(msg) { $('status').textContent = msg; }
+function setMarkerMode(on) {
+  markerMode = on; painting = false; lastPaint = null;
+  $('btnMarker').classList.toggle('on', on);
+  setStatus(on ? 'Marker: drag to draw shadow, Shift-drag or right-drag to erase, scroll for brush size, X clears.' : 'Marker off.');
+}
+function toggleMode() { S.mode = S.mode === 'waterfall' ? 'fountain' : 'waterfall'; saveSettings(); allocParticles(S.count); setStatus('Mode: ' + S.mode); }
+function toggleFullscreen() { if (document.fullscreenElement) document.exitFullscreen(); else document.documentElement.requestFullscreen().catch(() => {}); }
+
+// emitter sliders
+const slX = $('slX'), slW = $('slW'), slV = $('slV'), ckBasin = $('ckBasin'), slDX = $('slDX'), slDW = $('slDW');
+function syncSliders() {
+  slX.value = S.emitX; slW.value = S.emitW; slV.value = S.rate; ckBasin.checked = S.basin;
+  slDX.value = S.drainX; slDW.value = S.drainW;
+  slDX.disabled = slDW.disabled = !S.basin;
+}
+slDX.oninput = () => setEmit('drainX', +slDX.value);
+slDW.oninput = () => setEmit('drainW', +slDW.value);
+function setEmit(prop, val) { S[prop] = val; saveSettings(); syncSliders(); showUI(); }
+slX.oninput = () => setEmit('emitX', +slX.value);
+slW.oninput = () => setEmit('emitW', +slW.value);
+slV.oninput = () => setEmit('rate', +slV.value);
+ckBasin.onchange = () => setEmit('basin', ckBasin.checked);
+syncSliders();
+
+$('camStart').onclick = () => startCamera($('camSelect').value || undefined);
+$('camSelect').onchange = () => { $('camSelect').blur(); startCamera($('camSelect').value || undefined); };
+$('btnCal').onclick = enterCalibration;
+$('btnDebug').onclick = () => debug = !debug;
+$('btnFull').onclick = toggleFullscreen;
+$('btnMode').onclick = toggleMode;
+$('btnMarker').onclick = () => setMarkerMode(!markerMode);
+$('btnClear').onclick = () => { clearDrawn(); setStatus('Drawn shadows cleared.'); };
+$('help').style.display = S.help ? '' : 'none';
+
+window.addEventListener('keydown', e => {
+  const tag = e.target.tagName;
+  if (tag === 'INPUT' && e.target.type !== 'range' && e.target.type !== 'checkbox') return;
+  // a focused control (select, slider, button) keeps keyboard focus after a
+  // click; drop it so shortcuts keep working instead of being swallowed
+  if (tag === 'SELECT' && (e.key.startsWith('Arrow') || e.key === 'Enter' || e.key === ' ')) return;
+  if (tag === 'SELECT' || tag === 'INPUT' || tag === 'BUTTON') e.target.blur();
+  const k = e.key.toLowerCase();
+  if (calMode && k === 'escape') { exitCalibration(false); return; }
+  switch (k) {
+    case 'arrowleft':  e.shiftKey ? setEmit('emitW', Math.max(0.02, +(S.emitW - 0.02).toFixed(2))) : setEmit('emitX', Math.max(0.02, +(S.emitX - 0.01).toFixed(2))); e.preventDefault(); return;
+    case 'arrowright': e.shiftKey ? setEmit('emitW', Math.min(1, +(S.emitW + 0.02).toFixed(2))) : setEmit('emitX', Math.min(0.98, +(S.emitX + 0.01).toFixed(2))); e.preventDefault(); return;
+    case 'arrowup':    setEmit('rate', Math.min(8000, S.rate + 100)); e.preventDefault(); return;
+    case 'arrowdown':  setEmit('rate', Math.max(100, S.rate - 100)); e.preventDefault(); return;
+    case 'b': setEmit('basin', !S.basin); setStatus('Basin: ' + S.basin); break;
+    case 'g': S.goo = !S.goo; saveSettings(); applyGooMode(); setStatus('Render: ' + (S.goo ? 'goo' : 'streaks')); break;
+    case 'c': calMode ? exitCalibration(false) : enterCalibration(); break;
+    case 'd': debug = !debug; break;
+    case 'f': toggleFullscreen(); break;
+    case 'm': toggleMode(); break;
+    case 'h': S.help = !S.help; $('help').style.display = S.help ? '' : 'none'; saveSettings(); break;
+    case 'u': document.body.classList.toggle('hideui'); clearTimeout(uiTimer); return;
+    case 'i': S.invert = !S.invert; saveSettings(); setStatus('Invert: ' + S.invert); break;
+    case 'r': S.cal = null; saveSettings(); buildLUT(); setStatus('Calibration reset to identity.'); break;
+    case 't': stickyMouse = !stickyMouse; setStatus('Sticky mouse shadow: ' + stickyMouse); break;
+    case 'p': setMarkerMode(!markerMode); break;
+    case 'x': clearDrawn(); setStatus('Drawn shadows cleared.'); break;
+    case '[': S.factor = Math.max(0.1, +(S.factor - 0.05).toFixed(2)); saveSettings(); setStatus('Threshold factor ' + S.factor); break;
+    case ']': S.factor = Math.min(0.95, +(S.factor + 0.05).toFixed(2)); saveSettings(); setStatus('Threshold factor ' + S.factor); break;
+    case '-': S.floor = Math.max(120, S.floor - 15); saveSettings(); setStatus('Background ' + S.floor); break;
+    case '=': case '+': S.floor = Math.min(255, S.floor + 15); saveSettings(); setStatus('Background ' + S.floor); break;
+    case 'k': S.channel = CHANNEL_ORDER[(CHANNEL_ORDER.indexOf(S.channel) + 1) % CHANNEL_ORDER.length]; saveSettings(); setStatus('Camera channel: ' + S.channel); break;
+    case ',': S.count = Math.max(500, Math.round(S.count / 2)); saveSettings(); allocParticles(S.count); setStatus('Particles ' + S.count); break;
+    case '.': S.count = Math.min(40000, S.count * 2); saveSettings(); allocParticles(S.count); setStatus('Particles ' + S.count); break;
+    default: return;
+  }
+  showUI();
+});
+
+overlay.addEventListener('pointermove', e => {
+  mouseX = e.clientX; mouseY = e.clientY; showUI();
+  if (painting) paintStroke(mouseX, mouseY, erasing);
+});
+overlay.addEventListener('contextmenu', e => { if (markerMode) e.preventDefault(); });
+overlay.addEventListener('pointerdown', e => {
+  mouseX = e.clientX; mouseY = e.clientY;
+  if (markerMode && !calMode) {
+    painting = true; erasing = e.shiftKey || e.button === 2; lastPaint = null;
+    paintStroke(mouseX, mouseY, erasing);
+    return;
+  }
+  if (calMode) {
+    const r = previewRect();
+    const u = (e.clientX - r.x) / r.w, v = (e.clientY - r.y) / r.h;
+    if (u >= 0 && u <= 1 && v >= 0 && v <= 1) {
+      calPts.push([u, v]);
+      if (calPts.length === 4) exitCalibration(true);
+    }
+    return;
+  }
+  mouseDown = true;
+});
+window.addEventListener('pointerup', () => { mouseDown = false; if (painting) { painting = false; lastPaint = null; saveDrawn(); } });
+overlay.addEventListener('pointerleave', () => { mouseX = -1; mouseDown = false; });
+overlay.addEventListener('wheel', e => { mouseR = Math.min(60, Math.max(2, mouseR - Math.sign(e.deltaY) * 2)); e.preventDefault(); }, { passive: false });
+window.addEventListener('resize', resize);
+
+// ------------------------------------------------------------------ go
+resize();
+showUI();
+setStatus('No camera yet. Hold the mouse to cast a test shadow.');
+if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+  startCamera(S.camId || undefined);
+} else {
+  setStatus('Camera API unavailable (needs https or localhost). Mouse shadows still work.');
+}
+requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>
