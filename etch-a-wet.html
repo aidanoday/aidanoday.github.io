@@ -1,0 +1,1568 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Etch-a-Wet</title>
+<link rel="icon" type="image/png" href="assets/etch-a-wet-favicon.png">
+<link rel="apple-touch-icon" href="assets/etch-a-wet-favicon.png">
+<link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  :root { --paper: #fffef8; --rock: #2a2a2a; --water: #2b6cff; --chrome: #333; --accent: #F8C625; }
+  html { overflow-x: hidden; overflow-y: auto; scrollbar-width: none; }
+  html::-webkit-scrollbar { display: none; }
+  #spacer { position: relative; width: 1px; pointer-events: none; }   /* gives the page its scroll length: the tall world */
+  html, body { margin: 0; background: var(--paper); font-family: 'Roboto', system-ui, -apple-system, "Segoe UI", sans-serif; color: var(--chrome); }
+  canvas { position: fixed; inset: 0; width: 100vw; height: 100vh; display: block; }
+  #pass { z-index: 0; }          /* pass lines: always behind the solid layer */
+  #rock { z-index: 1; }
+  #water { z-index: 2; filter: url(#goo); }
+  #overlay { z-index: 3; touch-action: none; }
+  body.tool-brush #overlay, body.tool-eraser #overlay { cursor: none; }
+  body.tool-source #overlay { cursor: crosshair; }
+  body.tool-select #overlay { cursor: move; }
+  body.tool-hand #overlay { pointer-events: none; }
+
+  .panel { position: fixed; z-index: 5; background: var(--paper); border: 1px solid rgba(42,42,42,.22); box-shadow: 0 4px 16px rgba(0,0,0,.12);
+           font-size: 13px; line-height: 1.5; transition: opacity .3s; }
+  body.hideui #toolbar, body.hideui #status { opacity: 0; pointer-events: none; }
+
+  #toolbar { left: 50%; bottom: 16px; transform: translateX(-50%); display: flex; align-items: center; gap: 4px; padding: 6px 8px; border-radius: 999px; max-width: calc(100vw - 16px); box-sizing: border-box; }
+  #toolbar button { display: inline-flex; align-items: center; gap: 6px; font: 500 13px 'Roboto', sans-serif; color: var(--chrome); background: transparent; border: 0; border-radius: 999px; padding: 7px 11px; cursor: pointer; }
+  #toolbar button, #toolbar input[type=range], #toolbar .sep { flex: none; }
+  #toolbar [hidden] { display: none; }
+  .palette { position: relative; display: inline-flex; flex: none; }
+  .swatch { display: inline-block; width: 14px; height: 14px; border-radius: 50%; background: var(--rock); border: 1.5px solid rgba(42,42,42,.5); box-sizing: border-box; flex: none; }
+  .swatch.pass, .palette[data-pal="pass"] #palSwatch { background: #c9c9c3; }
+  #toolbar .caret { width: 12px; height: 12px; opacity: .6; transition: transform .2s; }
+  #toolbar .palette.open .caret { transform: rotate(180deg); }
+  .palette-menu { position: absolute; left: 50%; bottom: calc(100% + 14px); display: flex; flex-direction: column; gap: 2px; padding: 5px; min-width: 112px;
+                  background: var(--paper); border: 1px solid rgba(42,42,42,.22); border-radius: 14px; box-shadow: 0 4px 16px rgba(0,0,0,.12);
+                  opacity: 0; transform: translate(-50%, 14px) scaleY(.85); transform-origin: bottom center; pointer-events: none; visibility: hidden;
+                  transition: opacity .18s ease, transform .22s cubic-bezier(.2,.8,.2,1), visibility 0s .22s; }
+  .palette.open .palette-menu { opacity: 1; transform: translate(-50%, 0) scaleY(1); pointer-events: auto; visibility: visible; transition-delay: 0s; }
+  .palette-menu button { justify-content: flex-start; white-space: nowrap; }
+  #toolbar button:hover { background: rgba(42,42,42,.08); }
+  #toolbar button.on { background: var(--accent); color: #1d1d1d; }
+  #toolbar button:disabled { opacity: .35; cursor: default; }
+  #toolbar svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; flex: none; }
+  #toolbar .sep { width: 1px; height: 22px; background: rgba(42,42,42,.2); margin: 0 4px; }
+  #toolbar input[type=range] { width: 90px; accent-color: var(--chrome); }
+  #toolbar.compact { gap: 0; padding: 5px 6px; }
+  /* icon-only mode shrinks the toolbar's own buttons; the palette menu keeps its labels */
+  #toolbar.compact > button, #toolbar.compact .palette > button { padding: 8px; }
+  #toolbar.compact > button span, #toolbar.compact .palette > button span { display: none; }
+  #toolbar.compact input[type=range] { width: 56px; }
+  #toolbar.compact .sep { margin: 0 2px; }
+
+  #status { left: 50%; bottom: 74px; transform: translateX(-50%); padding: 5px 12px; border-radius: 999px; white-space: pre-line; text-align: center; max-width: calc(100vw - 32px); box-sizing: border-box; opacity: 0; pointer-events: none; }
+  #status.show { opacity: 1; }
+  body.hideui #status.show { opacity: 1; }
+
+  #help { right: 12px; top: 12px; max-width: 340px; padding: 10px 14px; border-radius: 10px; display: none; }
+  #help.show { display: block; }
+  #help b { color: #000; }
+  #help div { margin: 2px 0; }
+  kbd { display: inline-block; background: #eee; border: 1px solid #bbb; border-radius: 3px; padding: 0 5px; font-family: ui-monospace, Menlo, monospace; font-size: 12px; color: #111; }
+
+  #author { left: 12px; top: 12px; width: 300px; max-height: calc(100vh - 24px); overflow: auto; padding: 10px 12px; border-radius: 10px; display: none; box-sizing: border-box; }
+  #author.show { display: block; }
+  #author h3 { margin: 0 0 6px; font-size: 14px; display: flex; align-items: center; gap: 8px; }
+  #draftBadge { display: none; font-size: 11px; font-weight: 500; background: var(--accent); color: #1d1d1d; border-radius: 999px; padding: 0 8px; }
+  #draftBadge.show { display: inline-block; }
+  #author .row { display: flex; align-items: center; gap: 6px; margin: 4px 0; flex-wrap: wrap; }
+  #author label { display: flex; align-items: center; gap: 6px; }
+  #author input[type=number] { width: 58px; font: inherit; }
+  #author input[type=range] { flex: 1; min-width: 80px; accent-color: var(--chrome); }
+  #author button { font: 500 12px 'Roboto', sans-serif; padding: 4px 9px; border: 1px solid rgba(42,42,42,.35); background: var(--paper); border-radius: 6px; cursor: pointer; color: var(--chrome); }
+  #author button:hover { background: rgba(42,42,42,.08); }
+  #author button.on { background: var(--accent); border-color: var(--accent); }
+  #author .src { border: 1px solid rgba(42,42,42,.18); border-radius: 8px; padding: 4px 8px; margin: 6px 0; }
+  #author .src b { font-weight: 500; }
+  #author hr { border: 0; border-top: 1px solid rgba(42,42,42,.15); margin: 8px 0; }
+</style>
+</head>
+<body class="tool-select hideui">
+<!-- the classic CSS/SVG "gooey" filter: blur, then snap the alpha back to a hard edge -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <filter id="goo" x="-10%" y="-10%" width="120%" height="120%" color-interpolation-filters="sRGB">
+      <feGaussianBlur id="gooBlur" in="SourceGraphic" stdDeviation="6" result="blur"/>
+      <feColorMatrix in="blur" type="matrix" values="1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 19 -8" result="goo"/>
+      <feComposite in="SourceGraphic" in2="goo" operator="atop"/>
+    </filter>
+  </defs>
+</svg>
+<div id="spacer"></div>
+<canvas id="pass"></canvas>
+<canvas id="rock"></canvas>
+<canvas id="water"></canvas>
+<canvas id="overlay"></canvas>
+
+<div id="status" class="panel"></div>
+
+<div id="toolbar" class="panel" data-water="solid">
+  <button data-tool="brush" title="Draw rock (B)"><svg viewBox="0 0 24 24"><path d="M3 21l3.5-1L19 7.5 16.5 5 4 17.5z"/><path d="M14.5 7l2.5 2.5"/></svg><span>Draw</span></button>
+  <div id="palette" class="palette" hidden>
+    <button id="btnPalette" title="Palette" aria-haspopup="true" aria-expanded="false"><i class="swatch" id="palSwatch"></i><span id="palLabel">Solid</span><svg class="caret" viewBox="0 0 24 24"><path d="M6 15l6-6 6 6"/></svg></button>
+    <div id="paletteMenu" class="palette-menu" role="menu">
+      <button role="menuitem" data-pal="solid" class="on"><i class="swatch solid"></i><span>Solid</span></button>
+      <button role="menuitem" data-pal="pass"><i class="swatch pass"></i><span>Pass thru</span></button>
+    </div>
+  </div>
+  <input type="range" id="slSize" hidden min="2" max="40" step="1" title="Brush size ( [ and ] )" aria-label="Brush size">
+  <button data-tool="eraser" title="Eraser (E)"><svg viewBox="0 0 24 24"><path d="M4 16l9-9 6 6-6 6H8z"/><path d="M9 11l6 6M12 20h8"/></svg><span>Eraser</span></button>
+  <button data-tool="select" class="on" title="Move strokes and sources (M)"><svg viewBox="0 0 24 24"><path d="M12 3v18M3 12h18M12 3l-3 3M12 3l3 3M12 21l-3-3M12 21l3-3M3 12l3-3M3 12l3 3M21 12l-3-3M21 12l-3 3"/></svg><span>Move</span></button>
+  <button data-tool="hand" id="btnScroll" title="Scroll the page (touch)" hidden><svg viewBox="0 0 24 24"><path d="M9 11V5a1.5 1.5 0 0 1 3 0v5m0-1.5a1.5 1.5 0 0 1 3 0V11m0-1a1.5 1.5 0 0 1 3 0v5a6 6 0 0 1-6 6h-1a6 6 0 0 1-5-3l-2-3a1.5 1.5 0 0 1 2.4-1.8L9 15"/></svg><span>Scroll</span></button>
+  <div class="sep"></div>
+  <button id="btnUndo" title="Undo (Ctrl/Cmd+Z)"><svg viewBox="0 0 24 24"><path d="M9 14L4 9l5-5"/><path d="M4 9h10a6 6 0 0 1 0 12h-3"/></svg><span>Undo</span></button>
+  <button id="btnClear" title="Clear all drawings"><svg viewBox="0 0 24 24"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13M10 11v6M14 11v6"/></svg><span>Clear all</span></button>
+  <button id="btnHelp" title="Help (H)"><svg viewBox="0 0 24 24"><path d="M9.5 9a2.5 2.5 0 1 1 3.5 2.3c-.8.4-1 1-1 1.7"/><path d="M12 17.5v.01"/></svg><span>Help</span></button>
+</div>
+
+<div id="help" class="panel"></div>
+
+<div id="author" class="panel">
+  <h3>Author <span id="draftBadge">draft</span></h3>
+  <div class="row">
+    <button data-tool="hand" id="btnHand" title="Let the page scroll (V)">Hand (V)</button>
+    <button id="btnDebug">Debug (D)</button>
+    <button id="btnFull">Fullscreen (F)</button>
+  </div>
+  <div id="srcList"></div>
+  <hr>
+  <div class="row"><label><input type="checkbox" id="ckBasin"> Basin</label></div>
+  <div class="row"><label style="flex:1">Drain pos <input type="range" id="slDX" min="0.02" max="0.98" step="0.01"></label></div>
+  <div class="row"><label style="flex:1">Drain size <input type="range" id="slDW" min="0" max="0.5" step="0.01"></label></div>
+  <div class="row"><label>Budget <input type="number" id="numBudget" min="500" max="40000" step="500"></label></div>
+  <hr>
+  <div class="row">
+    <button id="btnExport">Export scene</button>
+    <button id="btnImport">Import scene</button>
+  </div>
+  <div class="row">
+    <button id="btnPromote">Promote visitor layer</button>
+    <button id="btnClearVisitor">Clear visitor layer</button>
+  </div>
+  <input type="file" id="fileImport" accept="application/json,.json" style="display:none">
+</div>
+
+<script>
+(() => {
+'use strict';
+
+// ------------------------------------------------------------------ settings and persistence
+const SCENE_URL = 'assets/etch-a-wet-scene.json';
+const VISITOR_PREFIX = 'etchawet.visitor.v';
+const DRAFT_KEY = 'etchawet.author.draft';
+// saved data from before the rename (waterfall.*) moves over to the new keys, once
+try {
+  for (let i = localStorage.length - 1; i >= 0; i--) {
+    const k = localStorage.key(i);
+    if (k && k.startsWith('waterfall.')) {
+      const nk = 'etchawet.' + k.slice('waterfall.'.length);
+      if (localStorage.getItem(nk) === null) localStorage.setItem(nk, localStorage.getItem(k));
+      localStorage.removeItem(k);
+    }
+  }
+} catch (e) {}
+const MAX_SOURCES = 4;
+const MAX_UNDO = 50;
+
+const params = new URLSearchParams(location.search);
+const isEdit = params.has('edit');
+const coarse = !!(window.matchMedia && matchMedia('(pointer: coarse)').matches);   // touch screens scroll with a Hand tool
+const reduceMotion = !!(window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches);
+const isPhone = window.innerWidth < 700;
+const lowEnd = (navigator.hardwareConcurrency || 8) <= 4 || isPhone;
+
+const ROCK = 'rgb(42,42,42)';
+const PASS = 'rgb(201,201,195)';      // lighter gray: lines that don't interact with the water
+const WATER = 'rgb(43,108,255)';
+
+function lsGet(k) { try { return JSON.parse(localStorage.getItem(k)); } catch (e) { return null; } }
+function lsSet(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} }
+function lsDel(k) { try { localStorage.removeItem(k); } catch (e) {} }
+
+const $ = id => document.getElementById(id);
+const rockEl = $('rock'), waterEl = $('water'), overlay = $('overlay');
+const passEl = $('pass');
+const rctx = rockEl.getContext('2d');
+const pctx = passEl.getContext('2d');
+const sctx = waterEl.getContext('2d');
+const octx = overlay.getContext('2d');
+
+// ------------------------------------------------------------------ scene model
+// Strokes and sources are stored in "units": cells of a grid scene.grid.w wide
+// (160 as authored). The live grid is MW wide, so one unit = gu() cells.
+const FALLBACK_SCENE = {
+  version: 1, grid: { w: 160 },
+  strokes: [{ p: [[0, 27], [20, 27], [40, 28], [52, 28]], r: 6, erase: false }],
+  sources: [{ x: 52, y: 21.5, angle: 0, dir: 1, width: 6, rate: 900, speed: 22 }],
+  flow: { basin: true, drainX: 0.5, drainW: 0.08, budget: 12000 },
+};
+
+const num = (v, lo, hi, d) => { v = +v; return Number.isFinite(v) ? Math.min(hi, Math.max(lo, v)) : d; };
+
+function cleanStroke(s) {
+  if (!s || !Array.isArray(s.p)) return null;
+  const p = [];
+  for (const q of s.p) if (Array.isArray(q) && Number.isFinite(+q[0]) && Number.isFinite(+q[1])) p.push([+q[0], +q[1]]);
+  if (!p.length) return null;
+  const st = { p, r: num(s.r, 1, 60, 5), erase: !!s.erase };
+  if (!st.erase && Number.isInteger(+s.g) && +s.g > 0) st.g = +s.g;      // group id: strokes drawn over each other share one
+  if (!st.erase && s.kind === 'pass') st.kind = 'pass';      // pass lines don't interact with the water; absent = solid
+  return st;
+}
+// angle: degrees, 0 = pours right, 90 = straight down, 180 = left, 270 = up. dir (+1/-1) is kept in step with it.
+const normAngle = a => ((a % 360) + 360) % 360;
+const dirOf = a => Math.cos(a * Math.PI / 180) < -1e-9 ? -1 : 1;
+function setAngle(s, a) { s.angle = Math.round(normAngle(a) * 10) / 10; s.dir = dirOf(s.angle); }
+function cleanSource(s) {
+  if (!s) return null;
+  const angle = s.angle != null && Number.isFinite(+s.angle) ? normAngle(+s.angle) : (+s.dir < 0 ? 180 : 0);
+  return { x: num(s.x, -300, 700, 80), y: num(s.y, -300, 1200, 20), angle: Math.round(angle * 10) / 10, dir: dirOf(angle),
+           width: num(s.width, 1, 40, 6), rate: num(s.rate, 50, 4000, 900), speed: num(s.speed, 0, 80, 22) };
+}
+function cleanLayer(o) {
+  o = o || {};
+  return { strokes: (Array.isArray(o.strokes) ? o.strokes : []).map(cleanStroke).filter(Boolean),
+           sources: (Array.isArray(o.sources) ? o.sources : []).map(cleanSource).filter(Boolean).slice(0, MAX_SOURCES),
+           hidden: [...new Set((Array.isArray(o.hidden) ? o.hidden : []).map(Math.round).filter(i => Number.isInteger(i) && i >= 0))],
+           edits: Object.fromEntries(Object.entries(o.edits && typeof o.edits === 'object' ? o.edits : {}).filter(([k]) => Number.isInteger(+k) && +k >= 0)
+                    .map(([k, v]) => [k, v === null ? null : cleanStroke(v)]).filter(([, v]) => v !== undefined)) };
+}
+function cleanScene(o) {
+  if (!o || typeof o !== 'object' || !Array.isArray(o.strokes) || !Array.isArray(o.sources)) return null;
+  const f = o.flow || {};
+  const layer = cleanLayer(o);
+  assignGroups(layer.strokes.filter(st => !st.erase));      // scenes saved before groups existed: group by touching, once
+  return { version: Math.max(1, Math.round(num(o.version, 1, 1e6, 1))),
+           grid: { w: num(o.grid && o.grid.w, 40, 400, 160) },
+           strokes: layer.strokes, sources: layer.sources,
+           flow: { basin: f.basin !== false, drainX: num(f.drainX, 0.02, 0.98, 0.5), drainW: num(f.drainW, 0, 0.5, 0.08),
+                   budget: Math.round(num(f.budget, 500, 40000, 12000)) } };
+}
+
+let scene = cleanScene(FALLBACK_SCENE);
+let baseVersion = 1;                 // version of the scene file that was loaded
+let loadedJSON = JSON.stringify(scene);
+// visitor layer. `hidden` lists indices of authored sources the visitor has moved or removed (their copy lives in `sources`)
+const emptyLayer = () => ({ strokes: [], sources: [], hidden: [], edits: {} });
+// `edits` maps an authored stroke's index to its moved copy (or null if the visitor deleted it); order in the authored list is kept
+let visitor = emptyLayer();
+
+const layerEmpty = () => !visitor.strokes.length && !visitor.sources.length && !visitor.hidden.length && !Object.keys(visitor.edits).length;
+const visitorKey = () => VISITOR_PREFIX + scene.version;
+function saveVisitor() {
+  if (layerEmpty()) { lsDel(visitorKey()); return; }
+  const r2 = n => Math.round(n * 100) / 100;
+  const pack = s => Object.assign({ p: s.p.map(q => [r2(q[0]), r2(q[1])]), r: s.r, erase: s.erase }, s.kind ? { kind: s.kind } : {}, s.g ? { g: s.g } : {});
+  lsSet(visitorKey(), {
+    strokes: visitor.strokes.map(pack),
+    sources: visitor.sources, hidden: visitor.hidden,
+    edits: Object.fromEntries(Object.entries(visitor.edits).map(([k, v]) => [k, v && pack(v)])),
+  });
+}
+function loadVisitor() {
+  visitor = cleanLayer(lsGet(visitorKey()));
+  for (const [k, e] of Object.entries(visitor.edits)) if (e && !e.g && scene.strokes[k] && scene.strokes[k].g) e.g = scene.strokes[k].g;   // a moved copy keeps its original's group
+  assignGroups(scene.strokes.concat(visitor.strokes).filter(st => !st.erase));
+}
+
+function sceneChanged() {
+  if (!isEdit) return;
+  lsSet(DRAFT_KEY, { base: baseVersion, scene });
+  $('draftBadge').classList.toggle('show', JSON.stringify(scene) !== loadedJSON);
+}
+
+function allSources() {
+  const out = [], hid = new Set(visitor.hidden);
+  scene.sources.forEach((s, i) => { if (!hid.has(i)) out.push({ s, owner: 'authored' }); });
+  for (const s of visitor.sources) out.push({ s, owner: 'visitor' });
+  return out;
+}
+// Visitors can't edit the authored scene, so the first touch hides the authored source
+// and puts an editable visitor copy in its place. Reset brings the original back.
+function adoptSource(o) {
+  if (o.owner !== 'authored' || isEdit) return;
+  const copy = Object.assign({}, o.s);
+  visitor.hidden.push(scene.sources.indexOf(o.s)); visitor.sources.push(copy);
+  if (selected === o.s) selected = copy;
+  o.s = copy; o.owner = 'visitor';
+}
+// authored strokes with the visitor's moves and deletions applied, in authored order
+function authoredEff() {
+  const out = [];
+  scene.strokes.forEach((s, idx) => { const e = visitor.edits[idx]; if (e !== null) out.push({ s: e || s, idx }); });
+  return out;
+}
+const visitorEntries = () => visitor.strokes.map((s, idx) => ({ s, owner: 'visitor', idx }));
+const authoredEntries = () => authoredEff().map(e => ({ s: e.s, owner: 'authored', idx: e.idx }));
+// where an edit to this stroke is stored: visitors keep theirs in their own layer
+const entryLayer = o => (o.owner === 'visitor' || !isEdit) ? 'visitor' : 'authored';
+function entryAlive(o) { return o.owner === 'visitor' ? visitor.strokes.includes(o.s) : authoredEff().some(e => e.s === o.s); }
+function replaceEntry(o, c) {
+  if (o.owner === 'visitor') { const i = visitor.strokes.indexOf(o.s); if (i >= 0) visitor.strokes[i] = c; }
+  else if (isEdit) { const i = scene.strokes.indexOf(o.s); if (i >= 0) scene.strokes[i] = c; }
+  else visitor.edits[o.idx] = c;
+}
+function removeEntry(o) {
+  if (o.owner === 'visitor') { const i = visitor.strokes.indexOf(o.s); if (i >= 0) visitor.strokes.splice(i, 1); }
+  else if (isEdit) { const i = scene.strokes.indexOf(o.s); if (i >= 0) scene.strokes.splice(i, 1); }
+  else visitor.edits[o.idx] = null;
+}
+function beginSourceEdit(o) { if (o.owner === 'visitor' || !isEdit) pushUndo(); adoptSource(o); }
+
+// ------------------------------------------------------------------ geometry and grid allocation
+// The simulation runs on a coarse grid. MW cells across (fewer on phones), MH
+// follows the window aspect so cells are roughly square.
+// The world is drawn at half scale (WORLD) on a grid twice as fine, so cells, droplets and strokes are half size on screen.
+const WORLD = 0.5;      // the scene is scaled about the window centre, so it stays centred as the window changes size
+let MW = isPhone ? 240 : 320;
+let MH = 90;
+let W = 0, H = 0, dpr = 1;
+
+let solidSrc, domMask, raw, ema, field, solid, nrmX, nrmY, maskImg, maskCanvas, maskCtx;
+let solidDirty = true, rockDirty = true;
+
+const gu = () => MW / scene.grid.w * WORLD;            // units -> cells
+const toUnitsX = px => px / W * scene.grid.w / WORLD;  // pixels -> units (same scale on both axes)
+const toPx = u => u / scene.grid.w * W * WORLD;       // a length in units -> pixels
+let OX = 0, OY = 0, CX = 0, CY = 0;
+let HW = 0, SY = 0, OY0 = 0;                          // world height (px), scroll offset, and the scene's top offset before scrolling                    // world origin offsets, in pixels (OX, OY) and cells (CX, CY)
+const toUx = px => toUnitsX(px - OX), toUy = py => toUnitsX(py - OY);   // pointer position -> units
+
+// ------------------------------------------------------------------ obstacle providers and the rasterizer
+function paintDisc(buf, cx, cy, r, erase) {
+  cx += CX; cy += CY;                    // callers pass world cells
+  const r2 = r * r;
+  const i0 = Math.max(0, Math.floor(cx - r)), i1 = Math.min(MW - 1, Math.ceil(cx + r));
+  const j0 = Math.max(0, Math.floor(cy - r)), j1 = Math.min(MH - 1, Math.ceil(cy + r));
+  const v = erase ? 0 : 1;
+  for (let j = j0; j <= j1; j++) for (let i = i0; i <= i1; i++) {
+    const dx = i + 0.5 - cx, dy = j + 0.5 - cy;
+    if (dx * dx + dy * dy < r2) buf[j * MW + i] = v;
+  }
+}
+
+// segment a -> b in units, interpolating discs along it
+function paintSeg(buf, a, b, ru, erase) {
+  const g = gu(), r = ru * g;
+  const ax = a[0] * g, ay = a[1] * g, bx = b[0] * g, by = b[1] * g;
+  const steps = Math.max(1, Math.ceil(Math.hypot(bx - ax, by - ay) / Math.max(0.5, r * 0.4)));
+  for (let s = 0; s <= steps; s++) {
+    const t = s / steps;
+    paintDisc(buf, ax + (bx - ax) * t, ay + (by - ay) * t, r, erase);
+  }
+}
+
+function rasterStrokes(strokes, buf) {
+  for (const st of strokes) {
+    if (st.kind === 'pass') continue;           // pass lines never touch the water
+    const p = st.p;
+    if (p.length === 1) paintDisc(buf, p[0][0] * gu(), p[0][1] * gu(), st.r * gu(), st.erase);
+    for (let i = 1; i < p.length; i++) paintSeg(buf, p[i - 1], p[i], st.r, st.erase);
+  }
+}
+
+// DOM elements marked data-water="solid" act as terrain (switched off until phase 3)
+function rasterDom(buf) {
+  for (const el of document.querySelectorAll('[data-water="solid"]')) {
+    if (getComputedStyle(el).pointerEvents === 'none') continue;   // hidden UI stops being terrain
+    const r = el.getBoundingClientRect();
+    const i0 = Math.max(0, Math.round(r.left / W * MW) + 1), i1 = Math.min(MW, Math.round(r.right / W * MW) - 1);
+    const j0 = Math.max(0, Math.round((r.top + window.scrollY) * MW / W) + 1), j1 = Math.min(MH, Math.round((r.bottom + window.scrollY) * MW / W) - 1);
+    for (let j = j0; j < j1; j++) for (let i = i0; i < i1; i++) { buf[j * MW + i] = 1; domMask[j * MW + i] = 1; }
+  }
+}
+
+const providers = [
+  { name: 'authored', enabled: true,  raster(buf) { rasterStrokes(authoredEff().map(e => e.s), buf); } },
+  { name: 'visitor',  enabled: true,  raster(buf) { rasterStrokes(visitor.strokes, buf); } },
+  { name: 'dom',      enabled: false, raster(buf) { rasterDom(buf); } },
+];
+function rebuildSolid() {
+  solidSrc.fill(0); domMask.fill(0);
+  for (const p of providers) if (p.enabled) p.raster(solidSrc);
+  solidDirty = false; rockDirty = true; maskFrames = 12;
+}
+
+let domWatch = null;
+function setDomProvider(on) {
+  providers[2].enabled = on;
+  if (on && !domWatch) {
+    const dirty = () => { solidDirty = true; };
+    domWatch = new ResizeObserver(dirty);
+    domWatch.observe(document.body);
+    window.addEventListener('scroll', dirty, { passive: true });
+  }
+  solidDirty = true;
+}
+if (params.has('dom')) setDomProvider(true);
+
+// ------------------------------------------------------------------ mask
+function drainRange() {
+  const f = scene.flow;
+  return [Math.round((f.drainX - f.drainW / 2) * MW), Math.round((f.drainX + f.drainW / 2) * MW)];
+}
+function isBasinCell(i, j) {
+  if (!scene.flow.basin) return false;
+  if (j >= MH - 2) { const [d0, d1] = drainRange(); return !(i >= d0 && i < d1); }
+  return i === 0 || i === MW - 1;
+}
+
+function updateMask() {
+  const N = MW * MH;
+  // 1. rock from the obstacle providers
+  for (let i = 0; i < N; i++) raw[i] = solidSrc[i];
+  // 2. temporal smoothing: softens the frame on which a stroke appears
+  const a = 0.45;
+  for (let i = 0; i < N; i++) ema[i] += (raw[i] - ema[i]) * a;
+  // 3. 3x3 box blur -> continuous field; threshold low to dilate slightly;
+  //    the field gradient gives us surface normals for free
+  for (let j = 0; j < MH; j++) {
+    const jm = Math.max(0, j - 1) * MW, jc = j * MW, jp = Math.min(MH - 1, j + 1) * MW;
+    for (let i = 0; i < MW; i++) {
+      const im = Math.max(0, i - 1), ip = Math.min(MW - 1, i + 1);
+      field[jc + i] = (ema[jm + im] + ema[jm + i] + ema[jm + ip] +
+                       ema[jc + im] + ema[jc + i] + ema[jc + ip] +
+                       ema[jp + im] + ema[jp + i] + ema[jp + ip]) / 9;
+    }
+  }
+  for (let j = 0; j < MH; j++) {
+    const jm = Math.max(0, j - 1) * MW, jc = j * MW, jp = Math.min(MH - 1, j + 1) * MW;
+    for (let i = 0; i < MW; i++) {
+      const im = Math.max(0, i - 1), ip = Math.min(MW - 1, i + 1);
+      const k = jc + i;
+      solid[k] = field[k] > 0.35 ? 1 : 0;
+      // normal points out of the rock: down the gradient
+      let gx = field[jm + ip] - field[jm + im] + 2 * (field[jc + ip] - field[jc + im]) + field[jp + ip] - field[jp + im];
+      let gy = field[jp + im] - field[jm + im] + 2 * (field[jp + i] - field[jm + i]) + field[jp + ip] - field[jm + ip];
+      const len = Math.hypot(gx, gy);
+      if (len > 1e-4) { nrmX[k] = -gx / len; nrmY[k] = -gy / len; } else { nrmX[k] = 0; nrmY[k] = 0; }
+    }
+  }
+  // 4. optional basin: floor and side walls so water can pool at the bottom,
+  //    with a gap in the floor (the drain) that water falls through
+  if (scene.flow.basin) {
+    const [d0, d1] = drainRange();
+    for (let j = MH - 2; j < MH; j++) for (let i = 0; i < MW; i++) {
+      if (i >= d0 && i < d1) continue;
+      const k = j * MW + i; solid[k] = 1; nrmX[k] = 0; nrmY[k] = -1;
+    }
+    for (let j = 0; j < MH - 2; j++) {
+      solid[j * MW] = 1; nrmX[j * MW] = 1; nrmY[j * MW] = 0;
+      solid[j * MW + MW - 1] = 1; nrmX[j * MW + MW - 1] = -1; nrmY[j * MW + MW - 1] = 0;
+    }
+  }
+}
+
+// ------------------------------------------------------------------ particles
+// Falling water is free particles. Pooling comes from a cheap grid pressure
+// step: each cell counts its particles, crowded cells push particles toward
+// emptier neighbours, and a little viscosity settles them. Solid cells carry a
+// fixed pressure so water stacks on rock instead of sinking into it.
+let P = null;
+let freeList, freeCount = 0;
+let dens, pres, cvx, cvy, csp; // per-cell density, pressure, summed velocity, summed speed
+const accs = new WeakMap();    // per-source emission accumulator
+const G = 100;                // gravity, cells / s^2
+const DRAG = 0.9;             // air drag; terminal speed is G / DRAG
+const FRICTION = 0.96;        // tangential velocity kept after a contact
+const SPREAD = 0.4;           // share of impact speed turned into motion along the surface
+const SHOVE = 1.5;            // push from a surface
+const JITTER = 0.6;           // tiny splash randomness on contact
+const STREAM_SPEED = 40;      // a cell must move together at least this fast to count as a stream
+const K_LATERAL = 1.6;        // horizontal pressure boost: water spreads sideways before it piles
+const POOL_DENSITY = 4;       // a cell this crowded counts as a pool surface for sliding
+const REST_DENSITY = 6;       // particles per cell before pressure pushes back
+const WALL_P = 0.6;           // extra pressure a solid cell carries over its wettest neighbour
+const MAX_P = 30;             // pressure cap; with K this sets the deepest pool that stays supported
+const K_PRESSURE = 250;
+const MAX_PDV = 50;           // largest velocity change pressure may apply per frame (stability)
+const VISC = 12;              // higher = calmer pools
+const MAX_SPEED = 140;
+
+const effBudget = () => lowEnd ? Math.min(scene.flow.budget, 6000) : scene.flow.budget;
+
+function allocParticles(n) {
+  P = { n, x: new Float32Array(n), y: new Float32Array(n), px: new Float32Array(n), py: new Float32Array(n),
+        vx: new Float32Array(n), vy: new Float32Array(n), active: new Uint8Array(n), inPool: new Uint8Array(n) };
+  freeList = new Int32Array(n);
+  for (let i = 0; i < n; i++) freeList[i] = n - 1 - i;
+  freeCount = n;
+}
+
+function spawnFrom(i, s) {
+  const r = Math.random, g = gu();
+  // emit from a disc (width = diameter) resting on the lip; re-roll points that land inside rock
+  const R = s.width * g / 2, cx = s.x * g + CX, cy = s.y * g + CY - 0.6;
+  let ok = false, x = cx, y = cy - 0.8;
+  for (let t = 0; t < 4 && !ok; t++) {
+    const rr = R * Math.sqrt(r()), th = r() * 6.2832;
+    x = cx + rr * Math.cos(th); y = cy + rr * Math.sin(th);
+    const ci = x | 0, cj = y | 0;
+    ok = !(ci >= 0 && ci < MW && cj >= 0 && cj < MH && solid[cj * MW + ci]);
+  }
+  if (!ok) { x = cx; y = cy - 0.8; }
+  P.x[i] = x; P.y[i] = y;
+  const a = (s.angle || 0) * Math.PI / 180, sp = s.speed * g * (0.85 + 0.3 * r());
+  P.vx[i] = Math.cos(a) * sp;
+  P.vy[i] = Math.sin(a) * sp + 2 + r() * 4;
+  P.x[i] = Math.min(MW - 1.5, Math.max(1.5, P.x[i]));
+  P.px[i] = P.x[i]; P.py[i] = P.y[i];
+  P.active[i] = 1; P.inPool[i] = 0;
+}
+
+function kill(i) { P.active[i] = 0; freeList[freeCount++] = i; }
+
+// Particles only leave when they fall off the bottom or a side of the screen.
+// If the budget is fully in play (for example a basin has filled), the flow
+// pauses until some water exits; the basin drain keeps that from being permanent.
+function emit(dt) {
+  for (const o of allSources()) {
+    const acc = (accs.get(o.s) || 0) + o.s.rate * dt;
+    const want = Math.floor(acc);
+    let k = Math.min(want, freeCount);
+    while (k-- > 0) spawnFrom(freeList[--freeCount], o.s);
+    accs.set(o.s, acc - want);
+  }
+}
+
+// bilinear sample of the pressure field at continuous grid coords
+function sampleP(fx, fy) {
+  let u = fx - 0.5, v = fy - 0.5;
+  let i0 = Math.floor(u), j0 = Math.floor(v);
+  let tu = u - i0, tv = v - j0;
+  if (i0 < 0) { i0 = 0; tu = 0; } else if (i0 > MW - 2) { i0 = MW - 2; tu = 1; }
+  if (j0 < 0) { j0 = 0; tv = 0; } else if (j0 > MH - 2) { j0 = MH - 2; tv = 1; }
+  const k = j0 * MW + i0;
+  return (pres[k] * (1 - tu) + pres[k + 1] * tu) * (1 - tv) + (pres[k + MW] * (1 - tu) + pres[k + MW + 1] * tu) * tv;
+}
+
+function updateParticles(dt) {
+  emit(dt);
+  const { n, x, y, px, py, vx, vy, active, inPool } = P;
+  const N = MW * MH;
+  // 1. splat particles into the density / velocity grids
+  dens.fill(0); cvx.fill(0); cvy.fill(0); csp.fill(0);
+  for (let i = 0; i < n; i++) {
+    if (!active[i]) continue;
+    const spd = Math.hypot(vx[i], vy[i]);
+    let u = x[i] - 0.5, v = y[i] - 0.5;
+    let i0 = Math.floor(u), j0 = Math.floor(v);
+    let tu = u - i0, tv = v - j0;
+    if (i0 < 0) { i0 = 0; tu = 0; } else if (i0 > MW - 2) { i0 = MW - 2; tu = 1; }
+    if (j0 < 0) { j0 = 0; tv = 0; } else if (j0 > MH - 2) { j0 = MH - 2; tv = 1; }
+    const k = j0 * MW + i0;
+    const w00 = (1 - tu) * (1 - tv), w10 = tu * (1 - tv), w01 = (1 - tu) * tv, w11 = tu * tv;
+    dens[k] += w00; dens[k + 1] += w10; dens[k + MW] += w01; dens[k + MW + 1] += w11;
+    cvx[k] += w00 * vx[i]; cvx[k + 1] += w10 * vx[i]; cvx[k + MW] += w01 * vx[i]; cvx[k + MW + 1] += w11 * vx[i];
+    cvy[k] += w00 * vy[i]; cvy[k + 1] += w10 * vy[i]; cvy[k + MW] += w01 * vy[i]; cvy[k + MW + 1] += w11 * vy[i];
+    csp[k] += w00 * spd; csp[k + 1] += w10 * spd; csp[k + MW] += w01 * spd; csp[k + MW + 1] += w11 * spd;
+  }
+  // 2. pressure. Solid cells mirror the highest pressure of the water beside
+  //    them (plus a hair), so a barrier supports a pool without repelling it.
+  for (let k = 0; k < N; k++) pres[k] = solid[k] ? 0 : Math.min(MAX_P, Math.max(0, dens[k] - REST_DENSITY));
+  for (let j = 0; j < MH; j++) {
+    for (let i = 0; i < MW; i++) {
+      const k = j * MW + i;
+      if (!solid[k]) continue;
+      let m = 0;
+      if (i > 0 && !solid[k - 1]) m = Math.max(m, pres[k - 1]);
+      if (i < MW - 1 && !solid[k + 1]) m = Math.max(m, pres[k + 1]);
+      if (j > 0 && !solid[k - MW]) m = Math.max(m, pres[k - MW]);
+      if (j < MH - 1 && !solid[k + MW]) m = Math.max(m, pres[k + MW]);
+      pres[k] = m + WALL_P;
+    }
+  }
+  // 3. forces + integration
+  const SUB = 2, h = dt / SUB;
+  const vmix = Math.min(1, VISC * dt);
+  for (let i = 0; i < n; i++) {
+    if (!active[i]) continue;
+    px[i] = x[i]; py[i] = y[i];
+    const gx = sampleP(x[i] + 0.5, y[i]) - sampleP(x[i] - 0.5, y[i]);
+    const gy = sampleP(x[i], y[i] + 0.5) - sampleP(x[i], y[i] - 0.5);
+    const ci0 = Math.min(MW - 1, Math.max(0, x[i] | 0)), cj0 = Math.min(MH - 1, Math.max(0, y[i] | 0));
+    const k0 = cj0 * MW + ci0;
+    // Pressure is gated by coherence: a cell whose water all moves the same
+    // way at speed is a stream and is not sprayed apart by its own density.
+    // A pool, or the impact zone where fast water meets resting water, has
+    // low coherence and feels full pressure, so arrivals spread instead of
+    // plunging through.
+    let pscale = 1;
+    if (dens[k0] > 0.5) {
+      const inv = 1 / dens[k0], mvx = cvx[k0] * inv, mvy = cvy[k0] * inv;
+      vx[i] += (mvx - vx[i]) * vmix;   // viscosity: relax toward the cell's mean velocity
+      vy[i] += (mvy - vy[i]) * vmix;
+      const meanSpeed = csp[k0] * inv, meanVel = Math.hypot(mvx, mvy);
+      const coherence = (meanVel / (meanSpeed + 1e-3)) * Math.min(1, meanSpeed / STREAM_SPEED);
+      pscale = Math.max(0.08, 1 - coherence);
+      // Landing on water: on first entry into a pooled cell, turn part of the
+      // speed into the pool into a slide across its surface, toward the side
+      // holding less water. Same idea as the barrier contact.
+      const nowPool = dens[k0] >= POOL_DENSITY;
+      if (nowPool && !inPool[i]) {
+        const rel = vy[i] - mvy;
+        if (rel > 4) {
+          const dir = gx > 0.02 ? -1 : gx < -0.02 ? 1 : (Math.random() < 0.5 ? -1 : 1);
+          vx[i] += dir * rel * SPREAD;
+          vy[i] -= rel * SPREAD;
+        }
+      }
+      inPool[i] = nowPool ? 1 : 0;
+    } else inPool[i] = 0;
+    let pdx = -K_PRESSURE * K_LATERAL * gx * pscale * dt, pdy = -K_PRESSURE * gy * pscale * dt;
+    const pdm = Math.hypot(pdx, pdy);
+    if (pdm > MAX_PDV) { pdx *= MAX_PDV / pdm; pdy *= MAX_PDV / pdm; }
+    vx[i] += pdx;
+    vy[i] += G * dt + pdy;
+    const dragK = Math.max(0, 1 - DRAG * dt);
+    vx[i] *= dragK; vy[i] *= dragK;
+    const sp = Math.hypot(vx[i], vy[i]);
+    if (sp > MAX_SPEED) { vx[i] *= MAX_SPEED / sp; vy[i] *= MAX_SPEED / sp; }
+    // A particle swallowed by rock (no way out along the normal) freezes
+    // where it is and falls again once the rock is erased.
+    let stuck = false;
+    for (let s = 0; s < SUB && !stuck; s++) {
+      let nx = x[i] + vx[i] * h, ny = y[i] + vy[i] * h;
+      const ci = nx | 0, cj = ny | 0;
+      if (ci >= 0 && ci < MW && cj >= 0 && cj < MH && solid[cj * MW + ci]) {
+        // Contact: push out along the surface normal, then slide.
+        let k = cj * MW + ci, qx = nrmX[k], qy = nrmY[k];
+        if (qx === 0 && qy === 0) { stuck = true; break; }
+        let out = false;
+        for (let t = 0; t < 12; t++) {
+          nx += qx * 0.6; ny += qy * 0.6;
+          const ti = nx | 0, tj = ny | 0;
+          if (ti < 0 || ti >= MW || tj < 0 || tj >= MH) { out = true; break; }
+          k = tj * MW + ti;
+          if (!solid[k]) { out = true; break; }
+          if (nrmX[k] !== 0 || nrmY[k] !== 0) { qx = nrmX[k]; qy = nrmY[k]; }
+        }
+        if (!out) { stuck = true; break; }
+        nx += qx * 0.35; ny += qy * 0.35;   // settle fully into the fluid cell so the weight counts
+        // kill the velocity into the surface (no bounce), keep most of the slide
+        const vn = vx[i] * qx + vy[i] * qy;
+        if (vn < 0) {
+          vx[i] -= vn * qx; vy[i] -= vn * qy;
+          // Spread along the surface: part of the impact speed becomes motion
+          // along the tangent, toward whichever side holds less water.
+          if (vn < -4) {
+            const tx = -qy, ty = qx;
+            const dp = sampleP(nx + tx * 1.5, ny + ty * 1.5) - sampleP(nx - tx * 1.5, ny - ty * 1.5);
+            const dir = dp < -0.05 ? 1 : dp > 0.05 ? -1 : (Math.random() < 0.5 ? -1 : 1);
+            const add = -vn * SPREAD * dir;
+            vx[i] += tx * add; vy[i] += ty * add;
+          }
+        }
+        vx[i] = vx[i] * FRICTION + qx * SHOVE + (Math.random() - 0.5) * JITTER;
+        vy[i] = vy[i] * FRICTION + qy * SHOVE + (Math.random() - 0.5) * JITTER;
+      }
+      x[i] = nx; y[i] = ny;
+    }
+    if (stuck) { vx[i] = 0; vy[i] = 0; }
+    if (y[i] > MH + 2 || x[i] < -3 || x[i] > MW + 3) kill(i);
+  }
+}
+
+// ------------------------------------------------------------------ rendering
+// Goo uses the classic SVG filter (blur, then a steep alpha contrast via
+// feColorMatrix) applied to the rock and water canvases with CSS. Both canvases
+// stay transparent and the paper lives on the body, so the filter only sees
+// ink. Each canvas holds one opaque color, so the two inks never bridge.
+function applyGooMode() {
+  const sx = W / MW;
+  $('gooBlur').setAttribute('stdDeviation', Math.min(8, Math.max(1, sx * 0.42)).toFixed(1));
+}
+
+// The rock is drawn as vector strokes at full resolution (not from the coarse sim grid), so its
+// edges are smooth at any size. Erase strokes cut it in order. The sim still collides with the
+// grid version, so the drawn shape is padded a touch to match the grid's slight dilation.
+function paintStrokes(ctx, kind, color, pad) {
+  ctx.clearRect(0, 0, W, H);
+  ctx.lineCap = 'round'; ctx.lineJoin = 'round'; ctx.strokeStyle = color;
+  const X = q => OX + toPx(q[0]), Y = q => OY + toPx(q[1]);
+  for (const st of authoredEff().map(e => e.s).concat(visitor.strokes, cur && cur.p.length ? [cur] : [])) {   // cur = the stroke still being drawn
+    if (!st.erase && (st.kind || 'solid') !== kind) continue;     // erase strokes cut every layer
+    const p = st.p, n = p.length;
+    ctx.globalCompositeOperation = st.erase ? 'destination-out' : 'source-over';
+    ctx.lineWidth = 2 * (toPx(st.r) + (st.erase ? 0 : pad));
+    ctx.beginPath();
+    ctx.moveTo(X(p[0]), Y(p[0]));
+    if (n === 1) ctx.lineTo(X(p[0]) + 0.01, Y(p[0]));
+    else {                                           // smooth curve through the midpoints of the captured points
+      for (let k = 1; k < n - 1; k++) ctx.quadraticCurveTo(X(p[k]), Y(p[k]), (X(p[k]) + X(p[k + 1])) / 2, (Y(p[k]) + Y(p[k + 1])) / 2);
+      ctx.lineTo(X(p[n - 1]), Y(p[n - 1]));
+    }
+    ctx.stroke();
+  }
+  ctx.globalCompositeOperation = 'source-over';
+}
+function drawRock() {
+  if (!rockDirty) return;
+  const cw = W / MW, ch = cw;
+  paintStrokes(pctx, 'pass', PASS, 0);
+  paintStrokes(rctx, 'solid', ROCK, cw * 0.3);
+  rctx.fillStyle = ROCK;
+  if (scene.flow.basin) {                            // basin floor (with the drain gap) and side walls
+    const [d0, d1] = drainRange(), fy = (MH - 2) * ch;
+    rctx.fillRect(0, fy - SY, Math.max(0, d0) * cw, HW - fy);
+    rctx.fillRect(Math.min(MW, d1) * cw, fy - SY, W - Math.min(MW, d1) * cw, HW - fy);
+    rctx.fillRect(0, -SY, cw, fy); rctx.fillRect(W - cw, -SY, cw, fy);
+  }
+  rockDirty = false;
+}
+
+function drawGooShapes() {
+  const sx = W / MW, sy = sx;
+  const { n, x, y, px, py, active } = P;
+  const r = Math.max(1, sx * 0.42);
+  sctx.fillStyle = WATER;
+  sctx.strokeStyle = WATER;
+  sctx.lineCap = 'round';
+  sctx.lineWidth = r * 2;
+  sctx.beginPath();
+  for (let i = 0; i < n; i++) {
+    if (!active[i]) continue;
+    const X = x[i] * sx, Y = y[i] * sy - SY, ax = px[i] * sx, ay = py[i] * sy - SY;
+    if (Y < -40 || Y > H + 40) continue;               // off-screen water isn't drawn
+    if (Math.abs(X - ax) + Math.abs(Y - ay) < 0.5) { sctx.moveTo(X + r, Y); sctx.arc(X, Y, r, 0, 6.2832); }
+    else { sctx.moveTo(ax, ay); sctx.lineTo(X, Y); }
+  }
+  sctx.fill();
+  sctx.stroke();
+}
+
+function drawScene() {
+  if (solidDirty) rebuildSolid();
+  drawRock();
+  sctx.clearRect(0, 0, W, H);
+  drawGooShapes();
+}
+
+// ---- overlay: debug, source handles, brush ring, author guides
+let debug = false;
+let fps = 0, fpsAcc = 0, fpsN = 0, fpsT = 0;
+
+function drawDebug() {
+  const d = maskImg.data;
+  for (let i = 0, k = 0; i < MW * MH; i++, k += 4) {
+    d[k] = 255; d[k + 1] = 40; d[k + 2] = 200; d[k + 3] = solid[i] ? 110 : 0;
+  }
+  maskCtx.putImageData(maskImg, 0, 0);
+  octx.imageSmoothingEnabled = false;
+  octx.drawImage(maskCanvas, 0, SY * MW / W, MW, H * MW / W, 0, 0, W, H);   // the part of the mask that is on screen
+  const line = `fps ${fps.toFixed(0)}   particles ${P.n - freeCount}/${P.n}   sources ${allSources().length}   grid ${MW}x${MH}`;
+  octx.font = '13px ui-monospace, Menlo, monospace';
+  const tw = octx.measureText(line).width + 20, tx = W - tw - 12, ty = 12;
+  octx.fillStyle = 'rgba(0,0,0,.6)'; octx.fillRect(tx, ty, tw, 28);
+  octx.fillStyle = '#fff'; octx.fillText(line, tx + 10, ty + 19);
+}
+
+// first solid cell within 6 cells below a point (units in, cells out), or -1
+function solidBelow(ux, uy) {
+  const g = gu(), ci = Math.floor(ux * g + CX), cj = Math.floor(uy * g + CY);
+  if (ci < 0 || ci >= MW) return -1;
+  for (let dy = 0; dy <= 6; dy++) {
+    const j = cj + dy;
+    if (j < 0 || j >= MH) continue;
+    if (solidSrc[j * MW + ci]) {
+      let top = j;
+      while (top > 0 && solidSrc[(top - 1) * MW + ci]) top--;   // pointer inside rock: climb to its top
+      return top;
+    }
+  }
+  return -1;
+}
+const isFree = s => solidBelow(s.x, s.y + 0.5 / gu()) < 0;
+
+let tool = 'select';        // visitors start in Move; Draw is one click (or B) away
+let brushR = 2;
+let palette = 'solid';     // what Draw paints: 'solid' (collides) or 'pass' (decoration behind the rock)
+let mouseX = -1, mouseY = -1;
+let selected = null;
+const HANDLE_HIT = 16, DOT_R = 5, DOT_DIST = 36, DOT_HIT = 11;
+
+function handlePos(s) { return [OX + toPx(s.x), OY + toPx(s.y)]; }
+function dotPos(s) { const a = s.angle * Math.PI / 180; return [OX + toPx(s.x) + Math.cos(a) * DOT_DIST, OY + toPx(s.y) + Math.sin(a) * DOT_DIST]; }
+
+// drag the dot past the arrow tip to aim the selected source through a full 360 degrees (Shift snaps to 15)
+let adrag = null;
+function pickDot(x, y) {
+  const o = selected && allSources().find(q => q.s === selected);
+  if (!o) return null;
+  const [dx, dy] = dotPos(o.s);
+  return Math.hypot(x - dx, y - dy) < DOT_HIT ? o : null;
+}
+function startAngleDrag(o) { adrag = { o, moved: false }; }
+function angleMove(e) {
+  if (!adrag) return;
+  if (!adrag.moved) { adrag.moved = true; beginSourceEdit(adrag.o); }
+  const s = adrag.o.s, [hx, hy] = handlePos(s);
+  let deg = Math.atan2(e.clientY - hy, e.clientX - hx) * 180 / Math.PI;
+  if (e.shiftKey) deg = Math.round(deg / 15) * 15;
+  setAngle(s, deg);
+}
+function endAngleDrag() {
+  if (!adrag) return;
+  if (adrag.moved) sourceEdited(adrag.o);
+  adrag = null; refreshAuthor();
+}
+
+function drawHandles() {
+  for (const o of allSources()) {
+    const s = o.s, [x, y] = handlePos(s);
+    const near = mouseX >= 0 && Math.hypot(mouseX - x, mouseY - y) < 40;
+    if (!(tool === 'source' || tool === 'select' || isEdit || near || s === selected)) continue;
+    octx.lineCap = 'round'; octx.lineJoin = 'round';
+    octx.strokeStyle = 'rgba(43,108,255,.55)'; octx.lineWidth = 1.5; octx.setLineDash([3, 4]);   // the emitter disc
+    octx.beginPath(); octx.arc(x, y - 0.6 * W / MW, toPx(s.width / 2), 0, 6.2832); octx.stroke(); octx.setLineDash([]);
+    if (s === selected) { octx.strokeStyle = '#F8C625'; octx.lineWidth = 4; octx.beginPath(); octx.arc(x, y, 12, 0, 6.2832); octx.stroke(); }
+    octx.fillStyle = '#fffef8'; octx.strokeStyle = '#2b6cff'; octx.lineWidth = 3;
+    octx.setLineDash(isFree(s) ? [3, 3] : []);          // hollow dashed = free-floating spring
+    octx.beginPath(); octx.arc(x, y, 6, 0, 6.2832); if (!isFree(s)) octx.fill(); octx.stroke();
+    octx.setLineDash([]);
+    octx.strokeStyle = '#2a2a2a'; octx.lineWidth = 2;
+    const a = s.angle * Math.PI / 180, ca = Math.cos(a), sa = Math.sin(a);
+    const ax = x + ca * 22, ay = y + sa * 22;
+    octx.beginPath(); octx.moveTo(x + ca * 9, y + sa * 9); octx.lineTo(ax, ay);
+    for (const b of [2.6, -2.6]) { octx.moveTo(ax, ay); octx.lineTo(ax + Math.cos(a + b) * 7, ay + Math.sin(a + b) * 7); }
+    octx.stroke();
+    if (s === selected) {      // the dot just past the tip: drag it to aim the selected source
+      const [dx, dy] = dotPos(s);
+      octx.fillStyle = adrag && adrag.o.s === s ? '#F8C625' : '#fffef8'; octx.strokeStyle = '#2a2a2a'; octx.lineWidth = 2;
+      octx.beginPath(); octx.arc(dx, dy, DOT_R, 0, 6.2832); octx.fill(); octx.stroke();
+    }
+  }
+}
+
+function drawGuides() {
+  if (!isEdit || !scene.flow.basin || scene.flow.drainW <= 0) return;
+  const f = scene.flow;
+  const x0 = (f.drainX - f.drainW / 2) * W, x1 = (f.drainX + f.drainW / 2) * W;
+  octx.strokeStyle = '#2b6cff'; octx.lineWidth = 2; octx.setLineDash([6, 6]);
+  octx.beginPath(); octx.moveTo(x0, HW - SY - 3); octx.lineTo(x1, HW - SY - 3); octx.stroke();
+  octx.setLineDash([]);
+}
+
+function drawOverlay() {
+  octx.clearRect(0, 0, W, H);
+  if (debug && isEdit) drawDebug();
+  drawGuides();
+  drawSelection();
+  drawHandles();
+  if ((tool === 'brush' || tool === 'eraser') && mouseX >= 0) {   // brush ring
+    octx.strokeStyle = (tool === 'eraser' || shiftDown) ? '#c33' : '#222'; octx.lineWidth = 1.5; octx.setLineDash([4, 4]);
+    octx.beginPath(); octx.arc(mouseX, mouseY, toPx(brushR), 0, Math.PI * 2); octx.stroke(); octx.setLineDash([]);
+  }
+}
+
+// ------------------------------------------------------------------ main loop
+let running = false, last = 0;
+let maskFrames = 12;                       // the mask only needs recomputing for a few frames after the rock changes
+function step(dt) { if (maskFrames > 0) { updateMask(); maskFrames--; } updateParticles(dt); }
+function frame(t) {
+  if (!running) return;
+  const dt = Math.min(0.033, (t - last) / 1000); last = t;
+  fpsAcc += dt; fpsN++;
+  if (t - fpsT > 500) { fps = fpsN / fpsAcc; fpsAcc = 0; fpsN = 0; fpsT = t; }
+  step(dt);
+  drawScene();
+  drawOverlay();
+  requestAnimationFrame(frame);
+}
+function wake() {
+  if (running) return;
+  running = true; last = performance.now();
+  requestAnimationFrame(frame);
+}
+// redraw the overlay once while the loop is stopped (reduced motion)
+let ready = false;
+function pokeOverlay() { if (ready && !running) drawOverlay(); }
+
+// ------------------------------------------------------------------ layout
+// icons only as soon as the labelled toolbar no longer fits the window
+function fitToolbar() {
+  const tb = $('toolbar');
+  tb.classList.remove('compact');
+  if (tb.scrollWidth > tb.clientWidth) tb.classList.add('compact');
+}
+
+function resize() {
+  fitToolbar();
+  dpr = Math.min(window.devicePixelRatio || 1, 2);
+  const oldMH = MH;
+  W = window.innerWidth; H = window.innerHeight;
+  for (const c of [passEl, rockEl, waterEl, overlay]) {
+    c.width = Math.round(W * dpr); c.height = Math.round(H * dpr);
+    c.getContext('2d').setTransform(dpr, 0, 0, dpr, 0, 0);
+  }
+  // The world is as tall as a phone screen at this width (about 9:19.5) when the window is shorter; the page scrolls through it
+  HW = Math.max(H, Math.round(W * 19.5 / 9));
+  $('spacer').style.height = HW + 'px';
+  MH = Math.max(8, Math.round(MW * HW / W));
+  SY = window.scrollY;
+  OX = W * (1 - WORLD) / 2; OY0 = H * (1 - WORLD) / 2; OY = OY0 - SY;     // the scene sits centred in the first screenful
+  CX = MW * (1 - WORLD) / 2; CY = OY0 * MW / W;
+  const N = MW * MH;
+  solidSrc = new Uint8Array(N); domMask = new Uint8Array(N); raw = new Uint8Array(N); ema = new Float32Array(N); field = new Float32Array(N);
+  solid = new Uint8Array(N); nrmX = new Float32Array(N); nrmY = new Float32Array(N);
+  dens = new Float32Array(N); pres = new Float32Array(N); cvx = new Float32Array(N); cvy = new Float32Array(N); csp = new Float32Array(N);
+  maskCanvas = document.createElement('canvas'); maskCanvas.width = MW; maskCanvas.height = MH;
+  maskCtx = maskCanvas.getContext('2d'); maskImg = maskCtx.createImageData(MW, MH);
+  rebuildSolid();
+  applyGooMode();
+  if (!P || MH !== oldMH || P.n !== effBudget()) allocParticles(effBudget());
+  if (!running) { drawScene(); drawOverlay(); }
+}
+
+// ------------------------------------------------------------------ tools and input
+const undoStack = [];
+function snapshot(withAuthored) { return { authored: withAuthored ? scene.strokes.slice() : null, strokes: visitor.strokes.slice(), sources: visitor.sources.map(s => Object.assign({}, s)), hidden: visitor.hidden.slice(), edits: Object.assign({}, visitor.edits) }; }
+function pushUndo(withAuthored) { undoStack.push(snapshot(withAuthored)); if (undoStack.length > MAX_UNDO) undoStack.shift(); updateUndoBtn(); }
+function layerChanged() { rebuildSolid(); saveVisitor(); }
+function undo() {
+  const snap = undoStack.pop();
+  if (!snap) { setStatus('Nothing to undo.'); return; }
+  visitor.strokes = snap.strokes; visitor.sources = snap.sources; visitor.hidden = snap.hidden; visitor.edits = snap.edits;
+  if (snap.authored) { scene.strokes = snap.authored; sceneChanged(); }   // Clear all in author mode also took the authored strokes
+  if (selected && !allSources().some(o => o.s === selected)) selected = null;
+  layerChanged(); updateUndoBtn(); refreshAuthor();
+}
+// Clear all: every stroke, pass and solid alike. Water sources stay. Visitors hide the authored strokes
+// (Undo brings everything back); in author mode the authored strokes are removed from the draft.
+function clearAll() {
+  if (!visitor.strokes.length && !authoredEff().length) { setStatus('Nothing to clear.'); return; }
+  pushUndo(isEdit);
+  visitor.strokes = [];
+  if (isEdit) { scene.strokes = []; visitor.edits = {}; sceneChanged(); }
+  else scene.strokes.forEach((_, i) => { visitor.edits[i] = null; });
+  sel = []; sdrag = null;
+  layerChanged();
+  setStatus('Cleared. Undo brings it back.');
+}
+function resetVisitor() {
+  if (layerEmpty()) { setStatus('Already the authored scene.'); return; }
+  pushUndo();
+  visitor = emptyLayer();
+  selected = null;
+  layerChanged(); refreshAuthor();
+  setStatus('Reset to the authored scene. Undo brings your drawing back.');
+}
+
+let shiftDown = false;
+let cur = null, lastPt = null, tail = null;   // stroke being drawn
+function beginStroke(e) {
+  const erase = tool === 'eraser' || e.shiftKey || e.button === 2;
+  cur = { p: [], r: brushR, erase };
+  if (!erase && palette === 'pass') cur.kind = 'pass';
+  addPoint(toUx(e.clientX), toUy(e.clientY));
+}
+function addPoint(ux, uy) {
+  const q = [ux, uy];
+  if (lastPt && Math.hypot(ux - lastPt[0], uy - lastPt[1]) < cur.r * 0.3) { tail = q; return; }   // decimate
+  if (cur.kind === 'pass') { /* nothing to collide with */ }
+  else if (lastPt) paintSeg(solidSrc, lastPt, q, cur.r, cur.erase); else paintDisc(solidSrc, ux * gu(), uy * gu(), cur.r * gu(), cur.erase);
+  cur.p.push(q); lastPt = q; tail = null; rockDirty = true; maskFrames = 12;
+}
+function endStroke() {
+  if (!cur) return;
+  if (tail) addPoint(tail[0], tail[1]);
+  pushUndo();
+  if (!cur.erase) joinGroups(cur);
+  visitor.strokes.push(cur);
+  cur = null; lastPt = null; tail = null;
+  layerChanged();
+}
+
+// source tool
+let drag = null;
+function pickSource(x, y) {
+  let best = null, bd = HANDLE_HIT;
+  for (const o of allSources()) {
+    const [hx, hy] = handlePos(o.s), d = Math.hypot(x - hx, y - hy); if (d < bd) { bd = d; best = o; } }
+  return best;
+}
+// snap to the top of rock below the point; free-floating if none within 6 cells
+function snapSource(s, ux, uy) {
+  const lo = -scene.grid.w * (1 - WORLD) / (2 * WORLD);                   // the window shows units lo .. lo + grid.w / WORLD
+  s.x = Math.min(lo + scene.grid.w / WORLD - 1, Math.max(lo + 1, ux));
+  const top = solidBelow(s.x, uy);
+  s.y = top >= 0 ? (top - 0.5 - CY) / gu() : uy;
+}
+function sourceDown(e) {
+  const x = e.clientX, y = e.clientY;
+  const dot = pickDot(x, y);
+  if (dot) { startAngleDrag(dot); return; }
+  const hit = pickSource(x, y);
+  if (hit) {
+    selected = hit.s;
+    drag = { o: hit, moved: false };
+    refreshAuthor();
+    return;
+  }
+  selected = null;
+  if (allSources().length >= MAX_SOURCES) { setStatus(`At most ${MAX_SOURCES} waterfalls. Remove one first.`); return; }
+  const s = { x: 0, y: 0, angle: 0, dir: 1, width: 6, rate: 900, speed: 22 };
+  snapSource(s, toUx(x), toUy(y));
+  // pour toward whichever side has no rock beside the lip
+  const g = gu(), ci = Math.floor(s.x * g + CX), cj = Math.min(MH - 1, Math.max(0, Math.floor(s.y * g + CY + 1.5)));
+  const L = ci - 4 >= 0 && solidSrc[cj * MW + ci - 4], R = ci + 4 < MW && solidSrc[cj * MW + ci + 4];
+  if (R && !L) setAngle(s, 180);
+  pushUndo();
+  visitor.sources.push(s);
+  selected = s;
+  saveVisitor(); refreshAuthor();
+  setStatus(isFree(s) ? 'Placed a free-floating spring. Drop sources on rock to pour over a lip.' : 'Waterfall added. Drag it along the ledge.');
+}
+function deleteSource(o) {
+  if (o.owner === 'visitor') { pushUndo(); visitor.sources.splice(visitor.sources.indexOf(o.s), 1); }
+  else if (!isEdit) { pushUndo(); visitor.hidden.push(scene.sources.indexOf(o.s)); }   // visitors hide the original instead
+  else scene.sources.splice(scene.sources.indexOf(o.s), 1);
+  if (selected === o.s) selected = null;
+  if (o.owner === 'authored' && !isEdit) saveVisitor(); else sourceEdited(o);
+  refreshAuthor();
+}
+function sourceEdited(o) { if (o.owner === 'visitor') saveVisitor(); else sceneChanged(); }
+function dragMove(e) {
+  if (!drag) return;
+  if (!drag.moved) { drag.moved = true; beginSourceEdit(drag.o); }
+  snapSource(drag.o.s, toUx(e.clientX), toUy(e.clientY));
+}
+function endDrag() {
+  if (!drag) return;
+  if (drag.moved) sourceEdited(drag.o);
+  drag = null; refreshAuthor();
+}
+
+// select tool (author only): pick strokes, drag them, Backspace deletes them
+let sdrag = null;
+function distSeg(px, py, a, b) {
+  const dx = b[0] - a[0], dy = b[1] - a[1], l2 = dx * dx + dy * dy;
+  const t = l2 ? Math.min(1, Math.max(0, ((px - a[0]) * dx + (py - a[1]) * dy) / l2)) : 0;
+  return Math.hypot(px - (a[0] + t * dx), py - (a[1] + t * dy));
+}
+function strokeContains(st, ux, uy) {
+  const p = st.p, r = st.r + toUnitsX(5);          // a few pixels of slack so thin strokes stay easy to grab
+  return p.length === 1 ? Math.hypot(ux - p[0][0], uy - p[0][1]) <= r : p.some((q, k) => k && distSeg(ux, uy, p[k - 1], q) <= r);
+}
+// Plain click picks the topmost rock stroke, falling back to an erase stroke;
+// Shift-click prefers erase strokes (a big one can sit over everything).
+function pickStroke(ux, uy, wantErase) {
+  for (const erase of wantErase ? [true, false] : [false, true]) {
+    for (const list of [visitorEntries(), authoredEntries()]) {
+      for (let i = list.length - 1; i >= 0; i--) {
+        const o = list[i];
+        if (o.s.erase !== erase) continue;
+        if (strokeContains(o.s, ux, uy)) return o;
+      }
+    }
+  }
+  return null;
+}
+
+// Strokes that touch (their discs overlap) belong to one group and move together.
+// Ctrl/Cmd-click selects a single stroke instead. Erase strokes never group.
+function strokesTouch(a, b) {
+  const rr = a.r + b.r;
+  const box = st => { let x0 = 1e9, y0 = 1e9, x1 = -1e9, y1 = -1e9; for (const q of st.p) { x0 = Math.min(x0, q[0]); x1 = Math.max(x1, q[0]); y0 = Math.min(y0, q[1]); y1 = Math.max(y1, q[1]); } return [x0, y0, x1, y1]; };
+  const A = box(a), B = box(b);
+  if (A[0] > B[2] + rr || B[0] > A[2] + rr || A[1] > B[3] + rr || B[1] > A[3] + rr) return false;
+  const segs = st => st.p.length === 1 ? [[st.p[0], st.p[0]]] : st.p.slice(1).map((q, k) => [st.p[k], q]);
+  const sa = segs(a), sb = segs(b);
+  for (const [a0, a1] of sa) for (const [b0, b1] of sb) {
+    // distance between two segments: exact when they don't cross, so check the four endpoint distances
+    const d = Math.min(distSeg(a0[0], a0[1], b0, b1), distSeg(a1[0], a1[1], b0, b1), distSeg(b0[0], b0[1], a0, a1), distSeg(b1[0], b1[1], a0, a1));
+    if (d <= rr) return true;
+  }
+  return false;
+}
+// Groups are decided when strokes are drawn: a stroke drawn over others joins them, and moving strokes around
+// later never merges or splits anything. Strokes from before groups existed are grouped by touching, once.
+function assignGroups(all) {
+  const pend = all.filter(st => !st.g);
+  if (!pend.length) return;
+  const parent = new Map(all.map(st => [st, st]));
+  const find = x => { while (parent.get(x) !== x) { parent.set(x, parent.get(parent.get(x))); x = parent.get(x); } return x; };
+  const union = (a, b) => { a = find(a); b = find(b); if (a !== b) parent.set(a, b); };
+  const byG = new Map();
+  for (const st of all) if (st.g) { if (byG.has(st.g)) union(st, byG.get(st.g)); else byG.set(st.g, st); }
+  for (const a of pend) for (const b of all) if (a !== b && find(a) !== find(b) && strokesTouch(a, b)) union(a, b);
+  let next = Math.max(0, ...all.map(st => st.g || 0)) + 1;
+  const ids = new Map();
+  for (const st of all) { const r = find(st); if (st.g && !ids.has(r)) ids.set(r, st.g); }
+  for (const st of pend) { const r = find(st); if (!ids.has(r)) ids.set(r, next++); st.g = ids.get(r); }
+}
+const nextGroup = () => 1 + Math.max(0, ...scene.strokes.map(st => st.g || 0), ...visitor.strokes.map(st => st.g || 0), ...Object.values(visitor.edits).map(st => (st && st.g) || 0));
+// a finished stroke joins every group it was drawn over (merging them if it crosses several)
+function joinGroups(st) {
+  const all = authoredEntries().concat(visitorEntries()).filter(o => !o.s.erase);
+  const gs = new Set(all.filter(o => strokesTouch(st, o.s)).map(o => o.s.g).filter(Boolean));
+  const g = gs.size ? Math.min(...gs) : nextGroup();
+  st.g = g;
+  let authoredChanged = false;
+  for (const o of all) if (gs.has(o.s.g) && o.s.g !== g) {   // relabel merged groups (copy-on-write so Undo restores them)
+    replaceEntry(o, Object.assign({}, o.s, { g }));
+    if (o.owner === 'authored' && isEdit) authoredChanged = true;
+  }
+  if (authoredChanged) sceneChanged();
+}
+function touchingGroup(hit) {
+  const g = hit.s.g;       // pass and solid strokes in the same group stick together
+  return g ? authoredEntries().concat(visitorEntries()).filter(o => !o.s.erase && o.s.g === g) : [hit];
+}
+
+let sel = [];     // selected strokes: [{ s, owner }]
+let lastSelDown = null;   // for double-click: a second quick click on a selected group narrows it to one stroke
+// sources resting on (within a hair of) any stroke of the group travel with it
+function attachedSources(group) {
+  const out = [];
+  for (const o of allSources()) {
+    if (group.some(g => !g.s.erase && g.s.kind !== 'pass' && (g.s.p.length === 1 ? Math.hypot(o.s.x - g.s.p[0][0], o.s.y - g.s.p[0][1]) : Math.min(...g.s.p.slice(1).map((q, k) => distSeg(o.s.x, o.s.y, g.s.p[k], q)))) <= g.s.r + 2)) out.push(o);
+  }
+  return out;
+}
+function selectDown(e) {
+  const ux = toUx(e.clientX), uy = toUy(e.clientY);
+  if (sel.length && hitRotHandle(e.clientX, e.clientY)) { startRotate(e); return; }
+  const dot = pickDot(e.clientX, e.clientY);
+  if (dot) { sel = []; sdrag = null; startAngleDrag(dot); return; }
+  const src = pickSource(e.clientX, e.clientY);    // a source handle wins over the rock beneath it
+  if (src) { sel = []; selected = src.s; drag = { o: src, moved: false }; sdrag = null; refreshAuthor(); return; }
+  selected = null;
+  let hit = pickStroke(ux, uy, e.shiftKey);
+  // pressing on something already selected keeps the selection as it is (a single stroke stays single)
+  const plain = !e.ctrlKey && !e.metaKey;
+  const held = plain && sel.length ? (sel.find(o => hit && o.s === hit.s) || sel.find(o => strokeContains(o.s, ux, uy))) : null;
+  if (!hit && !held) { sel = []; sdrag = null; return; }
+  if (held && !(hit && sel.some(o => o.s === hit.s))) hit = held;
+  const now = performance.now();
+  const dbl = !!held && sel.length > 1 && !!lastSelDown && now - lastSelDown.t < 400 && Math.hypot(e.clientX - lastSelDown.x, e.clientY - lastSelDown.y) < 8;
+  lastSelDown = dbl ? null : { t: now, x: e.clientX, y: e.clientY };
+  if (hit.s.erase || !plain || dbl) sel = [hit];
+  else if (!held) sel = touchingGroup(hit);
+  if (hit.s.erase) setStatus('Erase stroke selected. Drag to move, Backspace to delete.');
+  sdrag = { last: [ux, uy], moved: false, dup: e.altKey, srcs: e.altKey || hit.s.erase ? [] : attachedSources(sel) };
+}
+// First change to the selection: take an undo snapshot and swap in copies (snapshots share stroke objects).
+// st is the drag state ({ dup, srcs }); a duplicate drag leaves the originals and moves new copies.
+function beginSelEdit(st) {
+    if (st.dup) { st.gmap = new Map(); st.nextG = nextGroup(); }
+    if (sel.some(o => entryLayer(o) === 'visitor') || st.srcs.some(o => o.owner === 'visitor' || !isEdit)) pushUndo();   // snapshots share stroke objects, so move copies
+    for (const o of st.srcs) adoptSource(o);
+    sel = sel.map(o => {
+      const c = { p: o.s.p.map(q => [q[0], q[1]]), r: o.s.r, erase: o.s.erase };
+      if (o.s.kind) c.kind = o.s.kind;
+      if (o.s._id && !st.dup) strokeId(c), c._id = o.s._id;   // same stroke, new object: keeps its remembered rotate handle
+      if (o.s.g) c.g = st.dup ? (st.gmap.get(o.s.g) || (st.gmap.set(o.s.g, st.nextG++), st.gmap.get(o.s.g))) : o.s.g;   // a duplicate becomes its own group
+      if (st.dup) {                 // Option/Alt-drag leaves the originals and drags copies
+        const list = entryLayer(o) === 'visitor' ? visitor.strokes : scene.strokes;
+        list.push(c);
+        return { s: c, owner: list === visitor.strokes ? 'visitor' : 'authored', idx: list.length - 1 };
+      }
+      replaceEntry(o, c);
+      return { s: c, owner: o.owner, idx: o.idx };
+    });
+}
+
+// ---- rotate the selection (strokes and the sources resting on them) about its centre
+// The handle is a dot with a bent arrow on each side. It starts straight above the selection, then its
+// position is remembered per selection (relative to the pivot), so selecting the same strokes again finds it where it was left.
+const ROT_GAP = 30, ROT_DOT = 5;
+let strokeIds = 0;
+const strokeId = st => st._id || (Object.defineProperty(st, '_id', { value: ++strokeIds, enumerable: false, writable: true }), st._id);   // not saved
+const rotMemory = new Map();                    // selection key -> handle offset from the pivot, in units
+const rotKey = () => sel.map(o => strokeId(o.s)).sort((a, b) => a - b).join(',');
+function selBounds() {
+  let x0 = 1e9, y0 = 1e9, x1 = -1e9, y1 = -1e9;
+  for (const o of sel) for (const q of o.s.p) { x0 = Math.min(x0, q[0] - o.s.r); x1 = Math.max(x1, q[0] + o.s.r); y0 = Math.min(y0, q[1] - o.s.r); y1 = Math.max(y1, q[1] + o.s.r); }
+  return sel.length ? [x0, y0, x1, y1] : null;
+}
+// pivot: the length-weighted centre of the selected strokes; unlike a bounding box it does not move when they rotate
+function selPivot() {
+  let sx = 0, sy = 0, tl = 0, mx = 0, my = 0, n = 0;
+  for (const o of sel) for (let k = 0; k < o.s.p.length; k++) {
+    const q = o.s.p[k]; mx += q[0]; my += q[1]; n++;
+    if (k) { const a = o.s.p[k - 1], l = Math.hypot(q[0] - a[0], q[1] - a[1]); sx += (q[0] + a[0]) / 2 * l; sy += (q[1] + a[1]) / 2 * l; tl += l; }
+  }
+  return tl > 1e-6 ? [sx / tl, sy / tl] : [mx / n, my / n];
+}
+function rotVector(pv) {                         // handle offset from the pivot: remembered, else 0 degrees (straight up) above the selection
+  const key = rotKey();
+  if (!rotMemory.has(key)) { const b = selBounds(); rotMemory.set(key, [0, -((pv[1] - b[1]) + toUnitsX(ROT_GAP))]); }
+  return rotMemory.get(key);
+}
+function rotGeom() {                             // pixel geometry of the handle, or null
+  if (!sel.length) return null;
+  const pv = selPivot(), v = rotVector(pv);
+  const cx = OX + toPx(pv[0]), cy = OY + toPx(pv[1]), hx = cx + toPx(v[0]), hy = Math.max(16, cy + toPx(v[1]));
+  return { cx, cy, hx, hy, R: Math.hypot(hx - cx, hy - cy), th: Math.atan2(hy - cy, hx - cx), pv };
+}
+function hitRotHandle(x, y) {                    // the dot or either bent arrow
+  const g = rotGeom(); if (!g) return false;
+  if (Math.hypot(x - g.hx, y - g.hy) < ROT_DOT + 7) return true;
+  const d = Math.hypot(x - g.cx, y - g.cy); if (Math.abs(d - g.R) > 8) return false;
+  let da = Math.atan2(y - g.cy, x - g.cx) - g.th; da = Math.atan2(Math.sin(da), Math.cos(da));
+  return Math.abs(da) * g.R < 40;
+}
+let rdrag = null;
+function startRotate(e) {
+  const g = rotGeom();
+  rdrag = { c: g.pv, cpx: [g.cx, g.cy], key: rotKey(), a0: Math.atan2(e.clientY - g.cy, e.clientX - g.cx), applied: 0, moved: false, dup: false,
+            srcs: sel.every(o => o.s.erase) ? [] : attachedSources(sel) };
+}
+function rotateMove(e) {
+  if (!rdrag || !sel.length) return;
+  if (!rdrag.moved) { rdrag.moved = true; beginSelEdit(rdrag); }
+  let total = Math.atan2(e.clientY - rdrag.cpx[1], e.clientX - rdrag.cpx[0]) - rdrag.a0;
+  if (e.shiftKey) total = Math.round(total / (Math.PI / 12)) * (Math.PI / 12);      // Shift snaps to 15 degrees
+  const d = total - rdrag.applied; rdrag.applied = total;
+  const cs = Math.cos(d), sn = Math.sin(d), [cx, cy] = rdrag.c;
+  const rot = q => { const x = q[0] - cx, y = q[1] - cy; q[0] = cx + x * cs - y * sn; q[1] = cy + x * sn + y * cs; };
+  for (const o of sel) for (const q of o.s.p) rot(q);
+  for (const o of rdrag.srcs) { const q = [o.s.x, o.s.y]; rot(q); o.s.x = q[0]; o.s.y = q[1]; setAngle(o.s, o.s.angle + d * 180 / Math.PI); }
+  const v = rotMemory.get(rdrag.key);                // the handle turns with the strokes, so it stays where you left it
+  if (v) rotMemory.set(rdrag.key, [v[0] * cs - v[1] * sn, v[0] * sn + v[1] * cs]);
+  solidDirty = true;
+}
+function endRotate() {
+  if (rdrag && rdrag.moved) saveSelOwners(rdrag.srcs);
+  rdrag = null;
+}
+function drawRotateHandle() {
+  const g = rotGeom(); if (!g) return;
+  octx.save();
+  octx.lineCap = 'round'; octx.lineJoin = 'round'; octx.strokeStyle = '#2a2a2a'; octx.lineWidth = 2;
+  const gap = 10 / g.R, len = 22 / g.R;
+  for (const sd of [-1, 1]) {                       // a bent arrow on each side of the dot, following the circle around the pivot
+    const a0 = g.th + sd * gap, a1 = g.th + sd * (gap + len);
+    octx.beginPath(); octx.arc(g.cx, g.cy, g.R, Math.min(a0, a1), Math.max(a0, a1)); octx.stroke();
+    const ex = g.cx + Math.cos(a1) * g.R, ey = g.cy + Math.sin(a1) * g.R, dir = Math.atan2(Math.cos(a1) * sd, -Math.sin(a1) * sd);
+    octx.beginPath(); octx.moveTo(ex + Math.cos(dir + 2.6) * 6, ey + Math.sin(dir + 2.6) * 6); octx.lineTo(ex, ey); octx.lineTo(ex + Math.cos(dir - 2.6) * 6, ey + Math.sin(dir - 2.6) * 6); octx.stroke();
+  }
+  octx.fillStyle = rdrag ? '#F8C625' : '#fffef8';
+  octx.beginPath(); octx.arc(g.hx, g.hy, ROT_DOT, 0, 6.2832); octx.fill(); octx.stroke();
+  octx.restore();
+}
+function strokeDragMove(e) {
+  if (!sdrag || !sel.length) return;
+  const ux = toUx(e.clientX), uy = toUy(e.clientY);
+  if (!sdrag.moved) { sdrag.moved = true; beginSelEdit(sdrag); }
+  const dx = ux - sdrag.last[0], dy = uy - sdrag.last[1];
+  for (const o of sel) for (const q of o.s.p) { q[0] += dx; q[1] += dy; }
+  for (const o of sdrag.srcs) { o.s.x += dx; o.s.y += dy; }
+  sdrag.last = [ux, uy]; solidDirty = true;
+}
+function saveSelOwners(srcs) {
+  const layers = new Set(sel.map(entryLayer).concat((srcs || (sdrag ? sdrag.srcs : [])).map(o => o.owner === 'visitor' ? 'visitor' : 'authored')));
+  if (layers.has('visitor')) saveVisitor();
+  if (layers.has('authored')) sceneChanged();
+}
+function endStrokeDrag() {
+  if (sdrag && sdrag.moved) saveSelOwners();
+  sdrag = null;
+}
+function deleteSelectedStroke() {
+  if (!sel.length) return false;
+  if (sel.some(o => entryLayer(o) === 'visitor')) pushUndo();
+  for (const o of sel) removeEntry(o);
+  saveSelOwners(); solidDirty = true;
+  sel = []; sdrag = null;
+  return true;
+}
+function strokePath(st) {
+  octx.beginPath();
+  st.p.forEach((q, k) => k ? octx.lineTo(OX + toPx(q[0]), OY + toPx(q[1])) : octx.moveTo(OX + toPx(q[0]), OY + toPx(q[1])));
+  if (st.p.length === 1) octx.lineTo(OX + toPx(st.p[0][0]) + 0.01, OY + toPx(st.p[0][1]));
+}
+function drawSelection() {
+  if (tool === 'select') {            // faint red outlines show where the erase strokes are
+    octx.lineCap = 'round'; octx.lineJoin = 'round'; octx.setLineDash([5, 6]);
+    octx.strokeStyle = 'rgba(204,51,51,.45)'; octx.lineWidth = 1.5;
+    for (const o of authoredEntries().concat(visitorEntries())) {
+      if (!o.s.erase || sel.some(q => q.s === o.s)) continue;
+      strokePath(o.s); octx.stroke();
+    }
+    octx.setLineDash([]);
+  }
+  sel = sel.filter(entryAlive);
+  octx.lineCap = 'round'; octx.lineJoin = 'round';
+  for (const o of sel) {
+    octx.strokeStyle = o.s.erase ? 'rgba(204,51,51,.3)' : 'rgba(248,198,37,.55)'; octx.lineWidth = toPx(o.s.r) * 2 + 6;
+    strokePath(o.s); octx.stroke();
+  }
+  if (tool === 'select' && sel.length) drawRotateHandle();
+}
+
+function setTool(t) {
+  if (t === 'hand' && !isEdit && !coarse) return;
+  tool = t;
+  if (t !== 'select') { sel = []; sdrag = null; }
+  for (const b of document.querySelectorAll('[data-tool]')) b.classList.toggle('on', b.dataset.tool === t);
+  document.body.className = document.body.className.replace(/\btool-\w+/g, '').trim() + ' tool-' + t;
+  $('palette').hidden = t !== 'brush';
+  if (t !== 'brush') setPaletteOpen(false);
+  $('slSize').hidden = !(t === 'brush' || t === 'eraser');   // size only matters while drawing or erasing
+  fitToolbar();
+  cur = null; drag = null; pokeOverlay();
+}
+
+overlay.addEventListener('contextmenu', e => { if (tool === 'brush' || tool === 'eraser') e.preventDefault(); });
+overlay.addEventListener('pointerdown', e => {
+  if (!e.isPrimary) return;
+  wake(); mouseX = e.clientX; mouseY = e.clientY; showUI();
+  try { overlay.setPointerCapture(e.pointerId); } catch (err) {}
+  if (tool === 'brush' || tool === 'eraser') beginStroke(e);
+  else if (tool === 'source') sourceDown(e);
+  else if (tool === 'select') selectDown(e);
+});
+overlay.addEventListener('pointermove', e => {
+  if (!e.isPrimary) return;
+  mouseX = e.clientX; mouseY = e.clientY; showUI();
+  if (cur) addPoint(toUx(mouseX), toUy(mouseY));
+  else if (adrag) angleMove(e);
+  else if (drag) dragMove(e);
+  else if (rdrag) rotateMove(e);
+  else if (sdrag) strokeDragMove(e);
+  pokeOverlay();
+});
+function pointerEnd(e) {
+  if (e.isPrimary === false) return;
+  endStroke(); endDrag(); endAngleDrag(); endStrokeDrag(); endRotate();
+  if (e.pointerType === 'touch') mouseX = -1;
+  pokeOverlay();
+}
+window.addEventListener('pointerup', pointerEnd);
+window.addEventListener('pointercancel', pointerEnd);
+overlay.addEventListener('pointerleave', () => { if (!cur && !drag) { mouseX = -1; pokeOverlay(); } });
+// plain scrolling moves through the page; Alt/Ctrl + wheel resizes the brush
+overlay.addEventListener('wheel', e => { if (e.altKey || e.ctrlKey) { setBrush(brushR - Math.sign(e.deltaY)); e.preventDefault(); } }, { passive: false });
+window.addEventListener('scroll', () => {
+  SY = window.scrollY; OY = OY0 - SY; rockDirty = true;
+  if (!running) { drawScene(); drawOverlay(); }
+}, { passive: true });
+window.addEventListener('resize', resize);
+
+// ------------------------------------------------------------------ ui
+let uiTimer = 0, uiHover = false;
+function showUI() {
+  if (document.body.classList.contains('hideui')) { document.body.classList.remove('hideui'); solidDirty = true; }
+  clearTimeout(uiTimer);
+  uiTimer = setTimeout(() => { if (!uiHover && !cur && !drag && !(palEl && palEl.classList.contains('open'))) { document.body.classList.add('hideui'); solidDirty = true; } else showUI(); }, 4000);
+}
+$('toolbar').addEventListener('pointerenter', () => { uiHover = true; });
+$('toolbar').addEventListener('pointerleave', () => { uiHover = false; showUI(); });
+
+let statusTimer = 0;
+function setStatus(msg) {
+  const el = $('status');
+  el.textContent = msg; el.classList.add('show');
+  clearTimeout(statusTimer);
+  statusTimer = setTimeout(() => el.classList.remove('show'), 3500);
+}
+
+// palette selector: a vertical list that slides up from the Draw button
+const palEl = $('palette');
+function setPaletteOpen(on) { palEl.classList.toggle('open', on); $('btnPalette').setAttribute('aria-expanded', on); if (!on) showUI(); }
+function setPalette(p) {
+  palette = p; palEl.dataset.pal = p;
+  $('palLabel').textContent = p === 'pass' ? 'Pass thru' : 'Solid';
+  for (const b of palEl.querySelectorAll('[data-pal]')) b.classList.toggle('on', b.dataset.pal === p);
+  setPaletteOpen(false);
+  setStatus(p === 'pass' ? 'Pass thru: lines the water flows straight through, drawn behind the solid layer.' : 'Solid: lines the water collides with.');
+}
+$('btnPalette').onclick = e => { setPaletteOpen(!palEl.classList.contains('open')); e.currentTarget.blur(); };
+for (const b of palEl.querySelectorAll('[data-pal]')) b.onclick = e => { setPalette(b.dataset.pal); e.currentTarget.blur(); wake(); };
+window.addEventListener('pointerdown', e => { if (!palEl.contains(e.target)) setPaletteOpen(false); }, true);
+const slSize = $('slSize');
+function setBrush(r) { brushR = Math.min(40, Math.max(2, Math.round(r))); slSize.value = brushR; pokeOverlay(); }
+slSize.oninput = () => { setBrush(+slSize.value); showUI(); };
+setBrush(brushR);
+
+function updateUndoBtn() { $('btnUndo').disabled = !undoStack.length; }
+
+for (const b of document.querySelectorAll('[data-tool]')) b.onclick = () => { setTool(b.dataset.tool); wake(); b.blur(); showUI(); };
+$('btnUndo').onclick = e => { undo(); wake(); e.currentTarget.blur(); };
+$('btnClear').onclick = e => { clearAll(); wake(); e.currentTarget.blur(); };
+$('btnHelp').onclick = e => { toggleHelp(); e.currentTarget.blur(); };
+
+function toggleHelp() {
+  const el = $('help');
+  if (!el.innerHTML) {
+    el.innerHTML = '<div><b>Etch-a-Wet</b></div>' +
+      '<div><kbd>B</kbd> draw · <kbd>E</kbd> eraser · <kbd>M</kbd> move · <kbd>S</kbd> add a source · <kbd>[</kbd> <kbd>]</kbd> brush size</div>' +
+      '<div><kbd>Ctrl</kbd>/<kbd>Cmd</kbd>+<kbd>Z</kbd> undo · <kbd>H</kbd> this help</div>' +
+      '<div>Draw rock and the water finds its way over it. <kbd>Shift</kbd>-drag or right-drag erases. <kbd>Alt</kbd> + scroll resizes the brush; scroll to move down the page.</div>' +
+      '<div>Move: drag rock you drew (touching strokes and sources on them move together; <kbd>Alt</kbd>-drag duplicates, <kbd>Ctrl</kbd>/<kbd>Cmd</kbd>-click moves one stroke). Click a source to select it, then drag the dot to aim it. <kbd>Backspace</kbd> deletes the selection.</div>' +
+      '<div>Add a source: press <kbd>S</kbd>, then tap rock.</div>' +
+      (isEdit ? '<div><b>Author</b> <kbd>A</kbd> panel · <kbd>D</kbd> debug · <kbd>F</kbd> fullscreen · <kbd>V</kbd> hand (page scrolls) \u00B7 <kbd>Shift</kbd>-click in Move prefers erase strokes</div>' : '');
+  }
+  el.classList.toggle('show');
+}
+function toggleFullscreen() { if (document.fullscreenElement) document.exitFullscreen(); else document.documentElement.requestFullscreen().catch(() => {}); }
+
+window.addEventListener('keydown', e => {
+  const tag = e.target.tagName;
+  if (tag === 'INPUT' && e.target.type !== 'range' && e.target.type !== 'checkbox') return;
+  // a focused control (select, slider, button) keeps keyboard focus after a
+  // click; drop it so shortcuts keep working instead of being swallowed
+  if (tag === 'SELECT' && (e.key.startsWith('Arrow') || e.key === 'Enter' || e.key === ' ')) return;
+  if (tag === 'SELECT' || tag === 'INPUT' || tag === 'BUTTON') e.target.blur();
+  if (e.key === 'Shift') { shiftDown = true; pokeOverlay(); }
+  const k = e.key.toLowerCase();
+  if ((e.metaKey || e.ctrlKey) && k === 'z') { undo(); wake(); e.preventDefault(); showUI(); return; }
+  if (e.metaKey || e.ctrlKey || e.altKey) return;
+  switch (k) {
+    case 'b': setTool('brush'); break;
+    case 'e': setTool('eraser'); break;
+    case 's': setTool('source'); break;
+    case '[': setBrush(brushR - 2); break;
+    case ']': setBrush(brushR + 2); break;
+    case 'h': toggleHelp(); break;
+    case 'backspace': case 'delete': {
+      if (tool === 'select' && deleteSelectedStroke()) { e.preventDefault(); break; }
+      const o = selected && allSources().find(q => q.s === selected);
+      if (o) { deleteSource(o); e.preventDefault(); }
+      break;
+    }
+    case 'a': if (isEdit) $('author').classList.toggle('show'); break;
+    case 'd': if (isEdit) { debug = !debug; pokeOverlay(); } break;
+    case 'f': if (isEdit) toggleFullscreen(); break;
+    case 'v': if (isEdit) setTool('hand'); break;
+    case 'm': setTool('select'); break;
+    case 'escape': sel = []; sdrag = null; setPaletteOpen(false); break;
+    default: return;
+  }
+  wake(); showUI();
+});
+window.addEventListener('keyup', e => { if (e.key === 'Shift') { shiftDown = false; pokeOverlay(); } });
+
+// ---- author panel (only with ?edit)
+const numInput = (val, min, max, step, on) => {
+  const i = document.createElement('input');
+  i.type = 'number'; i.min = min; i.max = max; i.step = step; i.value = val;
+  i.oninput = () => { const v = +i.value; if (Number.isFinite(v)) on(Math.min(max, Math.max(min, v))); };
+  return i;
+};
+function refreshAuthor() {
+  if (!isEdit) return;
+  const list = $('srcList');
+  list.innerHTML = '';
+  scene.sources.forEach((s, idx) => {
+    const box = document.createElement('div'); box.className = 'src';
+    const head = document.createElement('div'); head.className = 'row';
+    head.innerHTML = `<b>Source ${idx + 1}</b>`;
+    const flip = document.createElement('button'); flip.textContent = 'Mirror ↔';
+    flip.onclick = () => { setAngle(s, 180 - s.angle); sceneChanged(); refreshAuthor(); };
+    const del = document.createElement('button'); del.textContent = 'Delete';
+    del.onclick = () => { scene.sources.splice(idx, 1); if (selected === s) selected = null; sceneChanged(); refreshAuthor(); };
+    head.append(flip, del);
+    const r1 = document.createElement('div'); r1.className = 'row';
+    for (const [label, key, lo, hi, st] of [['rate', 'rate', 50, 4000, 50], ['width', 'width', 1, 40, 1], ['speed', 'speed', 0, 80, 1], ['angle', 'angle', 0, 360, 5]]) {
+      const l = document.createElement('label'); l.append(label);
+      l.append(numInput(s[key], lo, hi, st, v => { if (key === 'angle') setAngle(s, v); else s[key] = v; sceneChanged(); }));
+      r1.append(l);
+    }
+    box.append(head, r1); list.append(box);
+  });
+  if (!scene.sources.length) list.innerHTML = '<div class="row">No authored sources. Place one with the source tool, then Promote.</div>';
+  $('ckBasin').checked = scene.flow.basin;
+  $('slDX').value = scene.flow.drainX; $('slDW').value = scene.flow.drainW;
+  $('slDX').disabled = $('slDW').disabled = !scene.flow.basin;
+  $('numBudget').value = scene.flow.budget;
+  $('btnDebug').classList.toggle('on', debug);
+}
+
+function setFlow(prop, val) {
+  scene.flow[prop] = val; rockDirty = true; maskFrames = 12; sceneChanged(); refreshAuthor();
+  if (prop === 'budget') allocParticles(effBudget());
+  pokeOverlay();
+}
+
+function exportScene() {
+  scene.version += 1;
+  saveVisitor();
+  const blob = new Blob([JSON.stringify(scene, null, 2) + '\n'], { type: 'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob); a.download = 'etch-a-wet-scene.json';
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  loadedJSON = JSON.stringify(scene);
+  sceneChanged();
+  setStatus('Exported version ' + scene.version + '. Commit it as assets/etch-a-wet-scene.json.');
+}
+function importScene(file) {
+  const rd = new FileReader();
+  rd.onload = () => {
+    let o = null;
+    try { o = cleanScene(JSON.parse(rd.result)); } catch (err) {}
+    if (!o) { setStatus('That file is not an Etch-a-Wet scene.'); return; }
+    scene = o; loadVisitor(); undoStack.length = 0; selected = null;
+    rebuildSolid(); applyGooMode(); allocParticles(effBudget());
+    sceneChanged(); refreshAuthor(); updateUndoBtn();
+    setStatus('Imported scene version ' + scene.version + '.');
+  };
+  rd.readAsText(file);
+}
+function promoteVisitor() {
+  if (layerEmpty()) { setStatus('The visitor layer is empty.'); return; }
+  scene.strokes = authoredEff().map(e => e.s).concat(visitor.strokes);   // moved or deleted authored strokes keep their place
+  scene.sources = scene.sources.filter((_, i) => !visitor.hidden.includes(i)).concat(visitor.sources);   // moved or removed sources replace their originals
+  visitor = emptyLayer();
+  undoStack.length = 0; selected = null;
+  layerChanged(); sceneChanged(); refreshAuthor(); updateUndoBtn();
+  setStatus('Visitor layer promoted into the authored scene.');
+}
+
+$('btnScroll').hidden = !coarse;
+if (isEdit) {
+  $('author').classList.add('show');
+  $('ckBasin').onchange = () => setFlow('basin', $('ckBasin').checked);
+  $('slDX').oninput = () => setFlow('drainX', +$('slDX').value);
+  $('slDW').oninput = () => setFlow('drainW', +$('slDW').value);
+  $('numBudget').oninput = () => { const v = +$('numBudget').value; if (v >= 500 && v <= 40000) setFlow('budget', Math.round(v)); };
+  $('btnDebug').onclick = e => { debug = !debug; refreshAuthor(); pokeOverlay(); e.currentTarget.blur(); };
+  $('btnFull').onclick = e => { toggleFullscreen(); e.currentTarget.blur(); };
+  $('btnExport').onclick = exportScene;
+  $('btnImport').onclick = () => $('fileImport').click();
+  $('fileImport').onchange = e => { if (e.target.files[0]) importScene(e.target.files[0]); e.target.value = ''; };
+  $('btnPromote').onclick = promoteVisitor;
+  $('btnClearVisitor').onclick = () => { resetVisitor(); wake(); };
+}
+
+// ------------------------------------------------------------------ boot
+async function boot() {
+  let file = null;
+  try {
+    const res = await fetch(SCENE_URL, { cache: 'no-cache' });
+    if (res.ok) file = cleanScene(await res.json());
+  } catch (e) {}
+  if (file) scene = file;                       // else the built-in fallback stays
+  baseVersion = scene.version;
+  loadedJSON = JSON.stringify(scene);
+  if (isEdit) {
+    const d = lsGet(DRAFT_KEY);
+    const ds = d && d.base === baseVersion ? cleanScene(d.scene) : null;
+    if (ds) scene = ds;
+  }
+  loadVisitor();
+  if (isEdit && Object.keys(visitor.edits).length) {   // author sessions work on the authored list directly, so fold visitor moves in first
+    scene.strokes = authoredEff().map(e => e.s); visitor.edits = {}; saveVisitor();
+  }
+  resize();
+  ready = true;
+  refreshAuthor(); updateUndoBtn(); sceneChanged();
+  showUI();
+  if (reduceMotion) {
+    for (let i = 0; i < 120; i++) step(1 / 60);       // fill the scene, then hold the last frame
+    drawScene(); drawOverlay();
+  } else wake();
+}
+boot();
+})();
+</script>
+</body>
+</html>
