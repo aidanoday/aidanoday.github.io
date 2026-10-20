@@ -151,6 +151,13 @@ const PROJECT_DATA = {
     subtitle: "Build: Timezone visualizer for helping remote teams visualize and coordinate across disparate timezones.",
     desc: "Summer 2026 - One morning when I was trying to reschedule a call with teammembers in Hong Kong and Bengaluru, I struggled to track and articulate the meeting time in a way that made sense to everyone.  I built this app to easily map and articulate temporal relationships between distant timezones.  I built this app using Claude Code. "
   },
+  "etch-a-wet": {
+    title: "Etch-a-Wet",
+    image: "assets/etch-a-wet_cover.svg",
+    link: "etch-a-wet.html",
+    subtitle: "Build: Draw rock and watch the water find its way around it.",
+    desc: "Fall 2026 - An interactive particle-water toy. Draw ledges, drop in waterfall sources and watch them pour, pool and drain. I built this app using Claude Code."
+  },
   "rack-tracker": {
     title: "Rack Tracker",
     image: "assets/oysters_cover.png",
