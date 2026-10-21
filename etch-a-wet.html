@@ -581,20 +581,20 @@ let dens, pres, cvx, cvy, csp; // per-cell density, pressure, summed velocity, s
 const accs = new WeakMap();    // per-source emission accumulator
 // Tunable in the author panel (?edit) under "Physics"; the values stick in this browser until Reset.
 const PHYS_DEFAULTS = {
-  G: 195,            // gravity, cells / s^2
-  DRAG: 0.15,        // air drag; terminal speed is G / DRAG
-  FRICTION: 1,       // tangential velocity kept after a contact
+  G: 100,            // gravity, cells / s^2
+  DRAG: 1.05,        // air drag; terminal speed is G / DRAG
+  FRICTION: 0.99,       // tangential velocity kept after a contact
   SPREAD: 0.4,       // share of impact speed turned into motion along the surface
-  STREAM_SPEED: 40,  // a cell must move together at least this fast to count as a stream
-  K_LATERAL: 1.7,    // horizontal pressure boost: water spreads sideways before it piles
-  REST_DENSITY: 3.5, // particles per cell before pressure pushes back
+  STREAM_SPEED: 100,  // a cell must move together at least this fast to count as a stream
+  K_LATERAL: 1.4,    // horizontal pressure boost: water spreads sideways before it piles
+  REST_DENSITY: 2, // particles per cell before pressure pushes back
   MAX_P: 200,        // pressure cap; with K this sets the deepest pool that stays supported
-  K_PRESSURE: 360,   // stiffness: a pool's floor density rises by G / K_PRESSURE per cell of depth
-  MAX_PDV: 300,      // largest velocity change pressure may apply per frame (stability)
+  K_PRESSURE: 250,   // stiffness: a pool's floor density rises by G / K_PRESSURE per cell of depth
+  MAX_PDV: 90,      // largest velocity change pressure may apply per frame (stability)
   VISC: 5,           // relaxation toward the cell's mean velocity; higher = calmer, thicker-looking pools
   LEVEL: 600,        // pooled water drifts into emptier neighbouring cells at this acceleration (cells/s^2); 0 = off
   SMOOTH: 1,         // 1 = particles collide with a smooth distance field of the strokes, 0 = the old cell grid
-  FLOW_KEEP: 0.7,    // 0..1: how much of the sideways pressure that opposes a cell's own flow is cancelled, so inflowing water keeps going
+  FLOW_KEEP: 0.5,    // 0..1: how much of the sideways pressure that opposes a cell's own flow is cancelled, so inflowing water keeps going
 };
 const PHYS_RANGES = { G: [10, 400, 5], DRAG: [0, 4, 0.05], FRICTION: [0.7, 1, 0.01], SPREAD: [0, 1.5, 0.05], STREAM_SPEED: [5, 120, 1],
   K_LATERAL: [0.2, 4, 0.1], REST_DENSITY: [1, 16, 0.5], MAX_P: [2, 200, 1], K_PRESSURE: [20, 2000, 10], MAX_PDV: [5, 300, 5], VISC: [0, 40, 0.5], LEVEL: [0, 600, 10], FLOW_KEEP: [0, 1, 0.05], SMOOTH: [0, 1, 1] };
