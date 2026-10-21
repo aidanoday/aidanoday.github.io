@@ -27,10 +27,20 @@
            font-size: 13px; line-height: 1.5; transition: opacity .3s; }
   body.hideui #toolbar, body.hideui #status { opacity: 0; pointer-events: none; }
 
-  #toolbar { left: 50%; bottom: 16px; transform: translateX(-50%); display: flex; align-items: center; gap: 4px; padding: 6px 8px; border-radius: 999px; max-width: calc(100vw - 16px); box-sizing: border-box; }
+  #toolbar { left: 50%; bottom: 16px; transform: translateX(-50%); width: max-content; display: flex; align-items: center; gap: 4px; padding: 6px 8px; border-radius: 999px; max-width: calc(100vw - 16px); box-sizing: border-box; }
   #toolbar button { display: inline-flex; align-items: center; gap: 6px; font: 500 13px 'Roboto', sans-serif; color: var(--chrome); background: transparent; border: 0; border-radius: 999px; padding: 7px 11px; cursor: pointer; }
   #toolbar button, #toolbar input[type=range], #toolbar .sep { flex: none; }
   #toolbar [hidden] { display: none; }
+  /* a tool's own controls slide out from under its button when it is selected and tuck back under it when not */
+  .extras { display: grid; grid-template-columns: 0fr; opacity: 0; visibility: hidden; flex: none; align-items: center;
+            transition: grid-template-columns .28s cubic-bezier(.2,.8,.2,1), opacity .2s ease, visibility 0s .28s; }
+  .extras.open { grid-template-columns: 1fr; opacity: 1; visibility: visible; transition-delay: 0s; }
+  .extras .inner { display: flex; align-items: center; gap: 4px; min-width: 0; overflow: hidden; transform: translateX(-10px); transition: transform .28s cubic-bezier(.2,.8,.2,1); }
+  .extras.open .inner { transform: none; }
+  .extras.open.settled .inner { overflow: visible; }      /* once open, let the palette menu rise above the toolbar */
+  #toolbar.measure .extras, #toolbar.nomotion .extras, #toolbar.nomotion .extras .inner { transition: none !important; }
+  #toolbar.measure #drawExtras { grid-template-columns: 1fr; opacity: 1; visibility: visible; }
+  #toolbar.measure #drawExtras .inner { transform: none; overflow: visible; }
   .palette { position: relative; display: inline-flex; flex: none; }
   .swatch { display: inline-block; width: 14px; height: 14px; border-radius: 50%; background: var(--rock); border: 1.5px solid rgba(42,42,42,.5); box-sizing: border-box; flex: none; }
   .swatch.pass, .palette[data-pal="pass"] #palSwatch { background: #c9c9c3; }
@@ -53,6 +63,8 @@
   #toolbar.compact > button, #toolbar.compact .palette > button { padding: 8px; }
   #toolbar.compact > button span, #toolbar.compact .palette > button span { display: none; }
   #toolbar.compact input[type=range] { width: 56px; }
+  #toolbar > button, #toolbar > .extras { position: relative; }
+  #toolbar > button { z-index: 1; }                           /* buttons sit above the controls that slide out from under them */
   #toolbar.compact .sep { margin: 0 2px; }
 
   #status { left: 50%; bottom: 74px; transform: translateX(-50%); padding: 5px 12px; border-radius: 999px; white-space: pre-line; text-align: center; max-width: calc(100vw - 32px); box-sizing: border-box; opacity: 0; pointer-events: none; }
@@ -116,15 +128,20 @@
 
 <div id="toolbar" class="panel" data-water="solid">
   <button data-tool="brush" title="Draw (B)"><svg viewBox="0 0 24 24"><path d="M3 21l3.5-1L19 7.5 16.5 5 4 17.5z"/><path d="M14.5 7l2.5 2.5"/></svg><span>Draw</span></button>
-  <div id="palette" class="palette" hidden>
+  <div class="extras" id="drawExtras"><div class="inner">
+  <div id="palette" class="palette">
     <button id="btnPalette" title="Palette" aria-haspopup="true" aria-expanded="false"><i class="swatch" id="palSwatch"></i><span id="palLabel">Solid</span><svg class="caret" viewBox="0 0 24 24"><path d="M6 15l6-6 6 6"/></svg></button>
     <div id="paletteMenu" class="palette-menu" role="menu">
       <button role="menuitem" data-pal="solid" class="on"><i class="swatch solid"></i><span>Solid</span></button>
       <button role="menuitem" data-pal="pass"><i class="swatch pass"></i><span>Pass thru</span></button>
     </div>
   </div>
-  <input type="range" id="slSize" hidden min="2" max="40" step="1" title="Brush size ( [ and ] )" aria-label="Brush size">
+    <input type="range" id="slSizeDraw" min="2" max="40" step="1" title="Draw size ( [ and ] )" aria-label="Draw size">
+  </div></div>
   <button data-tool="eraser" title="Eraser (E)"><svg viewBox="0 0 24 24"><path d="M4 16l9-9 6 6-6 6H8z"/><path d="M9 11l6 6M12 20h8"/></svg><span>Eraser</span></button>
+  <div class="extras" id="eraseExtras"><div class="inner">
+    <input type="range" id="slSizeErase" min="2" max="40" step="1" title="Eraser size ( [ and ] )" aria-label="Eraser size">
+  </div></div>
   <button data-tool="select" class="on" title="Move strokes and sources (M)"><svg viewBox="0 0 24 24"><path d="M12 3v18M3 12h18M12 3l-3 3M12 3l3 3M12 21l-3-3M12 21l3-3M3 12l3-3M3 12l3 3M21 12l-3-3M21 12l-3 3"/></svg><span>Move</span></button>
   <button data-tool="hand" id="btnScroll" title="Scroll the page (touch)" hidden><svg viewBox="0 0 24 24"><path d="M9 11V5a1.5 1.5 0 0 1 3 0v5m0-1.5a1.5 1.5 0 0 1 3 0V11m0-1a1.5 1.5 0 0 1 3 0v5a6 6 0 0 1-6 6h-1a6 6 0 0 1-5-3l-2-3a1.5 1.5 0 0 1 2.4-1.8L9 15"/></svg><span>Scroll</span></button>
   <div class="sep"></div>
@@ -1003,7 +1020,8 @@ function solidBelow(ux, uy) {
 const isFree = s => solidBelow(s.x, s.y + 0.5 / gu()) < 0;
 
 let tool = 'select';        // visitors start in Move; Draw is one click (or B) away
-let brushR = 2;
+const sizes = { brush: 2, eraser: 2 };      // each tool keeps its own size (radius in units)
+const sizeKey = () => tool === 'eraser' ? 'eraser' : 'brush';
 let palette = 'solid';     // what Draw paints: 'solid' (collides) or 'pass' (decoration behind the rock)
 let mouseX = -1, mouseY = -1;
 let selected = null;
@@ -1086,7 +1104,7 @@ function drawOverlay() {
   if (handleAlpha > 0.02) { octx.globalAlpha = handleAlpha; drawHandles(); octx.globalAlpha = 1; }
   if ((tool === 'brush' || tool === 'eraser') && mouseX >= 0) {   // brush ring
     octx.strokeStyle = (tool === 'eraser' || shiftDown) ? '#c33' : '#222'; octx.lineWidth = 1.5; octx.setLineDash([4, 4]);
-    octx.beginPath(); octx.arc(mouseX, mouseY, toPx(brushR), 0, Math.PI * 2); octx.stroke(); octx.setLineDash([]);
+    octx.beginPath(); octx.arc(mouseX, mouseY, toPx(tool === 'eraser' || shiftDown ? sizes.eraser : sizes.brush), 0, Math.PI * 2); octx.stroke(); octx.setLineDash([]);
   }
 }
 
@@ -1127,10 +1145,14 @@ function pokeOverlay() { if (ready && !running) drawOverlay(); }
 
 // ------------------------------------------------------------------ layout
 // icons only as soon as the labelled toolbar no longer fits the window
+// Icon-only versus labelled depends on the window alone: measure the widest state (Draw's palette and size open),
+// whatever tool is actually selected, so picking a tool never makes the toolbar change form.
 function fitToolbar() {
   const tb = $('toolbar');
-  tb.classList.remove('compact');
-  if (tb.scrollWidth > tb.clientWidth) tb.classList.add('compact');
+  tb.classList.remove('compact'); tb.classList.add('nomotion', 'measure');
+  const tooWide = tb.scrollWidth > tb.clientWidth;
+  tb.classList.remove('measure'); void tb.offsetWidth; tb.classList.remove('nomotion');    // flush with motion off, so nothing animates back
+  tb.classList.toggle('compact', tooWide);
 }
 
 function resize() {
@@ -1206,7 +1228,7 @@ let shiftDown = false;
 let cur = null, lastPt = null, tail = null;   // stroke being drawn
 function beginStroke(e) {
   const erase = tool === 'eraser' || e.shiftKey || e.button === 2;
-  cur = { p: [], r: brushR, erase };
+  cur = { p: [], r: erase ? sizes.eraser : sizes.brush, erase };
   if (!erase && palette === 'pass') cur.kind = 'pass';
   addPoint(toUx(e.clientX), toUy(e.clientY));
 }
@@ -1559,10 +1581,7 @@ function setTool(t) {
   if (t !== 'select') { sel = []; sdrag = null; }
   for (const b of document.querySelectorAll('[data-tool]')) b.classList.toggle('on', b.dataset.tool === t);
   document.body.className = document.body.className.replace(/\btool-\w+/g, '').trim() + ' tool-' + t;
-  $('palette').hidden = t !== 'brush';
-  if (t !== 'brush') setPaletteOpen(false);
-  $('slSize').hidden = !(t === 'brush' || t === 'eraser');   // size only matters while drawing or erasing
-  fitToolbar();
+  openExtras('drawExtras', t === 'brush'); openExtras('eraseExtras', t === 'eraser');
   cur = null; drag = null; pokeOverlay();
 }
 
@@ -1595,7 +1614,7 @@ window.addEventListener('pointerup', pointerEnd);
 window.addEventListener('pointercancel', pointerEnd);
 overlay.addEventListener('pointerleave', () => { if (!cur && !drag) { mouseX = -1; pokeOverlay(); } });
 // plain scrolling moves through the page; Alt/Ctrl + wheel resizes the brush
-overlay.addEventListener('wheel', e => { if (e.altKey || e.ctrlKey) { setBrush(brushR - Math.sign(e.deltaY)); e.preventDefault(); } }, { passive: false });
+overlay.addEventListener('wheel', e => { if (e.altKey || e.ctrlKey) { setBrush(sizes[sizeKey()] - Math.sign(e.deltaY)); e.preventDefault(); } }, { passive: false });
 window.addEventListener('scroll', () => {
   SY = window.scrollY; OY = OY0 - SY; rockDirty = true;
   if (!running) { drawScene(); drawOverlay(); }
@@ -1633,10 +1652,21 @@ function setPalette(p) {
 $('btnPalette').onclick = e => { setPaletteOpen(!palEl.classList.contains('open')); e.currentTarget.blur(); };
 for (const b of palEl.querySelectorAll('[data-pal]')) b.onclick = e => { setPalette(b.dataset.pal); e.currentTarget.blur(); wake(); };
 window.addEventListener('pointerdown', e => { if (!palEl.contains(e.target)) setPaletteOpen(false); }, true);
-const slSize = $('slSize');
-function setBrush(r) { brushR = Math.min(40, Math.max(2, Math.round(r))); slSize.value = brushR; pokeOverlay(); }
-slSize.oninput = () => { setBrush(+slSize.value); showUI(); };
-setBrush(brushR);
+const slDraw = $('slSizeDraw'), slErase = $('slSizeErase');
+function setBrush(r, which = sizeKey()) {
+  sizes[which] = Math.min(40, Math.max(2, Math.round(r)));
+  slDraw.value = sizes.brush; slErase.value = sizes.eraser; pokeOverlay();
+}
+slDraw.oninput = () => { setBrush(+slDraw.value, 'brush'); showUI(); };
+slErase.oninput = () => { setBrush(+slErase.value, 'eraser'); showUI(); };
+setBrush(sizes.brush, 'brush'); setBrush(sizes.eraser, 'eraser');
+// open a tool's controls (they slide out from under its button); 'settled' lets the palette menu escape the clip afterwards
+const settleTimers = {};
+function openExtras(id, on) {
+  const el = $(id); clearTimeout(settleTimers[id]);
+  el.classList.toggle('open', on);
+  if (on) settleTimers[id] = setTimeout(() => el.classList.add('settled'), 300); else { el.classList.remove('settled'); if (id === 'drawExtras') setPaletteOpen(false); }
+}
 
 function updateUndoBtn() { $('btnUndo').disabled = !undoStack.length; }
 
@@ -1694,8 +1724,8 @@ window.addEventListener('keydown', e => {
     case 'b': setTool('brush'); break;
     case 'e': setTool('eraser'); break;
     case 's': setTool('source'); break;
-    case '[': setBrush(brushR - 2); break;
-    case ']': setBrush(brushR + 2); break;
+    case '[': setBrush(sizes[sizeKey()] - 2); break;
+    case ']': setBrush(sizes[sizeKey()] + 2); break;
     case 'h': toggleHelp(); break;
     case 'backspace': case 'delete': {
       if (tool === 'select' && deleteSelectedStroke()) { e.preventDefault(); break; }
