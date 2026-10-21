@@ -153,10 +153,10 @@ const PROJECT_DATA = {
   },
   "etch-a-wet": {
     title: "Etch-a-Wet",
-    image: "assets/etch-a-wet_cover.svg",
+    image: "assets/etch-a-wet_cover.png",
     link: "etch-a-wet.html",
-    subtitle: "Build: Draw rock and watch the water find its way around it.",
-    desc: "Fall 2026 - An interactive particle-water toy. Draw ledges, drop in waterfall sources and watch them pour, pool and drain. I built this app using Claude Code."
+    subtitle: "Build: Draw with ink and watch the water find its way around your lines.",
+    desc: "Fall 2026 - An interactive pen-and-ink water toy. Draw lines, drop in waterfall sources and watch the water pour, pool and drain around your drawing. I built this app using Claude Code."
   },
   "rack-tracker": {
     title: "Rack Tracker",

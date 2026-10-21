@@ -115,7 +115,7 @@
 <div id="status" class="panel"></div>
 
 <div id="toolbar" class="panel" data-water="solid">
-  <button data-tool="brush" title="Draw rock (B)"><svg viewBox="0 0 24 24"><path d="M3 21l3.5-1L19 7.5 16.5 5 4 17.5z"/><path d="M14.5 7l2.5 2.5"/></svg><span>Draw</span></button>
+  <button data-tool="brush" title="Draw (B)"><svg viewBox="0 0 24 24"><path d="M3 21l3.5-1L19 7.5 16.5 5 4 17.5z"/><path d="M14.5 7l2.5 2.5"/></svg><span>Draw</span></button>
   <div id="palette" class="palette" hidden>
     <button id="btnPalette" title="Palette" aria-haspopup="true" aria-expanded="false"><i class="swatch" id="palSwatch"></i><span id="palLabel">Solid</span><svg class="caret" viewBox="0 0 24 24"><path d="M6 15l6-6 6 6"/></svg></button>
     <div id="paletteMenu" class="palette-menu" role="menu">
@@ -447,7 +447,7 @@ function rasterStrokes(strokes, buf) {
   }
 }
 
-// DOM elements marked data-water="solid" act as terrain (switched off until phase 3)
+// DOM elements marked data-water="solid" act as terrain (on by default; ?nodom switches it off)
 function rasterDom(buf) {
   for (const el of document.querySelectorAll('[data-water="solid"]')) {
     if (getComputedStyle(el).pointerEvents === 'none') continue;   // hidden UI stops being terrain
@@ -510,7 +510,7 @@ function setDomProvider(on) {
   }
   solidDirty = true;
 }
-if (params.has('dom')) setDomProvider(true);
+if (!params.has('nodom')) setDomProvider(true);
 
 // ------------------------------------------------------------------ mask
 function drainRange() {
@@ -1060,15 +1060,19 @@ function drawGuides() {
   octx.setLineDash([]);
 }
 
-let waterDim = false;
+let waterDim = false, uiFade = 1;
 function drawOverlay() {
   octx.clearRect(0, 0, W, H);
+  // the source handles are UI: they fade away with the toolbar when the pointer has been still for a few seconds
+  const fadeTo = document.body.classList.contains('hideui') ? 0 : 1;
+  uiFade = running ? (Math.abs(fadeTo - uiFade) < 0.01 ? fadeTo : uiFade + (fadeTo - uiFade) * 0.18) : fadeTo;
   const dbg = debug && isEdit;
   if (dbg !== waterDim) { waterEl.style.opacity = dbg ? '0.2' : ''; waterDim = dbg; }   // fade the real water so the speed colours show
   if (dbg) drawDebug();
   drawGuides();
   drawSelection();
-  drawHandles();
+  const handleAlpha = isEdit ? 1 : uiFade;        // author mode keeps them visible
+  if (handleAlpha > 0.02) { octx.globalAlpha = handleAlpha; drawHandles(); octx.globalAlpha = 1; }
   if ((tool === 'brush' || tool === 'eraser') && mouseX >= 0) {   // brush ring
     octx.strokeStyle = (tool === 'eraser' || shiftDown) ? '#c33' : '#222'; octx.lineWidth = 1.5; octx.setLineDash([4, 4]);
     octx.beginPath(); octx.arc(mouseX, mouseY, toPx(brushR), 0, Math.PI * 2); octx.stroke(); octx.setLineDash([]);
@@ -1254,7 +1258,7 @@ function sourceDown(e) {
   selected = s;
   if (isEdit) sceneChanged(); else saveVisitor();
   refreshAuthor();
-  setStatus(isFree(s) ? 'Placed a free-floating spring. Drop sources on rock to pour over a lip.' : 'Waterfall added. Drag it along the ledge.');
+  setStatus(isFree(s) ? 'Placed a free-floating spring. Drop sources on a line to pour over its edge.' : 'Waterfall added. Drag it along the line.');
 }
 function deleteSource(o) {
   pushUndo();
@@ -1654,9 +1658,9 @@ function toggleHelp() {
     el.innerHTML = '<div><b>Etch-a-Wet</b></div>' +
       '<div><kbd>B</kbd> draw · <kbd>E</kbd> eraser · <kbd>M</kbd> move · <kbd>S</kbd> add a source · <kbd>[</kbd> <kbd>]</kbd> brush size</div>' +
       '<div><kbd>Ctrl</kbd>/<kbd>Cmd</kbd>+<kbd>Z</kbd> undo · <kbd>H</kbd> this help</div>' +
-      '<div>Draw rock and the water finds its way over it. <kbd>Shift</kbd>-drag or right-drag erases. <kbd>Alt</kbd> + scroll resizes the brush; scroll to move down the page.</div>' +
-      '<div>Move: drag rock you drew (touching strokes and sources on them move together; <kbd>Alt</kbd>-drag duplicates, <kbd>Ctrl</kbd>/<kbd>Cmd</kbd>-click moves one stroke). Click a source to select it, then drag the dot to aim it. <kbd>Backspace</kbd> deletes the selection.</div>' +
-      '<div>Add a source: press <kbd>S</kbd>, then tap rock.</div>' +
+      '<div>Draw lines and the water finds its way over them. <kbd>Shift</kbd>-drag or right-drag erases. <kbd>Alt</kbd> + scroll resizes the brush; scroll to move down the page.</div>' +
+      '<div>Move: drag lines you drew (touching strokes and sources on them move together; <kbd>Alt</kbd>-drag duplicates, <kbd>Ctrl</kbd>/<kbd>Cmd</kbd>-click moves one stroke). Click a source to select it, then drag the dot to aim it. <kbd>Backspace</kbd> deletes the selection.</div>' +
+      '<div>Add a source: press <kbd>S</kbd>, then tap a line.</div>' +
       (isEdit ? '<div><b>Author</b> <kbd>A</kbd> panel · <kbd>D</kbd> debug · <kbd>F</kbd> fullscreen · <kbd>V</kbd> hand (page scrolls) \u00B7 <kbd>Shift</kbd>-click in Move prefers erase strokes</div>' : '');
   }
   el.classList.toggle('show');
