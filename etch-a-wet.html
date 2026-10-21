@@ -1089,7 +1089,7 @@ function drawGuides() {
   octx.setLineDash([]);
 }
 
-let waterDim = false, uiFade = 1;
+let waterDim = false, uiFade = 0;     // starts hidden, like the toolbar
 function drawOverlay() {
   octx.clearRect(0, 0, W, H);
   // the source handles are UI: they fade away with the toolbar when the pointer has been still for a few seconds
@@ -1710,6 +1710,7 @@ function toggleFullscreen() { if (document.fullscreenElement) document.exitFulls
 
 window.addEventListener('keydown', e => {
   if (modalOpen()) { if (e.key === 'Escape') showModal(false); return; }   // the dialog owns the keyboard while it is up
+  showUI();                                                                // any key press brings the UI back
   const tag = e.target.tagName;
   if (tag === 'INPUT' && e.target.type !== 'range' && e.target.type !== 'checkbox') return;
   // a focused control (select, slider, button) keeps keyboard focus after a
@@ -1879,7 +1880,7 @@ async function boot() {
   resize();
   ready = true;
   refreshAuthor(); updateUndoBtn(); sceneChanged();
-  showUI();
+  // the UI starts hidden (see <body>); it appears when a visitor moves, taps or presses a key
   if (reduceMotion) {
     for (let i = 0; i < 120; i++) step(1 / 60);       // fill the scene, then hold the last frame
     drawScene(); drawOverlay();
