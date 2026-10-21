@@ -59,6 +59,16 @@
   #status.show { opacity: 1; }
   body.hideui #status.show { opacity: 1; }
 
+  #modalBack { position: fixed; inset: 0; z-index: 9; background: rgba(42,42,42,.35); display: none; align-items: center; justify-content: center; padding: 16px; }
+  #modalBack.show { display: flex; }
+  #modal { background: var(--paper); color: var(--chrome); border-radius: 14px; box-shadow: 0 12px 40px rgba(0,0,0,.25); padding: 20px 22px; max-width: 360px; width: 100%; box-sizing: border-box; font-size: 14px; line-height: 1.5; }
+  #modal h2 { margin: 0 0 6px; font-size: 17px; font-weight: 700; }
+  #modal p { margin: 0 0 16px; }
+  #modal .actions { display: flex; justify-content: flex-end; gap: 8px; }
+  #modal button { font: 500 14px 'Roboto', sans-serif; padding: 8px 14px; border-radius: 999px; border: 1px solid rgba(42,42,42,.35); background: var(--paper); color: var(--chrome); cursor: pointer; }
+  #modal button:hover { background: rgba(42,42,42,.08); }
+  #modal button.danger { background: #2a2a2a; border-color: #2a2a2a; color: #fffef8; }
+  #modal button.danger:hover { background: #000; }
   #help { right: 12px; top: 12px; max-width: 340px; padding: 10px 14px; border-radius: 10px; display: none; }
   #help.show { display: block; }
   #help b { color: #000; }
@@ -79,6 +89,9 @@
   #author button.on { background: var(--accent); border-color: var(--accent); }
   #author .src { border: 1px solid rgba(42,42,42,.18); border-radius: 8px; padding: 4px 8px; margin: 6px 0; }
   #author .src b { font-weight: 500; }
+  #author .phys { display: grid; grid-template-columns: 92px 1fr 48px; align-items: center; gap: 6px; margin: 2px 0; font-size: 12px; }
+  #author .phys input[type=range] { width: 100%; min-width: 0; }
+  #author .phys span { text-align: right; font-variant-numeric: tabular-nums; }
   #author hr { border: 0; border-top: 1px solid rgba(42,42,42,.15); margin: 8px 0; }
 </style>
 </head>
@@ -117,10 +130,22 @@
   <div class="sep"></div>
   <button id="btnUndo" title="Undo (Ctrl/Cmd+Z)"><svg viewBox="0 0 24 24"><path d="M9 14L4 9l5-5"/><path d="M4 9h10a6 6 0 0 1 0 12h-3"/></svg><span>Undo</span></button>
   <button id="btnClear" title="Clear all drawings"><svg viewBox="0 0 24 24"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13M10 11v6M14 11v6"/></svg><span>Clear all</span></button>
+  <button id="btnCache" title="Clear cache: forget everything saved in this browser"><svg viewBox="0 0 24 24"><ellipse cx="12" cy="5.5" rx="7" ry="2.5"/><path d="M5 5.5v13c0 1.4 3.1 2.5 7 2.5s7-1.1 7-2.5v-13M5 12c0 1.4 3.1 2.5 7 2.5s7-1.1 7-2.5"/></svg><span>Clear cache</span></button>
   <button id="btnHelp" title="Help (H)"><svg viewBox="0 0 24 24"><path d="M9.5 9a2.5 2.5 0 1 1 3.5 2.3c-.8.4-1 1-1 1.7"/><path d="M12 17.5v.01"/></svg><span>Help</span></button>
 </div>
 
 <div id="help" class="panel"></div>
+
+<div id="modalBack" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+  <div id="modal">
+    <h2 id="modalTitle">Clear cache?</h2>
+    <p>This will reset your edits, and they can't be recovered.</p>
+    <div class="actions">
+      <button id="modalCancel">Cancel</button>
+      <button id="modalOk" class="danger">Clear Cache</button>
+    </div>
+  </div>
+</div>
 
 <div id="author" class="panel">
   <h3>Author <span id="draftBadge">draft</span></h3>
@@ -135,6 +160,9 @@
   <div class="row"><label style="flex:1">Drain pos <input type="range" id="slDX" min="0.02" max="0.98" step="0.01"></label></div>
   <div class="row"><label style="flex:1">Drain size <input type="range" id="slDW" min="0" max="0.5" step="0.01"></label></div>
   <div class="row"><label>Budget <input type="number" id="numBudget" min="500" max="40000" step="500"></label></div>
+  <hr>
+  <div class="row"><b>Physics</b> <button id="btnPhysReset">Reset</button> <button id="btnPhysCopy">Copy values</button></div>
+  <div id="physList"></div>
   <hr>
   <div class="row">
     <button id="btnExport">Export scene</button>
@@ -174,7 +202,7 @@ const isEdit = params.has('edit');
 const coarse = !!(window.matchMedia && matchMedia('(pointer: coarse)').matches);   // touch screens scroll with a Hand tool
 const reduceMotion = !!(window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches);
 const isPhone = window.innerWidth < 700;
-const lowEnd = (navigator.hardwareConcurrency || 8) <= 4 || isPhone;
+const lowEnd = (navigator.hardwareConcurrency || 8) <= 4 || isPhone || coarse;
 
 const ROCK = 'rgb(42,42,42)';
 const PASS = 'rgb(201,201,195)';      // lighter gray: lines that don't interact with the water
@@ -255,6 +283,7 @@ let visitor = emptyLayer();
 const layerEmpty = () => !visitor.strokes.length && !visitor.sources.length && !visitor.hidden.length && !Object.keys(visitor.edits).length;
 const visitorKey = () => VISITOR_PREFIX + scene.version;
 function saveVisitor() {
+  if (isEdit) return;                    // author mode edits the scene itself; the stored visitor layer is left alone
   if (layerEmpty()) { lsDel(visitorKey()); return; }
   const r2 = n => Math.round(n * 100) / 100;
   const pack = s => Object.assign({ p: s.p.map(q => [r2(q[0]), r2(q[1])]), r: s.r, erase: s.erase }, s.kind ? { kind: s.kind } : {}, s.g ? { g: s.g } : {});
@@ -265,7 +294,7 @@ function saveVisitor() {
   });
 }
 function loadVisitor() {
-  visitor = cleanLayer(lsGet(visitorKey()));
+  visitor = isEdit ? emptyLayer() : cleanLayer(lsGet(visitorKey()));   // in author mode what you see is the scene, nothing else
   for (const [k, e] of Object.entries(visitor.edits)) if (e && !e.g && scene.strokes[k] && scene.strokes[k].g) e.g = scene.strokes[k].g;   // a moved copy keeps its original's group
   assignGroups(scene.strokes.concat(visitor.strokes).filter(st => !st.erase));
 }
@@ -312,23 +341,26 @@ function removeEntry(o) {
   else if (isEdit) { const i = scene.strokes.indexOf(o.s); if (i >= 0) scene.strokes.splice(i, 1); }
   else visitor.edits[o.idx] = null;
 }
-function beginSourceEdit(o) { if (o.owner === 'visitor' || !isEdit) pushUndo(); adoptSource(o); }
+function beginSourceEdit(o) { pushUndo(); adoptSource(o); }
 
 // ------------------------------------------------------------------ geometry and grid allocation
 // The simulation runs on a coarse grid. MW cells across (fewer on phones), MH
 // follows the window aspect so cells are roughly square.
 // The world is drawn at half scale (WORLD) on a grid twice as fine, so cells, droplets and strokes are half size on screen.
 const WORLD = 0.5;      // the scene is scaled about the window centre, so it stays centred as the window changes size
-let MW = isPhone ? 240 : 320;
+// The drawing never grows past the size it has in a WMAX-wide window; a wider window just adds canvas around it.
+// The grid keeps a fixed cell size (WR px across MW0 cells), so a wider window means more cells, not bigger ones.
+const WMAX = 840, MW0 = isPhone ? 240 : 320;
+let MW = MW0, WR = WMAX;                   // WR: the window width the drawing is scaled to, min(W, WMAX)
 let MH = 90;
 let W = 0, H = 0, dpr = 1;
 
 let solidSrc, domMask, raw, ema, field, solid, nrmX, nrmY, maskImg, maskCanvas, maskCtx;
 let solidDirty = true, rockDirty = true;
 
-const gu = () => MW / scene.grid.w * WORLD;            // units -> cells
-const toUnitsX = px => px / W * scene.grid.w / WORLD;  // pixels -> units (same scale on both axes)
-const toPx = u => u / scene.grid.w * W * WORLD;       // a length in units -> pixels
+const gu = () => MW0 / scene.grid.w * WORLD;           // units -> cells (constant: cells have a fixed size)
+const toUnitsX = px => px / WR * scene.grid.w / WORLD; // pixels -> units (same scale on both axes)
+const toPx = u => u / scene.grid.w * WR * WORLD;      // a length in units -> pixels
 let OX = 0, OY = 0, CX = 0, CY = 0;
 let HW = 0, SY = 0, OY0 = 0;                          // world height (px), scroll offset, and the scene's top offset before scrolling                    // world origin offsets, in pixels (OX, OY) and cells (CX, CY)
 const toUx = px => toUnitsX(px - OX), toUy = py => toUnitsX(py - OY);   // pointer position -> units
@@ -357,12 +389,61 @@ function paintSeg(buf, a, b, ru, erase) {
   }
 }
 
+// ---- smooth collision: a signed distance field (in cells) of the solid strokes. Each cell holds the distance from
+// its centre to the nearest stroke edge (negative inside), built from the vector strokes themselves, so slopes and
+// curves have no cell-sized steps and the surface direction (its gradient) is exact. Erase strokes subtract.
+const SDF_CLAMP = 6, PAD = 0.55;      // PAD: how far (cells) a particle's centre rests off the surface
+let sdf;
+function sdfAt(fx, fy) {
+  let u = fx - 0.5, v = fy - 0.5, i0 = Math.floor(u), j0 = Math.floor(v), tu = u - i0, tv = v - j0;
+  if (i0 < 0) { i0 = 0; tu = 0; } else if (i0 > MW - 2) { i0 = MW - 2; tu = 1; }
+  if (j0 < 0) { j0 = 0; tv = 0; } else if (j0 > MH - 2) { j0 = MH - 2; tv = 1; }
+  const k = j0 * MW + i0;
+  return (sdf[k] * (1 - tu) + sdf[k + 1] * tu) * (1 - tv) + (sdf[k + MW] * (1 - tu) + sdf[k + MW + 1] * tu) * tv;
+}
+function stampSeg(a, b, ru, erase) {
+  const g = gu(), r = ru * g;
+  const ax = a[0] * g + CX, ay = a[1] * g + CY, bx = b[0] * g + CX, by = b[1] * g + CY, m = r + SDF_CLAMP;
+  const i0 = Math.max(0, Math.floor(Math.min(ax, bx) - m)), i1 = Math.min(MW - 1, Math.ceil(Math.max(ax, bx) + m));
+  const j0 = Math.max(0, Math.floor(Math.min(ay, by) - m)), j1 = Math.min(MH - 1, Math.ceil(Math.max(ay, by) + m));
+  const dx = bx - ax, dy = by - ay, l2 = dx * dx + dy * dy;
+  for (let j = j0; j <= j1; j++) for (let i = i0; i <= i1; i++) {
+    const px = i + 0.5, py = j + 0.5;
+    const t = l2 ? Math.min(1, Math.max(0, ((px - ax) * dx + (py - ay) * dy) / l2)) : 0;
+    const d = Math.hypot(px - ax - t * dx, py - ay - t * dy), k = j * MW + i;
+    if (erase) { const e = r - d; if (e > sdf[k]) sdf[k] = e; }
+    else { const e = d - r; if (e < sdf[k]) sdf[k] = e; }
+  }
+}
+function stampStroke(st) {
+  const p = st.p;
+  if (p.length === 1) stampSeg(p[0], p[0], st.r, st.erase);
+  for (let i = 1; i < p.length; i++) stampSeg(p[i - 1], p[i], st.r, st.erase);
+}
+function stampBox(i0, j0, i1, j1) {            // axis-aligned box in cells
+  const mx = (i0 + i1) / 2, my = (j0 + j1) / 2, hw = (i1 - i0) / 2, hh = (j1 - j0) / 2;
+  const a = Math.max(0, Math.floor(i0 - SDF_CLAMP)), b = Math.min(MW - 1, Math.ceil(i1 + SDF_CLAMP));
+  const c = Math.max(0, Math.floor(j0 - SDF_CLAMP)), e = Math.min(MH - 1, Math.ceil(j1 + SDF_CLAMP));
+  for (let j = c; j <= e; j++) for (let i = a; i <= b; i++) {
+    const qx = Math.abs(i + 0.5 - mx) - hw, qy = Math.abs(j + 0.5 - my) - hh;
+    const d = Math.hypot(Math.max(qx, 0), Math.max(qy, 0)) + Math.min(Math.max(qx, qy), 0), k = j * MW + i;
+    if (d < sdf[k]) sdf[k] = d;
+  }
+}
+function stampBasin() {
+  if (!scene.flow.basin) return;
+  const [d0, d1] = drainRange();
+  stampBox(0, MH - 2, Math.max(0, d0), MH); stampBox(Math.min(MW, d1), MH - 2, MW, MH);
+  stampBox(0, 0, 1, MH - 2); stampBox(MW - 1, 0, MW, MH - 2);
+}
+
 function rasterStrokes(strokes, buf) {
   for (const st of strokes) {
     if (st.kind === 'pass') continue;           // pass lines never touch the water
     const p = st.p;
     if (p.length === 1) paintDisc(buf, p[0][0] * gu(), p[0][1] * gu(), st.r * gu(), st.erase);
     for (let i = 1; i < p.length; i++) paintSeg(buf, p[i - 1], p[i], st.r, st.erase);
+    stampStroke(st);
   }
 }
 
@@ -374,6 +455,7 @@ function rasterDom(buf) {
     const i0 = Math.max(0, Math.round(r.left / W * MW) + 1), i1 = Math.min(MW, Math.round(r.right / W * MW) - 1);
     const j0 = Math.max(0, Math.round((r.top + window.scrollY) * MW / W) + 1), j1 = Math.min(MH, Math.round((r.bottom + window.scrollY) * MW / W) - 1);
     for (let j = j0; j < j1; j++) for (let i = i0; i < i1; i++) { buf[j * MW + i] = 1; domMask[j * MW + i] = 1; }
+    if (i1 > i0 && j1 > j0) stampBox(i0, j0, i1, j1);
   }
 }
 
@@ -382,9 +464,38 @@ const providers = [
   { name: 'visitor',  enabled: true,  raster(buf) { rasterStrokes(visitor.strokes, buf); } },
   { name: 'dom',      enabled: false, raster(buf) { rasterDom(buf); } },
 ];
+// A line dragged or rotated faster than about a cell per frame jumps over the water between frames. Each move
+// records how far its strokes travelled, and the next rebuild paints the strokes at points along that path too,
+// so the mask covers the whole sweep and nothing slips through the gap.
+let sweeps = [];
+function addSweep(kind, a, b, c) {
+  const strokes = sel.map(o => o.s).filter(st => !st.erase && st.kind !== 'pass');
+  if (strokes.length) sweeps.push({ kind, strokes, a, b, c });
+}
+function rasterSweeps(buf) {
+  for (const w of sweeps) {
+    const dist = w.kind === 'move' ? Math.hypot(w.a, w.b) : Math.abs(w.c) * 40;          // units; a rotation of c radians sweeps ~40 units at the rim
+    const n = Math.min(14, Math.ceil(dist * gu() / 1.2));
+    for (let t = 1; t < n; t++) {
+      const f = t / n;
+      for (const st of w.strokes) {
+        let pts;
+        if (w.kind === 'move') pts = st.p.map(q => [q[0] - w.a * f, q[1] - w.b * f]);     // where it was f of the way back along the move
+        else {
+          const ang = -w.c * f, cs = Math.cos(ang), sn = Math.sin(ang);
+          pts = st.p.map(q => { const x = q[0] - w.a, y = q[1] - w.b; return [w.a + x * cs - y * sn, w.b + x * sn + y * cs]; });
+        }
+        rasterStrokes([{ p: pts, r: st.r, erase: false }], buf);
+      }
+    }
+  }
+  sweeps = [];
+}
 function rebuildSolid() {
-  solidSrc.fill(0); domMask.fill(0);
+  solidSrc.fill(0); domMask.fill(0); sdf.fill(SDF_CLAMP);
   for (const p of providers) if (p.enabled) p.raster(solidSrc);
+  rasterSweeps(solidSrc);
+  stampBasin();
   solidDirty = false; rockDirty = true; maskFrames = 12;
 }
 
@@ -417,8 +528,9 @@ function updateMask() {
   // 1. rock from the obstacle providers
   for (let i = 0; i < N; i++) raw[i] = solidSrc[i];
   // 2. temporal smoothing: softens the frame on which a stroke appears
-  const a = 0.45;
-  for (let i = 0; i < N; i++) ema[i] += (raw[i] - ema[i]) * a;
+  // New rock is solid at once (a fading-in edge let water slip through a line that was just moved onto it);
+  // only the old position fades out.
+  for (let i = 0; i < N; i++) ema[i] = raw[i] ? 1 : ema[i] * 0.55;
   // 3. 3x3 box blur -> continuous field; threshold low to dilate slightly;
   //    the field gradient gives us surface normals for free
   for (let j = 0; j < MH; j++) {
@@ -467,24 +579,43 @@ let P = null;
 let freeList, freeCount = 0;
 let dens, pres, cvx, cvy, csp; // per-cell density, pressure, summed velocity, summed speed
 const accs = new WeakMap();    // per-source emission accumulator
-const G = 100;                // gravity, cells / s^2
-const DRAG = 0.9;             // air drag; terminal speed is G / DRAG
-const FRICTION = 0.96;        // tangential velocity kept after a contact
-const SPREAD = 0.4;           // share of impact speed turned into motion along the surface
+// Tunable in the author panel (?edit) under "Physics"; the values stick in this browser until Reset.
+const PHYS_DEFAULTS = {
+  G: 195,            // gravity, cells / s^2
+  DRAG: 0.15,        // air drag; terminal speed is G / DRAG
+  FRICTION: 1,       // tangential velocity kept after a contact
+  SPREAD: 0.4,       // share of impact speed turned into motion along the surface
+  STREAM_SPEED: 40,  // a cell must move together at least this fast to count as a stream
+  K_LATERAL: 1.7,    // horizontal pressure boost: water spreads sideways before it piles
+  REST_DENSITY: 3.5, // particles per cell before pressure pushes back
+  MAX_P: 200,        // pressure cap; with K this sets the deepest pool that stays supported
+  K_PRESSURE: 360,   // stiffness: a pool's floor density rises by G / K_PRESSURE per cell of depth
+  MAX_PDV: 300,      // largest velocity change pressure may apply per frame (stability)
+  VISC: 5,           // relaxation toward the cell's mean velocity; higher = calmer, thicker-looking pools
+  LEVEL: 600,        // pooled water drifts into emptier neighbouring cells at this acceleration (cells/s^2); 0 = off
+  SMOOTH: 1,         // 1 = particles collide with a smooth distance field of the strokes, 0 = the old cell grid
+  FLOW_KEEP: 0.7,    // 0..1: how much of the sideways pressure that opposes a cell's own flow is cancelled, so inflowing water keeps going
+};
+const PHYS_RANGES = { G: [10, 400, 5], DRAG: [0, 4, 0.05], FRICTION: [0.7, 1, 0.01], SPREAD: [0, 1.5, 0.05], STREAM_SPEED: [5, 120, 1],
+  K_LATERAL: [0.2, 4, 0.1], REST_DENSITY: [1, 16, 0.5], MAX_P: [2, 200, 1], K_PRESSURE: [20, 2000, 10], MAX_PDV: [5, 300, 5], VISC: [0, 40, 0.5], LEVEL: [0, 600, 10], FLOW_KEEP: [0, 1, 0.05], SMOOTH: [0, 1, 1] };
+const PHYS_KEY = 'etchawet.physics';
+let { G, DRAG, FRICTION, SPREAD, STREAM_SPEED, K_LATERAL, REST_DENSITY, MAX_P, K_PRESSURE, MAX_PDV, VISC, LEVEL, FLOW_KEEP, SMOOTH } = Object.assign({}, PHYS_DEFAULTS, lsGet(PHYS_KEY) || {});
+const phys = () => ({ G, DRAG, FRICTION, SPREAD, STREAM_SPEED, K_LATERAL, REST_DENSITY, MAX_P, K_PRESSURE, MAX_PDV, VISC, LEVEL, FLOW_KEEP, SMOOTH });
+function setPhys(k, v) {
+  switch (k) {
+    case 'G': G = v; break; case 'DRAG': DRAG = v; break; case 'FRICTION': FRICTION = v; break; case 'SPREAD': SPREAD = v; break;
+    case 'STREAM_SPEED': STREAM_SPEED = v; break; case 'K_LATERAL': K_LATERAL = v; break; case 'REST_DENSITY': REST_DENSITY = v; break;
+    case 'MAX_P': MAX_P = v; break; case 'K_PRESSURE': K_PRESSURE = v; break; case 'MAX_PDV': MAX_PDV = v; break; case 'VISC': VISC = v; break; case 'LEVEL': LEVEL = v; break; case 'FLOW_KEEP': FLOW_KEEP = v; break; case 'SMOOTH': SMOOTH = v; break;
+  }
+  lsSet(PHYS_KEY, phys());
+}
 const SHOVE = 1.5;            // push from a surface
 const JITTER = 0.6;           // tiny splash randomness on contact
-const STREAM_SPEED = 40;      // a cell must move together at least this fast to count as a stream
-const K_LATERAL = 1.6;        // horizontal pressure boost: water spreads sideways before it piles
 const POOL_DENSITY = 4;       // a cell this crowded counts as a pool surface for sliding
-const REST_DENSITY = 6;       // particles per cell before pressure pushes back
 const WALL_P = 0.6;           // extra pressure a solid cell carries over its wettest neighbour
-const MAX_P = 30;             // pressure cap; with K this sets the deepest pool that stays supported
-const K_PRESSURE = 250;
-const MAX_PDV = 50;           // largest velocity change pressure may apply per frame (stability)
-const VISC = 12;              // higher = calmer pools
 const MAX_SPEED = 140;
 
-const effBudget = () => lowEnd ? Math.min(scene.flow.budget, 6000) : scene.flow.budget;
+const effBudget = () => lowEnd ? Math.min(scene.flow.budget, 4500) : scene.flow.budget;
 
 function allocParticles(n) {
   P = { n, x: new Float32Array(n), y: new Float32Array(n), px: new Float32Array(n), py: new Float32Array(n),
@@ -520,9 +651,10 @@ function kill(i) { P.active[i] = 0; freeList[freeCount++] = i; }
 // Particles only leave when they fall off the bottom or a side of the screen.
 // If the budget is fully in play (for example a basin has filled), the flow
 // pauses until some water exits; the basin drain keeps that from being permanent.
+let rateScale = 1;                          // phones that can't hold the frame rate emit less water (see frame())
 function emit(dt) {
   for (const o of allSources()) {
-    const acc = (accs.get(o.s) || 0) + o.s.rate * dt;
+    const acc = (accs.get(o.s) || 0) + o.s.rate * rateScale * dt;
     const want = Math.floor(acc);
     let k = Math.min(want, freeCount);
     while (k-- > 0) spawnFrom(freeList[--freeCount], o.s);
@@ -541,12 +673,22 @@ function sampleP(fx, fy) {
   return (pres[k] * (1 - tu) + pres[k + 1] * tu) * (1 - tv) + (pres[k + MW] * (1 - tu) + pres[k + MW + 1] * tu) * tv;
 }
 
+// Only the part of the grid that holds water is cleared and processed each frame (pbox: the last frame's
+// region). Outside it every field array is zero, so phones don't pay for a mostly empty tall world.
+let pbox = null;
+function clearBox(b) {
+  if (!b) return;
+  for (let j = b[2]; j <= b[3]; j++) {
+    const a = j * MW + b[0], e = j * MW + b[1] + 1;
+    dens.fill(0, a, e); cvx.fill(0, a, e); cvy.fill(0, a, e); csp.fill(0, a, e); pres.fill(0, a, e);
+  }
+}
 function updateParticles(dt) {
   emit(dt);
   const { n, x, y, px, py, vx, vy, active, inPool } = P;
-  const N = MW * MH;
   // 1. splat particles into the density / velocity grids
-  dens.fill(0); cvx.fill(0); cvy.fill(0); csp.fill(0);
+  clearBox(pbox);
+  let minI = MW, maxI = -1, minJ = MH, maxJ = -1;
   for (let i = 0; i < n; i++) {
     if (!active[i]) continue;
     const spd = Math.hypot(vx[i], vy[i]);
@@ -555,6 +697,7 @@ function updateParticles(dt) {
     let tu = u - i0, tv = v - j0;
     if (i0 < 0) { i0 = 0; tu = 0; } else if (i0 > MW - 2) { i0 = MW - 2; tu = 1; }
     if (j0 < 0) { j0 = 0; tv = 0; } else if (j0 > MH - 2) { j0 = MH - 2; tv = 1; }
+    if (i0 < minI) minI = i0; if (i0 > maxI) maxI = i0; if (j0 < minJ) minJ = j0; if (j0 > maxJ) maxJ = j0;
     const k = j0 * MW + i0;
     const w00 = (1 - tu) * (1 - tv), w10 = tu * (1 - tv), w01 = (1 - tu) * tv, w11 = tu * tv;
     dens[k] += w00; dens[k + 1] += w10; dens[k + MW] += w01; dens[k + MW + 1] += w11;
@@ -564,9 +707,13 @@ function updateParticles(dt) {
   }
   // 2. pressure. Solid cells mirror the highest pressure of the water beside
   //    them (plus a hair), so a barrier supports a pool without repelling it.
-  for (let k = 0; k < N; k++) pres[k] = solid[k] ? 0 : Math.min(MAX_P, Math.max(0, dens[k] - REST_DENSITY));
-  for (let j = 0; j < MH; j++) {
-    for (let i = 0; i < MW; i++) {
+  if (maxI < 0) { pbox = null; return; }                           // no water in play
+  const bi0 = Math.max(0, minI - 3), bi1 = Math.min(MW - 1, maxI + 4), bj0 = Math.max(0, minJ - 3), bj1 = Math.min(MH - 1, maxJ + 4);
+  pbox = [bi0, bi1, bj0, bj1];
+  for (let j = bj0; j <= bj1; j++) for (let k = j * MW + bi0, e = j * MW + bi1; k <= e; k++)
+    pres[k] = solid[k] ? 0 : Math.min(MAX_P, Math.max(0, dens[k] - REST_DENSITY));
+  for (let j = bj0; j <= bj1; j++) {
+    for (let i = bi0; i <= bi1; i++) {
       const k = j * MW + i;
       if (!solid[k]) continue;
       let m = 0;
@@ -592,11 +739,12 @@ function updateParticles(dt) {
     // A pool, or the impact zone where fast water meets resting water, has
     // low coherence and feels full pressure, so arrivals spread instead of
     // plunging through.
-    let pscale = 1;
+    let pscale = 1, flowX = 0;
     if (dens[k0] > 0.5) {
       const inv = 1 / dens[k0], mvx = cvx[k0] * inv, mvy = cvy[k0] * inv;
       vx[i] += (mvx - vx[i]) * vmix;   // viscosity: relax toward the cell's mean velocity
       vy[i] += (mvy - vy[i]) * vmix;
+      flowX = mvx;
       const meanSpeed = csp[k0] * inv, meanVel = Math.hypot(mvx, mvy);
       const coherence = (meanVel / (meanSpeed + 1e-3)) * Math.min(1, meanSpeed / STREAM_SPEED);
       pscale = Math.max(0.08, 1 - coherence);
@@ -613,8 +761,20 @@ function updateParticles(dt) {
         }
       }
       inPool[i] = nowPool ? 1 : 0;
+      // Levelling: resting pooled water drifts sideways into a neighbouring cell that holds much less water
+      // (never into rock). Only the pool's edges and the top of a mound qualify, so lumps flatten and a full
+      // pool stays calm; the drift stops once the layer thins to the pool density.
+      if (LEVEL > 0 && nowPool && coherence < 0.5) {
+        const own = dens[k0];
+        const l = ci0 > 0 && !solid[k0 - 1] && dens[k0 - 1] < own * 0.5, r = ci0 < MW - 1 && !solid[k0 + 1] && dens[k0 + 1] < own * 0.5;
+        const dir = l && r ? (Math.random() < 0.5 ? -1 : 1) : l ? -1 : r ? 1 : 0;
+        if (dir) vx[i] += dir * LEVEL * dt;
+      }
     } else inPool[i] = 0;
     let pdx = -K_PRESSURE * K_LATERAL * gx * pscale * dt, pdy = -K_PRESSURE * gy * pscale * dt;
+    // Water that is flowing sideways keeps going: the sideways push that would turn it back is weakened
+    // in proportion to its speed (full effect at FLOW_REF cells/s), while the push forward is left alone.
+    if (FLOW_KEEP > 0 && pdx * flowX < 0) pdx *= 1 - FLOW_KEEP * Math.min(1, Math.abs(flowX) / 15);
     const pdm = Math.hypot(pdx, pdy);
     if (pdm > MAX_PDV) { pdx *= MAX_PDV / pdm; pdy *= MAX_PDV / pdm; }
     vx[i] += pdx;
@@ -628,22 +788,45 @@ function updateParticles(dt) {
     let stuck = false;
     for (let s = 0; s < SUB && !stuck; s++) {
       let nx = x[i] + vx[i] * h, ny = y[i] + vy[i] * h;
-      const ci = nx | 0, cj = ny | 0;
-      if (ci >= 0 && ci < MW && cj >= 0 && cj < MH && solid[cj * MW + ci]) {
-        // Contact: push out along the surface normal, then slide.
-        let k = cj * MW + ci, qx = nrmX[k], qy = nrmY[k];
-        if (qx === 0 && qy === 0) { stuck = true; break; }
-        let out = false;
-        for (let t = 0; t < 12; t++) {
-          nx += qx * 0.6; ny += qy * 0.6;
-          const ti = nx | 0, tj = ny | 0;
-          if (ti < 0 || ti >= MW || tj < 0 || tj >= MH) { out = true; break; }
-          k = tj * MW + ti;
-          if (!solid[k]) { out = true; break; }
-          if (nrmX[k] !== 0 || nrmY[k] !== 0) { qx = nrmX[k]; qy = nrmY[k]; }
+      let hit = false, qx = 0, qy = 0;
+      if (SMOOTH) {
+        // Contact with the smooth distance field: if the particle is within PAD of a surface, project it back out
+        // along the exact surface normal (the field's gradient).
+        let d = sdfAt(nx, ny);
+        if (d < PAD) {
+          for (let it = 0; it < 3; it++) {
+            const gx = sdfAt(nx + 0.5, ny) - sdfAt(nx - 0.5, ny), gy = sdfAt(nx, ny + 0.5) - sdfAt(nx, ny - 0.5), gl = Math.hypot(gx, gy);
+            if (gl < 1e-3) { stuck = true; break; }
+            qx = gx / gl; qy = gy / gl;
+            nx += qx * (PAD - d); ny += qy * (PAD - d);
+            d = sdfAt(nx, ny);
+            if (d >= PAD - 0.05) break;
+          }
+          if (stuck) break;
+          hit = true;
         }
-        if (!out) { stuck = true; break; }
-        nx += qx * 0.35; ny += qy * 0.35;   // settle fully into the fluid cell so the weight counts
+      } else {
+        const ci = nx | 0, cj = ny | 0;
+        if (ci >= 0 && ci < MW && cj >= 0 && cj < MH && solid[cj * MW + ci]) {
+          // Contact on the cell grid: push out along the surface normal.
+          let k = cj * MW + ci;
+          qx = nrmX[k]; qy = nrmY[k];
+          if (qx === 0 && qy === 0) { stuck = true; break; }
+          let out = false;
+          for (let t = 0; t < 12; t++) {
+            nx += qx * 0.6; ny += qy * 0.6;
+            const ti = nx | 0, tj = ny | 0;
+            if (ti < 0 || ti >= MW || tj < 0 || tj >= MH) { out = true; break; }
+            k = tj * MW + ti;
+            if (!solid[k]) { out = true; break; }
+            if (nrmX[k] !== 0 || nrmY[k] !== 0) { qx = nrmX[k]; qy = nrmY[k]; }
+          }
+          if (!out) { stuck = true; break; }
+          nx += qx * 0.35; ny += qy * 0.35;   // settle fully into the fluid cell so the weight counts
+          hit = true;
+        }
+      }
+      if (hit) {
         // kill the velocity into the surface (no bounce), keep most of the slide
         const vn = vx[i] * qx + vy[i] * qy;
         if (vn < 0) {
@@ -747,15 +930,44 @@ function drawScene() {
 let debug = false;
 let fps = 0, fpsAcc = 0, fpsN = 0, fpsT = 0;
 
+// Debug: every particle is drawn as a dot coloured by its speed (cells/s), blue = resting through red = fast,
+// over a faded copy of the water so the colours read.
+const SPEED_MAX = 60, SPEED_BUCKETS = 10;
+const speedColor = b => `hsl(${Math.round(220 - 220 * b / (SPEED_BUCKETS - 1))},95%,50%)`;
+function drawParticleSpeeds() {
+  const sx = W / MW, sy = sx, { n, x, y, vx, vy, active } = P;
+  const half = Math.max(1, sx * 0.5), size = half * 2;
+  const buckets = Array.from({ length: SPEED_BUCKETS }, () => []);
+  for (let i = 0; i < n; i++) {
+    if (!active[i]) continue;
+    const Y = y[i] * sy - SY; if (Y < -4 || Y > H + 4) continue;
+    const b = Math.min(SPEED_BUCKETS - 1, Math.floor(Math.hypot(vx[i], vy[i]) / SPEED_MAX * (SPEED_BUCKETS - 1)));
+    buckets[b].push(x[i] * sx - half, Y - half);
+  }
+  buckets.forEach((pts, b) => {
+    if (!pts.length) return;
+    octx.fillStyle = speedColor(b);
+    octx.beginPath();
+    for (let k = 0; k < pts.length; k += 2) octx.rect(pts[k], pts[k + 1], size, size);
+    octx.fill();
+  });
+  // legend
+  const lx = W - 232, ly = 48, lw = 220;
+  octx.fillStyle = 'rgba(0,0,0,.6)'; octx.fillRect(lx, ly, lw, 38);
+  for (let b = 0; b < SPEED_BUCKETS; b++) { octx.fillStyle = speedColor(b); octx.fillRect(lx + 10 + b * 20, ly + 8, 20, 10); }
+  octx.fillStyle = '#fff'; octx.font = '11px ui-monospace, Menlo, monospace';
+  octx.fillText('0', lx + 10, ly + 32); octx.fillText(String(SPEED_MAX / 2), lx + 100, ly + 32); octx.fillText(SPEED_MAX + '+ cells/s', lx + 150, ly + 32);
+}
 function drawDebug() {
+  drawParticleSpeeds();
   const d = maskImg.data;
   for (let i = 0, k = 0; i < MW * MH; i++, k += 4) {
-    d[k] = 255; d[k + 1] = 40; d[k + 2] = 200; d[k + 3] = solid[i] ? 110 : 0;
+    d[k] = 255; d[k + 1] = 40; d[k + 2] = 200; d[k + 3] = solid[i] ? 70 : 0;
   }
   maskCtx.putImageData(maskImg, 0, 0);
   octx.imageSmoothingEnabled = false;
   octx.drawImage(maskCanvas, 0, SY * MW / W, MW, H * MW / W, 0, 0, W, H);   // the part of the mask that is on screen
-  const line = `fps ${fps.toFixed(0)}   particles ${P.n - freeCount}/${P.n}   sources ${allSources().length}   grid ${MW}x${MH}`;
+  const line = `fps ${fps.toFixed(0)}   particles ${P.n - freeCount}/${P.n}   sources ${allSources().length}   grid ${MW}x${MH}   ms sim ${ms.sim.toFixed(1)} draw ${ms.draw.toFixed(1)} ovl ${ms.ovl.toFixed(1)}`;
   octx.font = '13px ui-monospace, Menlo, monospace';
   const tw = octx.measureText(line).width + 20, tx = W - tw - 12, ty = 12;
   octx.fillStyle = 'rgba(0,0,0,.6)'; octx.fillRect(tx, ty, tw, 28);
@@ -848,9 +1060,12 @@ function drawGuides() {
   octx.setLineDash([]);
 }
 
+let waterDim = false;
 function drawOverlay() {
   octx.clearRect(0, 0, W, H);
-  if (debug && isEdit) drawDebug();
+  const dbg = debug && isEdit;
+  if (dbg !== waterDim) { waterEl.style.opacity = dbg ? '0.2' : ''; waterDim = dbg; }   // fade the real water so the speed colours show
+  if (dbg) drawDebug();
   drawGuides();
   drawSelection();
   drawHandles();
@@ -861,22 +1076,34 @@ function drawOverlay() {
 }
 
 // ------------------------------------------------------------------ main loop
-let running = false, last = 0;
+let running = false, last = 0, last0 = 0, frameEma = 16, tuneT = 0;
+const ms = { sim: 0, draw: 0, ovl: 0 };     // smoothed CPU time per frame (ms), shown in the debug line
 let maskFrames = 12;                       // the mask only needs recomputing for a few frames after the rock changes
 function step(dt) { if (maskFrames > 0) { updateMask(); maskFrames--; } updateParticles(dt); }
 function frame(t) {
   if (!running) return;
   const dt = Math.min(0.033, (t - last) / 1000); last = t;
   fpsAcc += dt; fpsN++;
+  frameEma += ((t - last0) - frameEma) * 0.05; last0 = t;      // real time between frames, smoothed
   if (t - fpsT > 500) { fps = fpsN / fpsAcc; fpsAcc = 0; fpsN = 0; fpsT = t; }
+  if (lowEnd && t - tuneT > 1500) {                            // under ~40 fps: ease the flow down; recover slowly when there is headroom
+    tuneT = t;
+    if (frameEma > 25 && rateScale > 0.35) rateScale = Math.max(0.35, rateScale * 0.8);
+    else if (frameEma < 19 && rateScale < 1) rateScale = Math.min(1, rateScale * 1.1);
+  }
+  const t0 = performance.now();
   step(dt);
+  const t1 = performance.now();
   drawScene();
+  const t2 = performance.now();
   drawOverlay();
+  const t3 = performance.now();
+  ms.sim += (t1 - t0 - ms.sim) * 0.1; ms.draw += (t2 - t1 - ms.draw) * 0.1; ms.ovl += (t3 - t2 - ms.ovl) * 0.1;
   requestAnimationFrame(frame);
 }
 function wake() {
   if (running) return;
-  running = true; last = performance.now();
+  running = true; last = last0 = performance.now(); frameEma = 16;
   requestAnimationFrame(frame);
 }
 // redraw the overlay once while the loop is stopped (reduced motion)
@@ -894,41 +1121,48 @@ function fitToolbar() {
 function resize() {
   fitToolbar();
   dpr = Math.min(window.devicePixelRatio || 1, 2);
-  const oldMH = MH;
+  const oldMH = MH, oldMW = MW;
   W = window.innerWidth; H = window.innerHeight;
+  WR = Math.min(W, WMAX);
   for (const c of [passEl, rockEl, waterEl, overlay]) {
-    c.width = Math.round(W * dpr); c.height = Math.round(H * dpr);
-    c.getContext('2d').setTransform(dpr, 0, 0, dpr, 0, 0);
+    // the filtered water canvas and the per-frame overlay are the expensive ones on phones: draw them at 1x there
+    const d = (lowEnd && (c === waterEl || c === overlay)) ? 1 : dpr;
+    c.width = Math.round(W * d); c.height = Math.round(H * d);
+    c.getContext('2d').setTransform(d, 0, 0, d, 0, 0);
   }
   // The world is as tall as a phone screen at this width (about 9:19.5) when the window is shorter; the page scrolls through it
-  HW = Math.max(H, Math.round(W * 19.5 / 9));
+  HW = Math.max(H, Math.round(WR * 19.5 / 9));
   $('spacer').style.height = HW + 'px';
-  MH = Math.max(8, Math.round(MW * HW / W));
+  MW = Math.max(8, Math.round(W * MW0 / WR));                           // cells are WR/MW0 px, whatever the window width
+  MH = Math.max(8, Math.round(HW * MW / W));
   SY = window.scrollY;
-  OX = W * (1 - WORLD) / 2; OY0 = H * (1 - WORLD) / 2; OY = OY0 - SY;     // the scene sits centred in the first screenful
-  CX = MW * (1 - WORLD) / 2; CY = OY0 * MW / W;
+  OX = (W - WR * WORLD) / 2; OY0 = H * (1 - WORLD) / 2; OY = OY0 - SY;   // the scene sits centred in the first screenful
+  CX = OX * MW / W; CY = OY0 * MW / W;
   const N = MW * MH;
+  sdf = new Float32Array(N).fill(SDF_CLAMP);
   solidSrc = new Uint8Array(N); domMask = new Uint8Array(N); raw = new Uint8Array(N); ema = new Float32Array(N); field = new Float32Array(N);
   solid = new Uint8Array(N); nrmX = new Float32Array(N); nrmY = new Float32Array(N);
   dens = new Float32Array(N); pres = new Float32Array(N); cvx = new Float32Array(N); cvy = new Float32Array(N); csp = new Float32Array(N);
   maskCanvas = document.createElement('canvas'); maskCanvas.width = MW; maskCanvas.height = MH;
   maskCtx = maskCanvas.getContext('2d'); maskImg = maskCtx.createImageData(MW, MH);
+  pbox = null;                               // the field arrays above are new and all zero
   rebuildSolid();
   applyGooMode();
-  if (!P || MH !== oldMH || P.n !== effBudget()) allocParticles(effBudget());
+  if (!P || MH !== oldMH || MW !== oldMW || P.n !== effBudget()) allocParticles(effBudget());
   if (!running) { drawScene(); drawOverlay(); }
 }
 
 // ------------------------------------------------------------------ tools and input
 const undoStack = [];
-function snapshot(withAuthored) { return { authored: withAuthored ? scene.strokes.slice() : null, strokes: visitor.strokes.slice(), sources: visitor.sources.map(s => Object.assign({}, s)), hidden: visitor.hidden.slice(), edits: Object.assign({}, visitor.edits) }; }
-function pushUndo(withAuthored) { undoStack.push(snapshot(withAuthored)); if (undoStack.length > MAX_UNDO) undoStack.shift(); updateUndoBtn(); }
-function layerChanged() { rebuildSolid(); saveVisitor(); }
+function snapshot(withAuthored) { return { authored: withAuthored ? scene.strokes.slice() : null, authoredSources: withAuthored ? scene.sources.map(s => Object.assign({}, s)) : null, strokes: visitor.strokes.slice(), sources: visitor.sources.map(s => Object.assign({}, s)), hidden: visitor.hidden.slice(), edits: Object.assign({}, visitor.edits) }; }
+// author mode: every undo step also carries the authored scene
+function pushUndo(withAuthored = isEdit) { undoStack.push(snapshot(withAuthored)); if (undoStack.length > MAX_UNDO) undoStack.shift(); updateUndoBtn(); }
+function layerChanged() { rebuildSolid(); if (isEdit) sceneChanged(); else saveVisitor(); }
 function undo() {
   const snap = undoStack.pop();
   if (!snap) { setStatus('Nothing to undo.'); return; }
   visitor.strokes = snap.strokes; visitor.sources = snap.sources; visitor.hidden = snap.hidden; visitor.edits = snap.edits;
-  if (snap.authored) { scene.strokes = snap.authored; sceneChanged(); }   // Clear all in author mode also took the authored strokes
+  if (snap.authored) { scene.strokes = snap.authored; scene.sources = snap.authoredSources; sceneChanged(); }
   if (selected && !allSources().some(o => o.s === selected)) selected = null;
   layerChanged(); updateUndoBtn(); refreshAuthor();
 }
@@ -965,7 +1199,10 @@ function addPoint(ux, uy) {
   const q = [ux, uy];
   if (lastPt && Math.hypot(ux - lastPt[0], uy - lastPt[1]) < cur.r * 0.3) { tail = q; return; }   // decimate
   if (cur.kind === 'pass') { /* nothing to collide with */ }
-  else if (lastPt) paintSeg(solidSrc, lastPt, q, cur.r, cur.erase); else paintDisc(solidSrc, ux * gu(), uy * gu(), cur.r * gu(), cur.erase);
+  else {
+    if (lastPt) paintSeg(solidSrc, lastPt, q, cur.r, cur.erase); else paintDisc(solidSrc, ux * gu(), uy * gu(), cur.r * gu(), cur.erase);
+    stampSeg(lastPt || q, q, cur.r, cur.erase);       // keep the distance field in step with the stroke being drawn
+  }
   cur.p.push(q); lastPt = q; tail = null; rockDirty = true; maskFrames = 12;
 }
 function endStroke() {
@@ -973,7 +1210,7 @@ function endStroke() {
   if (tail) addPoint(tail[0], tail[1]);
   pushUndo();
   if (!cur.erase) joinGroups(cur);
-  visitor.strokes.push(cur);
+  (isEdit ? scene.strokes : visitor.strokes).push(cur);
   cur = null; lastPt = null; tail = null;
   layerChanged();
 }
@@ -988,8 +1225,8 @@ function pickSource(x, y) {
 }
 // snap to the top of rock below the point; free-floating if none within 6 cells
 function snapSource(s, ux, uy) {
-  const lo = -scene.grid.w * (1 - WORLD) / (2 * WORLD);                   // the window shows units lo .. lo + grid.w / WORLD
-  s.x = Math.min(lo + scene.grid.w / WORLD - 1, Math.max(lo + 1, ux));
+  const lo = toUnitsX(-OX), hi = toUnitsX(W - OX);                          // the window shows units lo .. hi
+  s.x = Math.min(hi - 1, Math.max(lo + 1, ux));
   const top = solidBelow(s.x, uy);
   s.y = top >= 0 ? (top - 0.5 - CY) / gu() : uy;
 }
@@ -1013,14 +1250,16 @@ function sourceDown(e) {
   const L = ci - 4 >= 0 && solidSrc[cj * MW + ci - 4], R = ci + 4 < MW && solidSrc[cj * MW + ci + 4];
   if (R && !L) setAngle(s, 180);
   pushUndo();
-  visitor.sources.push(s);
+  (isEdit ? scene.sources : visitor.sources).push(s);
   selected = s;
-  saveVisitor(); refreshAuthor();
+  if (isEdit) sceneChanged(); else saveVisitor();
+  refreshAuthor();
   setStatus(isFree(s) ? 'Placed a free-floating spring. Drop sources on rock to pour over a lip.' : 'Waterfall added. Drag it along the ledge.');
 }
 function deleteSource(o) {
-  if (o.owner === 'visitor') { pushUndo(); visitor.sources.splice(visitor.sources.indexOf(o.s), 1); }
-  else if (!isEdit) { pushUndo(); visitor.hidden.push(scene.sources.indexOf(o.s)); }   // visitors hide the original instead
+  pushUndo();
+  if (o.owner === 'visitor') visitor.sources.splice(visitor.sources.indexOf(o.s), 1);
+  else if (!isEdit) visitor.hidden.push(scene.sources.indexOf(o.s));   // visitors hide the original instead
   else scene.sources.splice(scene.sources.indexOf(o.s), 1);
   if (selected === o.s) selected = null;
   if (o.owner === 'authored' && !isEdit) saveVisitor(); else sourceEdited(o);
@@ -1151,7 +1390,7 @@ function selectDown(e) {
 // st is the drag state ({ dup, srcs }); a duplicate drag leaves the originals and moves new copies.
 function beginSelEdit(st) {
     if (st.dup) { st.gmap = new Map(); st.nextG = nextGroup(); }
-    if (sel.some(o => entryLayer(o) === 'visitor') || st.srcs.some(o => o.owner === 'visitor' || !isEdit)) pushUndo();   // snapshots share stroke objects, so move copies
+    pushUndo();                                        // snapshots share stroke objects, so move copies
     for (const o of st.srcs) adoptSource(o);
     sel = sel.map(o => {
       const c = { p: o.s.p.map(q => [q[0], q[1]]), r: o.s.r, erase: o.s.erase };
@@ -1224,6 +1463,7 @@ function rotateMove(e) {
   const rot = q => { const x = q[0] - cx, y = q[1] - cy; q[0] = cx + x * cs - y * sn; q[1] = cy + x * sn + y * cs; };
   for (const o of sel) for (const q of o.s.p) rot(q);
   for (const o of rdrag.srcs) { const q = [o.s.x, o.s.y]; rot(q); o.s.x = q[0]; o.s.y = q[1]; setAngle(o.s, o.s.angle + d * 180 / Math.PI); }
+  addSweep('rot', cx, cy, d);
   const v = rotMemory.get(rdrag.key);                // the handle turns with the strokes, so it stays where you left it
   if (v) rotMemory.set(rdrag.key, [v[0] * cs - v[1] * sn, v[0] * sn + v[1] * cs]);
   solidDirty = true;
@@ -1254,6 +1494,7 @@ function strokeDragMove(e) {
   const dx = ux - sdrag.last[0], dy = uy - sdrag.last[1];
   for (const o of sel) for (const q of o.s.p) { q[0] += dx; q[1] += dy; }
   for (const o of sdrag.srcs) { o.s.x += dx; o.s.y += dy; }
+  addSweep('move', dx, dy);
   sdrag.last = [ux, uy]; solidDirty = true;
 }
 function saveSelOwners(srcs) {
@@ -1267,7 +1508,7 @@ function endStrokeDrag() {
 }
 function deleteSelectedStroke() {
   if (!sel.length) return false;
-  if (sel.some(o => entryLayer(o) === 'visitor')) pushUndo();
+  pushUndo();
   for (const o of sel) removeEntry(o);
   saveSelOwners(); solidDirty = true;
   sel = []; sdrag = null;
@@ -1387,6 +1628,24 @@ function updateUndoBtn() { $('btnUndo').disabled = !undoStack.length; }
 for (const b of document.querySelectorAll('[data-tool]')) b.onclick = () => { setTool(b.dataset.tool); wake(); b.blur(); showUI(); };
 $('btnUndo').onclick = e => { undo(); wake(); e.currentTarget.blur(); };
 $('btnClear').onclick = e => { clearAll(); wake(); e.currentTarget.blur(); };
+
+// Clear cache: forget everything this browser saved (visitor layer, author draft) and reload the authored scene
+const modalBack = $('modalBack');
+const modalOpen = () => modalBack.classList.contains('show');
+function showModal(on) { modalBack.classList.toggle('show', on); if (on) $('modalCancel').focus(); }
+function clearCache() {
+  try {
+    for (let i = localStorage.length - 1; i >= 0; i--) {
+      const k = localStorage.key(i);
+      if (k && (k.startsWith('etchawet.') || k.startsWith('waterfall.'))) localStorage.removeItem(k);
+    }
+  } catch (e) {}
+  location.reload();
+}
+$('btnCache').onclick = e => { showModal(true); e.currentTarget.blur(); };
+$('modalCancel').onclick = () => showModal(false);
+$('modalOk').onclick = clearCache;
+modalBack.addEventListener('pointerdown', e => { if (e.target === modalBack) showModal(false); });
 $('btnHelp').onclick = e => { toggleHelp(); e.currentTarget.blur(); };
 
 function toggleHelp() {
@@ -1405,6 +1664,7 @@ function toggleHelp() {
 function toggleFullscreen() { if (document.fullscreenElement) document.exitFullscreen(); else document.documentElement.requestFullscreen().catch(() => {}); }
 
 window.addEventListener('keydown', e => {
+  if (modalOpen()) { if (e.key === 'Escape') showModal(false); return; }   // the dialog owns the keyboard while it is up
   const tag = e.target.tagName;
   if (tag === 'INPUT' && e.target.type !== 'range' && e.target.type !== 'checkbox') return;
   // a focused control (select, slider, button) keeps keyboard focus after a
@@ -1484,7 +1744,6 @@ function setFlow(prop, val) {
 
 function exportScene() {
   scene.version += 1;
-  saveVisitor();
   const blob = new Blob([JSON.stringify(scene, null, 2) + '\n'], { type: 'application/json' });
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob); a.download = 'etch-a-wet-scene.json';
@@ -1507,14 +1766,19 @@ function importScene(file) {
   };
   rd.readAsText(file);
 }
+// Promote: pull this browser's saved visitor layer (drawn without ?edit) into the scene. Only its own
+// strokes and sources come across; a visitor's moves or deletions of authored strokes are ignored.
 function promoteVisitor() {
-  if (layerEmpty()) { setStatus('The visitor layer is empty.'); return; }
-  scene.strokes = authoredEff().map(e => e.s).concat(visitor.strokes);   // moved or deleted authored strokes keep their place
-  scene.sources = scene.sources.filter((_, i) => !visitor.hidden.includes(i)).concat(visitor.sources);   // moved or removed sources replace their originals
-  visitor = emptyLayer();
-  undoStack.length = 0; selected = null;
-  layerChanged(); sceneChanged(); refreshAuthor(); updateUndoBtn();
-  setStatus('Visitor layer promoted into the authored scene.');
+  const vl = cleanLayer(lsGet(visitorKey()));
+  if (!vl.strokes.length && !vl.sources.length) { setStatus('No visitor layer saved in this browser.'); return; }
+  pushUndo();
+  scene.strokes.push(...vl.strokes);
+  scene.sources.push(...vl.sources);
+  assignGroups(scene.strokes.filter(st => !st.erase));
+  lsDel(visitorKey());
+  selected = null;
+  layerChanged(); refreshAuthor();
+  setStatus(`Promoted ${vl.strokes.length} strokes and ${vl.sources.length} sources from the visitor layer.`);
 }
 
 $('btnScroll').hidden = !coarse;
@@ -1530,7 +1794,25 @@ if (isEdit) {
   $('btnImport').onclick = () => $('fileImport').click();
   $('fileImport').onchange = e => { if (e.target.files[0]) importScene(e.target.files[0]); e.target.value = ''; };
   $('btnPromote').onclick = promoteVisitor;
-  $('btnClearVisitor').onclick = () => { resetVisitor(); wake(); };
+  // physics sliders: live, remembered in this browser
+  const physList = $('physList');
+  function buildPhys() {
+    physList.innerHTML = '';
+    const cur = phys();
+    for (const k of Object.keys(PHYS_DEFAULTS)) {
+      const [lo, hi, st] = PHYS_RANGES[k];
+      const row = document.createElement('div'); row.className = 'phys';
+      const lab = document.createElement('label'); lab.textContent = k.toLowerCase().replace('_', ' '); lab.title = k;
+      const sl = document.createElement('input'); sl.type = 'range'; sl.min = lo; sl.max = hi; sl.step = st; sl.value = cur[k];
+      const val = document.createElement('span'); val.textContent = cur[k];
+      sl.oninput = () => { setPhys(k, +sl.value); val.textContent = sl.value; wake(); };
+      row.append(lab, sl, val); physList.append(row);
+    }
+  }
+  buildPhys();
+  $('btnPhysReset').onclick = () => { for (const k of Object.keys(PHYS_DEFAULTS)) setPhys(k, PHYS_DEFAULTS[k]); buildPhys(); setStatus('Physics reset to defaults.'); };
+  $('btnPhysCopy').onclick = () => { const t = JSON.stringify(phys()); (navigator.clipboard ? navigator.clipboard.writeText(t) : Promise.reject()).then(() => setStatus('Physics values copied.'), () => setStatus(t)); };
+  $('btnClearVisitor').onclick = () => { lsDel(visitorKey()); setStatus('Visitor layer cleared from this browser.'); };
 }
 
 // ------------------------------------------------------------------ boot
@@ -1549,9 +1831,6 @@ async function boot() {
     if (ds) scene = ds;
   }
   loadVisitor();
-  if (isEdit && Object.keys(visitor.edits).length) {   // author sessions work on the authored list directly, so fold visitor moves in first
-    scene.strokes = authoredEff().map(e => e.s); visitor.edits = {}; saveVisitor();
-  }
   resize();
   ready = true;
   refreshAuthor(); updateUndoBtn(); sceneChanged();
