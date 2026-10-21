@@ -420,13 +420,17 @@ function stampStroke(st) {
   if (p.length === 1) stampSeg(p[0], p[0], st.r, st.erase);
   for (let i = 1; i < p.length; i++) stampSeg(p[i - 1], p[i], st.r, st.erase);
 }
-function stampBox(i0, j0, i1, j1) {            // axis-aligned box in cells
+// signed distance from (px, py) to a rounded box centred at (mx, my) with half sizes (hw, hh) and corner radius rad
+function roundBoxDist(px, py, mx, my, hw, hh, rad) {
+  const qx = Math.abs(px - mx) - (hw - rad), qy = Math.abs(py - my) - (hh - rad);
+  return Math.hypot(Math.max(qx, 0), Math.max(qy, 0)) + Math.min(Math.max(qx, qy), 0) - rad;
+}
+function stampBox(i0, j0, i1, j1, rad = 0) {   // box in cells, optionally with rounded corners
   const mx = (i0 + i1) / 2, my = (j0 + j1) / 2, hw = (i1 - i0) / 2, hh = (j1 - j0) / 2;
   const a = Math.max(0, Math.floor(i0 - SDF_CLAMP)), b = Math.min(MW - 1, Math.ceil(i1 + SDF_CLAMP));
   const c = Math.max(0, Math.floor(j0 - SDF_CLAMP)), e = Math.min(MH - 1, Math.ceil(j1 + SDF_CLAMP));
   for (let j = c; j <= e; j++) for (let i = a; i <= b; i++) {
-    const qx = Math.abs(i + 0.5 - mx) - hw, qy = Math.abs(j + 0.5 - my) - hh;
-    const d = Math.hypot(Math.max(qx, 0), Math.max(qy, 0)) + Math.min(Math.max(qx, qy), 0), k = j * MW + i;
+    const d = roundBoxDist(i + 0.5, j + 0.5, mx, my, hw, hh, rad), k = j * MW + i;
     if (d < sdf[k]) sdf[k] = d;
   }
 }
@@ -450,12 +454,18 @@ function rasterStrokes(strokes, buf) {
 // DOM elements marked data-water="solid" act as terrain (on by default; ?nodom switches it off)
 function rasterDom(buf) {
   for (const el of document.querySelectorAll('[data-water="solid"]')) {
-    if (getComputedStyle(el).pointerEvents === 'none') continue;   // hidden UI stops being terrain
-    const r = el.getBoundingClientRect();
-    const i0 = Math.max(0, Math.round(r.left / W * MW) + 1), i1 = Math.min(MW, Math.round(r.right / W * MW) - 1);
-    const j0 = Math.max(0, Math.round((r.top + window.scrollY) * MW / W) + 1), j1 = Math.min(MH, Math.round((r.bottom + window.scrollY) * MW / W) - 1);
-    for (let j = j0; j < j1; j++) for (let i = i0; i < i1; i++) { buf[j * MW + i] = 1; domMask[j * MW + i] = 1; }
-    if (i1 > i0 && j1 > j0) stampBox(i0, j0, i1, j1);
+    const cs = getComputedStyle(el);
+    if (cs.pointerEvents === 'none') continue;   // hidden UI stops being terrain
+    const r = el.getBoundingClientRect(), k = MW / W;
+    const i0 = r.left * k, i1 = r.right * k, j0 = (r.top + window.scrollY) * k, j1 = (r.bottom + window.scrollY) * k;
+    if (i1 <= i0 || j1 <= j0) continue;
+    // the element's own corner radius (a pill gets half its height), so water meets the shape that is drawn
+    const rad = Math.min((parseFloat(cs.borderTopLeftRadius) || 0) * k, (i1 - i0) / 2, (j1 - j0) / 2);
+    const mx = (i0 + i1) / 2, my = (j0 + j1) / 2, hw = (i1 - i0) / 2, hh = (j1 - j0) / 2;
+    for (let j = Math.max(0, Math.floor(j0)); j < Math.min(MH, Math.ceil(j1)); j++)
+      for (let i = Math.max(0, Math.floor(i0)); i < Math.min(MW, Math.ceil(i1)); i++)
+        if (roundBoxDist(i + 0.5, j + 0.5, mx, my, hw, hh, rad) < 0) { buf[j * MW + i] = 1; domMask[j * MW + i] = 1; }
+    stampBox(i0, j0, i1, j1, rad);
   }
 }
 
@@ -506,6 +516,7 @@ function setDomProvider(on) {
     const dirty = () => { solidDirty = true; };
     domWatch = new ResizeObserver(dirty);
     domWatch.observe(document.body);
+    for (const el of document.querySelectorAll('[data-water="solid"]')) domWatch.observe(el);   // re-measure when an element changes size (icon-only toolbar, slider shown or hidden, ...)
     window.addEventListener('scroll', dirty, { passive: true });
   }
   solidDirty = true;
